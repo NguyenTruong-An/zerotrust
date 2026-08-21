@@ -13,4 +13,10 @@ public class WebException extends RuntimeException {
         this.errorCode = errorCode;
         this.details = null;
     }
+
+    public WebException(ErrorCode errorCode, Object details) {
+        super(errorCode.getMessage());
+        this.errorCode = errorCode;
+        this.details = details;
+    }
 }

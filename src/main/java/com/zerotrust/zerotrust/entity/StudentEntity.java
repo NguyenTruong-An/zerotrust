@@ -6,6 +6,7 @@ import lombok.Getter;
 import lombok.Setter;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -13,44 +14,35 @@ import java.util.UUID;
 @Table(name = "students")
 @Getter
 @Setter
-public class StudentEntity {
+public class StudentEntity extends AuditableEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @OneToOne
-    @JoinColumn(name = "user_id", unique = true)
-    @JsonBackReference
+    @OneToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "user_id", nullable = false, unique = true)
+    @JsonBackReference("user-student")
     private UserEntity userEntity;
 
-    @Column(name = "student_code", nullable = false, unique = true)
+    @Column(name = "student_code", nullable = false, unique = true, length = 30)
     private String studentCode;
-
-    @Column(name = "full_name", nullable = false)
-    private String fullName;
 
     @Column(name = "date_of_birth", nullable = false)
     private LocalDate dateOfBirth;
 
-    @Column(name = "gender", nullable = false)
+    @Column(name = "gender", nullable = false, length = 20)
     private String gender;
 
-    @Column(name = "phone", nullable = false)
+    @Column(name = "phone", length = 20)
     private String phone;
 
-    @Column(name = "address", nullable = false)
+    @Column(name = "address", length = 500)
     private String address;
 
-    @ManyToOne
-    @JoinColumn(name = "class_id")
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "class_id", nullable = false)
     private StudentClassEntity studentClassEntity;
 
     @OneToMany(mappedBy = "studentEntity")
-    private List<ScoreEntity> scoreEntities;
-
-    @Column(name = "create_at", nullable = false)
-    private LocalDate createAt = LocalDate.now();
-
-    @Column(name = "update_at", nullable = false)
-    private LocalDate updateAt = LocalDate.now();
+    private List<ScoreEntity> scoreEntities = new ArrayList<>();
 }

@@ -3,8 +3,9 @@ package com.zerotrust.zerotrust.entity;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
+import org.hibernate.annotations.Check;
 
-import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -12,29 +13,25 @@ import java.util.UUID;
 @Table(name = "subjects")
 @Getter
 @Setter
-public class SubjectEntity {
+@Check(constraints = "credits BETWEEN 1 AND 20")
+public class SubjectEntity extends AuditableEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @Column(name = "subject_code", nullable = false, unique = true)
+    @Column(name = "subject_code", nullable = false, unique = true, length = 30)
     private String subjectCode;
 
-    @Column(name = "subject_name", nullable = false, unique = true)
+    @Column(name = "subject_name", nullable = false, length = 200)
     private String subjectName;
 
-    @Column(name = "credits", nullable = false)
-    private Integer credits;
+    @Column(name = "credits", nullable = false, columnDefinition = "TINYINT UNSIGNED")
+    private Short credits;
 
-    @Column(name = "description")
+    @Lob
+    @Column(name = "description", columnDefinition = "TEXT")
     private String description;
 
-    @Column(name = "create_at", nullable = false)
-    private LocalDateTime createAt = LocalDateTime.now();
-
-    @Column(name = "update_at", nullable = false)
-    private LocalDateTime updateAt = LocalDateTime.now();
-
     @OneToMany(mappedBy = "subjectEntity")
-    private List<SubjectClassEntity> subjectClassEntities;
+    private List<SubjectClassEntity> subjectClassEntities = new ArrayList<>();
 }

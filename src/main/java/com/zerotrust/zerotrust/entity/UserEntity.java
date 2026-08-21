@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonManagedReference;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
+
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -11,7 +12,7 @@ import java.util.UUID;
 @Table(name = "users")
 @Getter
 @Setter
-public class UserEntity {
+public class UserEntity extends AuditableEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
@@ -19,33 +20,42 @@ public class UserEntity {
     @Column(name = "keycloak_user_id", nullable = false, unique = true)
     private UUID keycloakUserId;
 
-    @Column(name = "username", nullable = false, unique = true)
+    @Column(name = "username", nullable = false, unique = true, length = 100)
     private String username;
 
-    @Column(name = "first_name", nullable = false)
+    @Column(name = "first_name", nullable = false, length = 100)
     private String firstName;
 
-    @Column(name = "last_name", nullable = false)
+    @Column(name = "last_name", nullable = false, length = 100)
     private String lastName;
 
-    @Column(name = "email", nullable = false, unique = true)
+    @Column(name = "email", nullable = false, unique = true, length = 254)
     private String email;
 
-    @OneToOne(mappedBy = "userEntity", cascade = CascadeType.ALL)
-    @JsonManagedReference
+    @OneToOne(mappedBy = "userEntity", fetch = FetchType.LAZY)
+    @JsonManagedReference("user-student")
     private StudentEntity studentEntity;
 
+    @OneToOne(mappedBy = "userEntity", fetch = FetchType.LAZY)
+    @JsonManagedReference("user-teacher")
+    private TeacherEntity teacherEntity;
+
     @Enumerated(EnumType.STRING)
-    @Column(name= "status")
-    private Status status;
+    @Column(name = "status", nullable = false)
+    private Status status = Status.ACTIVE;
 
     public enum Status {
-        ACTIVE, INACTIVE
+        ACTIVE, INACTIVE, DELETED
     }
 
-    @Column(name = "create_at", nullable = false)
-    private LocalDateTime createAt = LocalDateTime.now();
+    @Column(name = "deleted_at")
+    private LocalDateTime deletedAt;
 
-    @Column(name = "update_at", nullable = false)
-    private LocalDateTime updateAt = LocalDateTime.now();
+    @PrePersist
+    @PreUpdate
+    void synchronizeDeletedAt() {
+        deletedAt = status == Status.DELETED
+                ? deletedAt == null ? LocalDateTime.now() : deletedAt
+                : null;
+    }
 }

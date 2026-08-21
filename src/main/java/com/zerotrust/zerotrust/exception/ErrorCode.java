@@ -8,10 +8,15 @@ import org.springframework.http.HttpStatus;
 @AllArgsConstructor
 public enum ErrorCode {
     USER_NOT_FOUND(HttpStatus.NOT_FOUND, "User not found"),
+    USER_INACTIVE(HttpStatus.FORBIDDEN, "User account is inactive"),
     INVALID_CREDENTIALS(HttpStatus.FORBIDDEN, "Invalid credentials"),
     EMAIL_EXISTS(HttpStatus.BAD_REQUEST, "Email already exists"),
     USERNAME_EXISTS(HttpStatus.BAD_REQUEST, "Username already exists"),
     USERNAME_IS_MISSING(HttpStatus.BAD_REQUEST, "Username is missing"),
+    INVALID_REQUEST(HttpStatus.BAD_REQUEST, "Request validation failed"),
+    IDENTITY_RESPONSE_INVALID(HttpStatus.BAD_GATEWAY, "Identity provider returned an invalid response"),
+    IDENTITY_PROVIDER_FORBIDDEN(HttpStatus.BAD_GATEWAY, "Identity provider rejected the service account"),
+    IDENTITY_PROVIDER_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "Identity provider is unavailable"),
     UNCATEGORIZED_EXCEPTION(HttpStatus.INTERNAL_SERVER_ERROR, "An unexpected error occurred"),
     UNAUTHORIZED(HttpStatus.UNAUTHORIZED, "Unauthorized access");
 

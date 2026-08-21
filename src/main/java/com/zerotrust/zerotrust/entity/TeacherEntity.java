@@ -5,38 +5,33 @@ import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 
-import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 @Table(name = "teachers")
 @Entity
 @Getter
 @Setter
-public class TeacherEntity {
+public class TeacherEntity extends AuditableEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @OneToOne
-    @JoinColumn(name = "user_id", unique = true)
-    @JsonBackReference
+    @OneToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "user_id", nullable = false, unique = true)
+    @JsonBackReference("user-teacher")
     private UserEntity userEntity;
 
-    @Column(name = "teacher_code", nullable = false, unique = true)
+    @Column(name = "teacher_code", nullable = false, unique = true, length = 30)
     private String teacherCode;
 
-    @Column(name = "full_name", nullable = false)
-    private String fullName;
-
-    @Column(name = "phone", nullable = false)
+    @Column(name = "phone", length = 20)
     private String phone;
 
-    @Column(name = "department", nullable = false)
+    @Column(name = "department", nullable = false, length = 150)
     private String department;
 
-    @Column(name = "create_at", nullable = false)
-    private LocalDateTime createAt = LocalDateTime.now();
-
-    @Column(name = "update_at", nullable = false)
-    private LocalDateTime updateAt = LocalDateTime.now();
+    @OneToMany(mappedBy = "teacherEntity")
+    private List<SubjectClassEntity> subjectClassEntities = new ArrayList<>();
 }

@@ -2,102 +2,139 @@ package com.zerotrust.zerotrust.service.impl;
 
 import com.zerotrust.zerotrust.converter.UserConverter;
 import com.zerotrust.zerotrust.entity.UserEntity;
-import com.zerotrust.zerotrust.exception.ErrorNormalizer;
-import com.zerotrust.zerotrust.model.identity.Credential;
-import com.zerotrust.zerotrust.model.identity.TokenExchangeParam;
-import com.zerotrust.zerotrust.model.identity.UserCreationParam;
+import com.zerotrust.zerotrust.exception.ErrorCode;
+import com.zerotrust.zerotrust.exception.WebException;
 import com.zerotrust.zerotrust.model.request.RegisterRequestDTO;
+import com.zerotrust.zerotrust.model.request.UpdateProfileRequestDTO;
 import com.zerotrust.zerotrust.model.response.UserResponseDTO;
-import com.zerotrust.zerotrust.repository.IdentityClient;
 import com.zerotrust.zerotrust.repository.UserRepository;
 import com.zerotrust.zerotrust.service.UserService;
-import feign.FeignException;
 import lombok.RequiredArgsConstructor;
-import lombok.experimental.NonFinal;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.ResponseEntity;
-import org.springframework.lang.Nullable;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
-@Slf4j
 public class UserServiceImpl implements UserService {
     private final UserRepository userRepository;
-    private final IdentityClient identityClient;
+    private final KeycloakUserProvisioner keycloakUserProvisioner;
     private final UserConverter userConverter;
-    private final ErrorNormalizer errorNormalizer;
-
-    @Value("${identity.client.client-id}")
-    @NonFinal
-    private String clientId;
-
-    @Value("${identity.client.client-secret}")
-    @NonFinal
-    private String clientSecret;
 
     @Override
-    public UserResponseDTO register(RegisterRequestDTO registerRequestDTO) {
+    public UserResponseDTO register(RegisterRequestDTO request) {
+        assertUserDoesNotExist(request);
+
+        UserEntity userEntity = Objects.requireNonNull(
+                userConverter.convertToEntity(request),
+                "User converter returned null");
+        KeycloakUserProvisioner.ProvisionedUser provisionedUser =
+                keycloakUserProvisioner.createUser(request);
+        UUID keycloakUserId = provisionedUser.userId();
+        userEntity.setKeycloakUserId(keycloakUserId);
+
+        UserEntity savedUser;
         try {
-            //Exchange Client Token
-            var token = identityClient.exchangeToken(TokenExchangeParam.builder()
-                    .grant_type("client_credentials")
-                    .client_id(clientId)
-                    .client_secret(clientSecret)
-                    .scope("openid")
-                    .build());
-            log.info("Exchanged token: {}", token);
-
-            //Get userId from Keycloak
-            var creationResponse = identityClient.createUser(
-                    "Bearer " + token.getAccessToken(),
-                    UserCreationParam.builder()
-                            .username(registerRequestDTO.getUsername())
-                            .email(registerRequestDTO.getEmail())
-                            .firstName(registerRequestDTO.getFirstName())
-                            .lastName(registerRequestDTO.getLastName())
-                            .enabled(true)
-                            .emailVerified(false)
-                            .credentials(List.of(Credential.builder()
-                                    .type("password")
-                                    .value(registerRequestDTO.getPassword())
-                                    .temporary(false)
-                                    .build()))
-                            .build());
-
-            UUID userId = extractUserId(creationResponse);
-            log.info("Exchanged userId: {}", userId);
-            log.info("User created in Keycloak: {}", creationResponse);
-
-        UserEntity userEntity = userConverter.convertToEntity(registerRequestDTO);
-        userEntity.setKeycloakUserId(userId);
-        userRepository.save(userEntity);
-            return null;
-
-        } catch(FeignException ex) {
-            throw errorNormalizer.handlerKeyCloakException(ex);
+            savedUser = userRepository.saveAndFlush(userEntity);
+        } catch (DataIntegrityViolationException ex) {
+            keycloakUserProvisioner.deleteUserQuietly(provisionedUser);
+            throw translateDataIntegrityViolation(request, ex);
+        } catch (RuntimeException ex) {
+            keycloakUserProvisioner.deleteUserQuietly(provisionedUser);
+            throw ex;
         }
+
+        return userConverter.convertToDto(savedUser);
     }
 
     @Override
-    @PreAuthorize("hasAuthority('ADMIN')")
-    public List<UserResponseDTO> getAllUsers() {
-        var userEntities = userRepository.findAll();
-        return userEntities.stream().map(userConverter::convertToDto).toList();
+    public UserResponseDTO getCurrentUser(UUID keycloakUserId) {
+        return userConverter.convertToDto(findActiveUser(keycloakUserId));
     }
 
-    @Nullable
-    private UUID extractUserId(ResponseEntity<?> response){
-        String locationHeader = response.getHeaders().getFirst("Location");
-        if (locationHeader != null && !locationHeader.isEmpty()) {
-            String[] parts = locationHeader.split("/");
-            return UUID.fromString(parts[parts.length - 1]);
+    @Override
+    public UserResponseDTO updateCurrentUser(
+            UUID keycloakUserId,
+            UpdateProfileRequestDTO request) {
+        if (request.getFirstName() == null && request.getLastName() == null) {
+            throw new WebException(
+                    ErrorCode.INVALID_REQUEST,
+                    "At least one profile field must be provided");
         }
-        return null;
+
+        UserEntity user = findActiveUser(keycloakUserId);
+        String previousFirstName = user.getFirstName();
+        String previousLastName = user.getLastName();
+        String updatedFirstName = request.getFirstName() == null
+                ? previousFirstName
+                : request.getFirstName().trim();
+        String updatedLastName = request.getLastName() == null
+                ? previousLastName
+                : request.getLastName().trim();
+
+        keycloakUserProvisioner.updateUserProfile(
+                keycloakUserId,
+                updatedFirstName,
+                updatedLastName);
+
+        user.setFirstName(updatedFirstName);
+        user.setLastName(updatedLastName);
+
+        UserEntity savedUser;
+        try {
+            savedUser = userRepository.saveAndFlush(user);
+        } catch (RuntimeException ex) {
+            keycloakUserProvisioner.updateUserProfileQuietly(
+                    keycloakUserId,
+                    previousFirstName,
+                    previousLastName);
+            throw ex;
+        }
+
+        return userConverter.convertToDto(savedUser);
+    }
+
+    private UserEntity findActiveUser(UUID keycloakUserId) {
+        UserEntity user = userRepository.findByKeycloakUserId(keycloakUserId)
+                .orElseThrow(() -> new WebException(ErrorCode.USER_NOT_FOUND));
+
+        if (user.getStatus() != UserEntity.Status.ACTIVE) {
+            throw new WebException(ErrorCode.USER_INACTIVE);
+        }
+
+        return user;
+    }
+
+    @Override
+    @PreAuthorize("hasRole('ADMIN')")
+    public List<UserResponseDTO> getAllUsers() {
+        return userRepository.findAll().stream()
+                .map(userConverter::convertToDto)
+                .toList();
+    }
+
+    private void assertUserDoesNotExist(RegisterRequestDTO request) {
+        if (userRepository.existsByUsernameIgnoreCase(request.getUsername())) {
+            throw new WebException(ErrorCode.USERNAME_EXISTS);
+        }
+        if (userRepository.existsByEmailIgnoreCase(request.getEmail())) {
+            throw new WebException(ErrorCode.EMAIL_EXISTS);
+        }
+    }
+
+    private RuntimeException translateDataIntegrityViolation(
+            RegisterRequestDTO request,
+            DataIntegrityViolationException originalException) {
+        if (userRepository.existsByUsernameIgnoreCase(request.getUsername())) {
+            return new WebException(ErrorCode.USERNAME_EXISTS);
+        }
+        if (userRepository.existsByEmailIgnoreCase(request.getEmail())) {
+            return new WebException(ErrorCode.EMAIL_EXISTS);
+        }
+        return originalException;
     }
 }
