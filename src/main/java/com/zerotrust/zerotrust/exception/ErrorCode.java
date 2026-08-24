@@ -9,6 +9,7 @@ import org.springframework.http.HttpStatus;
 public enum ErrorCode {
     USER_NOT_FOUND(HttpStatus.NOT_FOUND, "User not found"),
     USER_INACTIVE(HttpStatus.FORBIDDEN, "User account is inactive"),
+    STUDENT_NOT_FOUND(HttpStatus.NOT_FOUND, "Student not found"),
     STUDENT_CLASS_NOT_FOUND(HttpStatus.NOT_FOUND, "Student class not found"),
     STUDENT_CLASS_CODE_EXISTS(HttpStatus.BAD_REQUEST, "Student class code already exists"),
     STUDENT_CODE_EXISTS(HttpStatus.BAD_REQUEST, "Student code already exists"),

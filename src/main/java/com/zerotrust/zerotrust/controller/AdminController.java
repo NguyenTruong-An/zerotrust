@@ -2,6 +2,7 @@ package com.zerotrust.zerotrust.controller;
 
 import com.zerotrust.zerotrust.model.request.CreateStudentRequestDTO;
 import com.zerotrust.zerotrust.model.request.CreateStudentClassRequestDTO;
+import com.zerotrust.zerotrust.model.request.UpdateStudentRequestDTO;
 import com.zerotrust.zerotrust.model.response.ApiResponse;
 import com.zerotrust.zerotrust.model.response.PageResponse;
 import com.zerotrust.zerotrust.model.response.StudentClassResponseDTO;
@@ -16,13 +17,16 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/admin")
@@ -68,6 +72,42 @@ public class AdminController {
         StudentResponseDTO student = studentAdministrationService.createStudent(request);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success(student, "Student account created successfully"));
+    }
+
+    @GetMapping("/students")
+    public ResponseEntity<ApiResponse<PageResponse<StudentResponseDTO>>> getStudents(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String classCode,
+            @RequestParam(required = false) String status,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(defaultValue = "studentCode,asc") String sort) {
+        PageResponse<StudentResponseDTO> students = studentAdministrationService.getStudents(
+                keyword,
+                classCode,
+                status,
+                page,
+                size,
+                sort);
+        return ResponseEntity.ok(
+                ApiResponse.success(students, "Fetched students successfully"));
+    }
+
+    @GetMapping("/students/{id}")
+    public ResponseEntity<ApiResponse<StudentResponseDTO>> getStudent(
+            @PathVariable UUID id) {
+        return ResponseEntity.ok(ApiResponse.success(
+                studentAdministrationService.getStudent(id),
+                "Fetched student successfully"));
+    }
+
+    @PatchMapping("/students/{id}")
+    public ResponseEntity<ApiResponse<StudentResponseDTO>> updateStudent(
+            @PathVariable UUID id,
+            @Valid @RequestBody UpdateStudentRequestDTO request) {
+        return ResponseEntity.ok(ApiResponse.success(
+                studentAdministrationService.updateStudent(id, request),
+                "Updated student profile successfully"));
     }
 
     @GetMapping("/users")

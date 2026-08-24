@@ -2,10 +2,8 @@ package com.zerotrust.zerotrust.controller;
 
 import com.zerotrust.zerotrust.exception.ErrorCode;
 import com.zerotrust.zerotrust.exception.WebException;
-import com.zerotrust.zerotrust.model.request.UpdateProfileRequestDTO;
 import com.zerotrust.zerotrust.model.response.ApiResponse;
 import com.zerotrust.zerotrust.service.UserService;
-import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -27,16 +25,6 @@ public class UserController {
         var currentUser = userService.getCurrentUser(keycloakUserId);
         return ResponseEntity.ok(
                 ApiResponse.success(currentUser, "Fetched current user successfully"));
-    }
-
-    @PatchMapping("/me")
-    public ResponseEntity<?> updateCurrentUser(
-            @AuthenticationPrincipal Jwt jwt,
-            @Valid @RequestBody UpdateProfileRequestDTO request) {
-        UUID keycloakUserId = parseKeycloakUserId(jwt.getSubject());
-        var updatedUser = userService.updateCurrentUser(keycloakUserId, request);
-        return ResponseEntity.ok(
-                ApiResponse.success(updatedUser, "Updated current user successfully"));
     }
 
     private UUID parseKeycloakUserId(String subject) {

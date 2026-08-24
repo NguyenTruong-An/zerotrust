@@ -2,7 +2,6 @@ package com.zerotrust.zerotrust.controller;
 
 import com.zerotrust.zerotrust.exception.ErrorCode;
 import com.zerotrust.zerotrust.exception.WebException;
-import com.zerotrust.zerotrust.model.request.UpdateProfileRequestDTO;
 import com.zerotrust.zerotrust.model.response.ApiResponse;
 import com.zerotrust.zerotrust.model.response.UserResponseDTO;
 import com.zerotrust.zerotrust.service.UserService;
@@ -59,25 +58,6 @@ class UserControllerTest {
                 .isInstanceOf(WebException.class)
                 .extracting(exception -> ((WebException) exception).getErrorCode())
                 .isEqualTo(ErrorCode.UNAUTHORIZED);
-    }
-
-    @Test
-    void updatesCurrentUserIdentifiedByJwtSubject() {
-        UUID keycloakUserId = UUID.randomUUID();
-        Jwt jwt = jwtWithSubject(keycloakUserId.toString());
-        UpdateProfileRequestDTO request = UpdateProfileRequestDTO.builder()
-                .firstName("Truong An")
-                .build();
-        UserResponseDTO user = new UserResponseDTO();
-        when(userService.updateCurrentUser(keycloakUserId, request)).thenReturn(user);
-
-        var response = userController.updateCurrentUser(jwt, request);
-
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        ApiResponse<?> body = (ApiResponse<?>) response.getBody();
-        assertThat(body).isNotNull();
-        assertThat(body.getData()).isSameAs(user);
-        verify(userService).updateCurrentUser(keycloakUserId, request);
     }
 
     private Jwt jwtWithSubject(String subject) {
