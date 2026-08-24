@@ -33,5 +33,5 @@ public class SubjectEntity extends AuditableEntity {
     private String description;
 
     @OneToMany(mappedBy = "subjectEntity")
-    private List<SubjectClassEntity> subjectClassEntities = new ArrayList<>();
+    private List<ScoreEntity> scoreEntities = new ArrayList<>();
 }

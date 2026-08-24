@@ -2,14 +2,21 @@ package com.zerotrust.zerotrust.controller;
 
 import com.zerotrust.zerotrust.model.request.CreateStudentRequestDTO;
 import com.zerotrust.zerotrust.model.request.CreateStudentClassRequestDTO;
+import com.zerotrust.zerotrust.model.request.CreateScoreRequestDTO;
+import com.zerotrust.zerotrust.model.request.CreateSubjectRequestDTO;
 import com.zerotrust.zerotrust.model.request.UpdateStudentRequestDTO;
+import com.zerotrust.zerotrust.model.request.UpdateScoreRequestDTO;
 import com.zerotrust.zerotrust.model.response.ApiResponse;
 import com.zerotrust.zerotrust.model.response.PageResponse;
+import com.zerotrust.zerotrust.model.response.ScoreResponseDTO;
 import com.zerotrust.zerotrust.model.response.StudentClassResponseDTO;
 import com.zerotrust.zerotrust.model.response.StudentResponseDTO;
+import com.zerotrust.zerotrust.model.response.SubjectResponseDTO;
 import com.zerotrust.zerotrust.model.response.UserResponseDTO;
 import com.zerotrust.zerotrust.service.StudentAdministrationService;
+import com.zerotrust.zerotrust.service.ScoreAdministrationService;
 import com.zerotrust.zerotrust.service.StudentClassAdministrationService;
+import com.zerotrust.zerotrust.service.SubjectAdministrationService;
 import com.zerotrust.zerotrust.service.UserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -33,8 +40,10 @@ import java.util.UUID;
 @RequiredArgsConstructor
 @PreAuthorize("hasRole('ADMIN')")
 public class AdminController {
+    private final ScoreAdministrationService scoreAdministrationService;
     private final StudentAdministrationService studentAdministrationService;
     private final StudentClassAdministrationService studentClassAdministrationService;
+    private final SubjectAdministrationService subjectAdministrationService;
     private final UserService userService;
 
     @PostMapping("/student-classes")
@@ -64,6 +73,49 @@ public class AdminController {
                         sort);
         return ResponseEntity.ok(
                 ApiResponse.success(studentClasses, "Fetched student classes successfully"));
+    }
+
+    @PostMapping("/subjects")
+    public ResponseEntity<ApiResponse<SubjectResponseDTO>> createSubject(
+            @Valid @RequestBody CreateSubjectRequestDTO request) {
+        SubjectResponseDTO subject = subjectAdministrationService.createSubject(request);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.success(subject, "Subject created successfully"));
+    }
+
+    @GetMapping("/subjects")
+    public ResponseEntity<ApiResponse<PageResponse<SubjectResponseDTO>>> getSubjects(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(defaultValue = "subjectCode,asc") String sort) {
+        PageResponse<SubjectResponseDTO> subjects = subjectAdministrationService.getSubjects(
+                keyword,
+                page,
+                size,
+                sort);
+        return ResponseEntity.ok(
+                ApiResponse.success(subjects, "Fetched subjects successfully"));
+    }
+
+    @PostMapping("/students/{studentId}/scores")
+    public ResponseEntity<ApiResponse<ScoreResponseDTO>> createStudentScore(
+            @PathVariable UUID studentId,
+            @Valid @RequestBody CreateScoreRequestDTO request) {
+        ScoreResponseDTO score = scoreAdministrationService.createStudentScore(
+                studentId,
+                request);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.success(score, "Student score created successfully"));
+    }
+
+    @PatchMapping("/scores/{scoreId}")
+    public ResponseEntity<ApiResponse<ScoreResponseDTO>> updateScore(
+            @PathVariable UUID scoreId,
+            @Valid @RequestBody UpdateScoreRequestDTO request) {
+        return ResponseEntity.ok(ApiResponse.success(
+                scoreAdministrationService.updateScore(scoreId, request),
+                "Student score updated successfully"));
     }
 
     @PostMapping("/students")

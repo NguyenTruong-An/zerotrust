@@ -3,10 +3,14 @@ package com.zerotrust.zerotrust.controller;
 import com.zerotrust.zerotrust.config.SecurityConfig;
 import com.zerotrust.zerotrust.exception.CustomAuthenticationEntryPoint;
 import com.zerotrust.zerotrust.model.response.PageResponse;
+import com.zerotrust.zerotrust.model.response.ScoreResponseDTO;
 import com.zerotrust.zerotrust.model.response.StudentResponseDTO;
 import com.zerotrust.zerotrust.model.response.StudentClassResponseDTO;
+import com.zerotrust.zerotrust.model.response.SubjectResponseDTO;
+import com.zerotrust.zerotrust.service.ScoreAdministrationService;
 import com.zerotrust.zerotrust.service.StudentAdministrationService;
 import com.zerotrust.zerotrust.service.StudentClassAdministrationService;
+import com.zerotrust.zerotrust.service.SubjectAdministrationService;
 import com.zerotrust.zerotrust.service.UserService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,10 +22,12 @@ import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -39,9 +45,13 @@ class AdminControllerSecurityTest {
     @Autowired
     private MockMvc mockMvc;
     @MockitoBean
+    private ScoreAdministrationService scoreAdministrationService;
+    @MockitoBean
     private StudentAdministrationService studentAdministrationService;
     @MockitoBean
     private StudentClassAdministrationService studentClassAdministrationService;
+    @MockitoBean
+    private SubjectAdministrationService subjectAdministrationService;
     @MockitoBean
     private UserService userService;
     @MockitoBean
@@ -133,6 +143,186 @@ class AdminControllerSecurityTest {
 
         verify(studentClassAdministrationService).getStudentClasses(
                 "AT19", "An toan thong tin", "2022-2026", 0, 20, "classCode,asc");
+    }
+
+    @Test
+    void rejectsStudentRoleFromSubjectCreation() throws Exception {
+        mockMvc.perform(post("/api/admin/subjects")
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_STUDENT")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(validSubjectRequestJson()))
+                .andExpect(status().isForbidden());
+
+        verify(subjectAdministrationService, never()).createSubject(any());
+    }
+
+    @Test
+    void allowsAdminToCreateSubject() throws Exception {
+        UUID subjectId = UUID.randomUUID();
+        when(subjectAdministrationService.createSubject(any()))
+                .thenReturn(new SubjectResponseDTO(
+                        subjectId,
+                        "SEC101",
+                        "Nhap mon an toan thong tin",
+                        (short) 3,
+                        "Kien thuc co ban"));
+
+        mockMvc.perform(post("/api/admin/subjects")
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(validSubjectRequestJson()))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.id").value(subjectId.toString()))
+                .andExpect(jsonPath("$.data.subjectCode").value("SEC101"))
+                .andExpect(jsonPath("$.data.credits").value(3));
+
+        verify(subjectAdministrationService).createSubject(any());
+    }
+
+    @Test
+    void rejectsStudentRoleFromSubjectList() throws Exception {
+        mockMvc.perform(get("/api/admin/subjects")
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_STUDENT"))))
+                .andExpect(status().isForbidden());
+
+        verify(subjectAdministrationService, never())
+                .getSubjects(any(), anyInt(), anyInt(), any());
+    }
+
+    @Test
+    void allowsAdminToGetFilteredSubjects() throws Exception {
+        SubjectResponseDTO subject = new SubjectResponseDTO(
+                UUID.randomUUID(),
+                "SEC101",
+                "Nhap mon an toan thong tin",
+                (short) 3,
+                "Kien thuc co ban");
+        PageResponse<SubjectResponseDTO> response = new PageResponse<>(
+                List.of(subject),
+                0,
+                20,
+                1,
+                1,
+                true,
+                true);
+        when(subjectAdministrationService.getSubjects(
+                "SEC", 0, 20, "subjectCode,asc"))
+                .thenReturn(response);
+
+        mockMvc.perform(get("/api/admin/subjects")
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN")))
+                        .param("keyword", "SEC"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.content[0].subjectCode").value("SEC101"))
+                .andExpect(jsonPath("$.data.totalElements").value(1));
+
+        verify(subjectAdministrationService).getSubjects(
+                "SEC", 0, 20, "subjectCode,asc");
+    }
+
+    @Test
+    void rejectsStudentRoleFromScoreCreation() throws Exception {
+        UUID studentId = UUID.randomUUID();
+
+        mockMvc.perform(post("/api/admin/students/{studentId}/scores", studentId)
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_STUDENT")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(validScoreRequestJson(UUID.randomUUID())))
+                .andExpect(status().isForbidden());
+
+        verify(scoreAdministrationService, never()).createStudentScore(any(), any());
+    }
+
+    @Test
+    void allowsAdminToCreateStudentScore() throws Exception {
+        UUID studentId = UUID.randomUUID();
+        UUID subjectId = UUID.randomUUID();
+        UUID scoreId = UUID.randomUUID();
+        when(scoreAdministrationService.createStudentScore(any(), any()))
+                .thenReturn(scoreResponse(scoreId, studentId, subjectId));
+
+        mockMvc.perform(post("/api/admin/students/{studentId}/scores", studentId)
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(validScoreRequestJson(subjectId)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.id").value(scoreId.toString()))
+                .andExpect(jsonPath("$.data.studentId").value(studentId.toString()))
+                .andExpect(jsonPath("$.data.subjectCode").value("SEC101"))
+                .andExpect(jsonPath("$.data.totalScore").value(8.75));
+
+        verify(scoreAdministrationService).createStudentScore(eq(studentId), any());
+    }
+
+    @Test
+    void rejectsInvalidScorePayload() throws Exception {
+        UUID studentId = UUID.randomUUID();
+        UUID subjectId = UUID.randomUUID();
+
+        mockMvc.perform(post("/api/admin/students/{studentId}/scores", studentId)
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(invalidScoreRequestJson(subjectId)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("INVALID_REQUEST"));
+
+        verify(scoreAdministrationService, never()).createStudentScore(any(), any());
+    }
+
+    @Test
+    void rejectsStudentRoleFromScoreUpdate() throws Exception {
+        UUID scoreId = UUID.randomUUID();
+
+        mockMvc.perform(patch("/api/admin/scores/{scoreId}", scoreId)
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_STUDENT")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(validScoreUpdateRequestJson()))
+                .andExpect(status().isForbidden());
+
+        verify(scoreAdministrationService, never()).updateScore(any(), any());
+    }
+
+    @Test
+    void allowsAdminToUpdateScore() throws Exception {
+        UUID scoreId = UUID.randomUUID();
+        UUID studentId = UUID.randomUUID();
+        UUID subjectId = UUID.randomUUID();
+        when(scoreAdministrationService.updateScore(any(), any()))
+                .thenReturn(scoreResponse(scoreId, studentId, subjectId));
+
+        mockMvc.perform(patch("/api/admin/scores/{scoreId}", scoreId)
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(validScoreUpdateRequestJson()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.id").value(scoreId.toString()))
+                .andExpect(jsonPath("$.data.totalScore").value(8.75));
+
+        verify(scoreAdministrationService).updateScore(eq(scoreId), any());
+    }
+
+    @Test
+    void rejectsInvalidScoreUpdatePayload() throws Exception {
+        UUID scoreId = UUID.randomUUID();
+
+        mockMvc.perform(patch("/api/admin/scores/{scoreId}", scoreId)
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "semester": 4,
+                                  "finalScore": 11,
+                                  "grade": "PASSED"
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("INVALID_REQUEST"));
+
+        verify(scoreAdministrationService, never()).updateScore(any(), any());
     }
 
     @Test
@@ -236,6 +426,71 @@ class AdminControllerSecurityTest {
                   "academicYear": "2022-2026"
                 }
                 """;
+    }
+
+    private String validSubjectRequestJson() {
+        return """
+                {
+                  "subjectCode": "SEC101",
+                  "subjectName": "Nhap mon an toan thong tin",
+                  "credits": 3,
+                  "description": "Kien thuc co ban"
+                }
+                """;
+    }
+
+    private String validScoreRequestJson(UUID subjectId) {
+        return """
+                {
+                  "subjectId": "%s",
+                  "semester": 1,
+                  "academicYear": "2025-2026",
+                  "attendanceScore": 8.5,
+                  "midtermScore": 8.0,
+                  "finalScore": 9.0,
+                  "totalScore": 8.75,
+                  "grade": "B+"
+                }
+                """.formatted(subjectId);
+    }
+
+    private String invalidScoreRequestJson(UUID subjectId) {
+        return """
+                {
+                  "subjectId": "%s",
+                  "semester": 4,
+                  "academicYear": "2025/2026",
+                  "attendanceScore": 11,
+                  "grade": "PASSED"
+                }
+                """.formatted(subjectId);
+    }
+
+    private String validScoreUpdateRequestJson() {
+        return """
+                {
+                  "finalScore": 9.5,
+                  "totalScore": 9.0,
+                  "grade": "A"
+                }
+                """;
+    }
+
+    private ScoreResponseDTO scoreResponse(UUID scoreId, UUID studentId, UUID subjectId) {
+        return new ScoreResponseDTO(
+                scoreId,
+                studentId,
+                "SV001",
+                subjectId,
+                "SEC101",
+                "Nhap mon an toan thong tin",
+                (short) 1,
+                "2025-2026",
+                new BigDecimal("8.50"),
+                new BigDecimal("8.00"),
+                new BigDecimal("9.00"),
+                new BigDecimal("8.75"),
+                "B+");
     }
 
     private String validUpdateRequestJson() {

@@ -13,14 +13,17 @@ import java.util.UUID;
         name = "scores",
         uniqueConstraints = {
                 @UniqueConstraint(
-                        name = "uk_scores_student_subject_class",
-                        columnNames = {"student_id", "subject_class_id"})
+                        name = "uk_scores_student_subject_term",
+                        columnNames = {"student_id", "subject_id", "semester", "academic_year"})
         },
         indexes = {
-                @Index(name = "idx_scores_subject_class_id", columnList = "subject_class_id")
+                @Index(
+                        name = "idx_scores_subject_term",
+                        columnList = "subject_id, academic_year, semester")
         })
 @Getter
 @Setter
+@Check(constraints = "semester BETWEEN 1 AND 3")
 @Check(constraints = "attendance_score IS NULL OR attendance_score BETWEEN 0 AND 10")
 @Check(constraints = "midterm_score IS NULL OR midterm_score BETWEEN 0 AND 10")
 @Check(constraints = "final_score IS NULL OR final_score BETWEEN 0 AND 10")
@@ -50,6 +53,12 @@ public class ScoreEntity extends AuditableEntity {
     private StudentEntity studentEntity;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "subject_class_id", nullable = false)
-    private SubjectClassEntity subjectClassEntity;
+    @JoinColumn(name = "subject_id", nullable = false)
+    private SubjectEntity subjectEntity;
+
+    @Column(name = "semester", nullable = false, columnDefinition = "TINYINT UNSIGNED")
+    private Short semester;
+
+    @Column(name = "academic_year", nullable = false, length = 9)
+    private String academicYear;
 }

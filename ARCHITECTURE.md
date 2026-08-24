@@ -1,7 +1,8 @@
 # Kiến trúc chuẩn của đồ án Zero Trust
 
 **Trạng thái:** Đã chấp nhận (Accepted)  
-**Ngày cập nhật:** 2026-08-21  
+**Ngày cập nhật:** 2026-08-24
+
 **Phạm vi:** Kiến trúc đích và nguyên tắc triển khai bắt buộc của toàn bộ đồ án
 
 ## 1. Phạm vi đã chốt
@@ -182,7 +183,7 @@ Cho đến khi chủ đồ án phê duyệt, code không được hard-code tr�
 
 ### Portal API
 
-- Xử lý nghiệp vụ người dùng, sinh viên, giảng viên, lớp, môn học và điểm.
+- Xử lý nghiệp vụ người dùng, sinh viên, lớp hành chính, môn học và điểm.
 - Là OAuth2 Resource Server stateless.
 - Xác minh JWT của Keycloak bằng JWKS.
 - Kiểm tra realm role và quyền trên từng tài nguyên.
@@ -199,8 +200,8 @@ Cho đến khi chủ đồ án phê duyệt, code không được hard-code tr�
 JWT hợp lệ chỉ xác nhận danh tính. Portal vẫn phải kiểm tra:
 
 - `STUDENT` chỉ được xem điểm của chính mình.
-- `TEACHER` chỉ được xem và sửa điểm của lớp học phần được phân công.
-- `ADMIN` được quản lý người dùng và dữ liệu toàn hệ thống theo policy.
+- `ADMIN` được quản lý người dùng, môn học và điểm của toàn hệ thống theo policy.
+- Việc nhập và sửa điểm chỉ do `ADMIN` thực hiện; hệ thống không quản lý tài khoản giảng viên hoặc lớp học phần.
 
 Portal xác minh chữ ký, issuer, expiration và audience của JWT bằng JWKS. Portal không gọi Keycloak để introspect mỗi API request.
 

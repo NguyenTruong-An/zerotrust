@@ -36,10 +36,6 @@ public class UserEntity extends AuditableEntity {
     @JsonManagedReference("user-student")
     private StudentEntity studentEntity;
 
-    @OneToOne(mappedBy = "userEntity", fetch = FetchType.LAZY)
-    @JsonManagedReference("user-teacher")
-    private TeacherEntity teacherEntity;
-
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false)
     private Status status = Status.ACTIVE;
@@ -51,9 +47,8 @@ public class UserEntity extends AuditableEntity {
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
 
-    @PrePersist
-    @PreUpdate
-    void synchronizeDeletedAt() {
+    @Override
+    protected void beforeSave() {
         deletedAt = status == Status.DELETED
                 ? deletedAt == null ? LocalDateTime.now() : deletedAt
                 : null;

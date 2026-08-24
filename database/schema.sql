@@ -75,24 +75,6 @@ CREATE TABLE `students` (
     INDEX `idx_students_class_id` (`class_id`)
 ) ENGINE = InnoDB;
 
-CREATE TABLE `teachers` (
-    `id` BINARY(16) NOT NULL,
-    `user_id` BINARY(16) NOT NULL,
-    `teacher_code` VARCHAR(30) NOT NULL,
-    `phone` VARCHAR(20) NULL,
-    `department` VARCHAR(150) NOT NULL,
-    `created_at` DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
-    `updated_at` DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
-        ON UPDATE CURRENT_TIMESTAMP(6),
-
-    CONSTRAINT `pk_teachers` PRIMARY KEY (`id`),
-    CONSTRAINT `uk_teachers_user_id` UNIQUE (`user_id`),
-    CONSTRAINT `uk_teachers_teacher_code` UNIQUE (`teacher_code`),
-    CONSTRAINT `fk_teachers_user`
-        FOREIGN KEY (`user_id`) REFERENCES `users` (`id`)
-        ON UPDATE RESTRICT ON DELETE RESTRICT
-) ENGINE = InnoDB;
-
 -- =========================================================
 -- Academic data
 -- =========================================================
@@ -112,39 +94,14 @@ CREATE TABLE `subjects` (
     CONSTRAINT `ck_subjects_credits` CHECK (`credits` BETWEEN 1 AND 20)
 ) ENGINE = InnoDB;
 
-CREATE TABLE `subject_classes` (
-    `id` BINARY(16) NOT NULL,
-    `subject_class_code` VARCHAR(50) NOT NULL,
-    `subject_id` BINARY(16) NOT NULL,
-    `teacher_id` BINARY(16) NOT NULL,
-    `semester` TINYINT UNSIGNED NOT NULL,
-    `academic_year` VARCHAR(9) NOT NULL COMMENT 'Example: 2025-2026',
-    `created_at` DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
-    `updated_at` DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
-        ON UPDATE CURRENT_TIMESTAMP(6),
-
-    CONSTRAINT `pk_subject_classes` PRIMARY KEY (`id`),
-    CONSTRAINT `uk_subject_classes_code` UNIQUE (`subject_class_code`),
-    CONSTRAINT `ck_subject_classes_semester` CHECK (`semester` BETWEEN 1 AND 3),
-    CONSTRAINT `fk_subject_classes_subject`
-        FOREIGN KEY (`subject_id`) REFERENCES `subjects` (`id`)
-        ON UPDATE RESTRICT ON DELETE RESTRICT,
-    CONSTRAINT `fk_subject_classes_teacher`
-        FOREIGN KEY (`teacher_id`) REFERENCES `teachers` (`id`)
-        ON UPDATE RESTRICT ON DELETE RESTRICT,
-
-    INDEX `idx_subject_classes_subject_term`
-        (`subject_id`, `academic_year`, `semester`),
-    INDEX `idx_subject_classes_teacher_term`
-        (`teacher_id`, `academic_year`, `semester`)
-) ENGINE = InnoDB;
-
--- A row in scores means that the student belongs to the subject class.
--- Score fields remain NULL until the teacher enters them.
+-- Each score belongs directly to a student and subject in a specific term.
+-- Score fields remain NULL until an administrator enters them.
 CREATE TABLE `scores` (
     `id` BINARY(16) NOT NULL,
     `student_id` BINARY(16) NOT NULL,
-    `subject_class_id` BINARY(16) NOT NULL,
+    `subject_id` BINARY(16) NOT NULL,
+    `semester` TINYINT UNSIGNED NOT NULL,
+    `academic_year` VARCHAR(9) NOT NULL COMMENT 'Example: 2025-2026',
     `attendance_score` DECIMAL(4,2) NULL,
     `midterm_score` DECIMAL(4,2) NULL,
     `final_score` DECIMAL(4,2) NULL,
@@ -155,8 +112,9 @@ CREATE TABLE `scores` (
         ON UPDATE CURRENT_TIMESTAMP(6),
 
     CONSTRAINT `pk_scores` PRIMARY KEY (`id`),
-    CONSTRAINT `uk_scores_student_subject_class`
-        UNIQUE (`student_id`, `subject_class_id`),
+    CONSTRAINT `uk_scores_student_subject_term`
+        UNIQUE (`student_id`, `subject_id`, `semester`, `academic_year`),
+    CONSTRAINT `ck_scores_semester` CHECK (`semester` BETWEEN 1 AND 3),
     CONSTRAINT `ck_scores_attendance` CHECK (
         `attendance_score` IS NULL OR `attendance_score` BETWEEN 0 AND 10
     ),
@@ -172,9 +130,9 @@ CREATE TABLE `scores` (
     CONSTRAINT `fk_scores_student`
         FOREIGN KEY (`student_id`) REFERENCES `students` (`id`)
         ON UPDATE RESTRICT ON DELETE RESTRICT,
-    CONSTRAINT `fk_scores_subject_class`
-        FOREIGN KEY (`subject_class_id`) REFERENCES `subject_classes` (`id`)
+    CONSTRAINT `fk_scores_subject`
+        FOREIGN KEY (`subject_id`) REFERENCES `subjects` (`id`)
         ON UPDATE RESTRICT ON DELETE RESTRICT,
 
-    INDEX `idx_scores_subject_class_id` (`subject_class_id`)
+    INDEX `idx_scores_subject_term` (`subject_id`, `academic_year`, `semester`)
 ) ENGINE = InnoDB;

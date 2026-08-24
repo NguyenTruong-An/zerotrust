@@ -27,10 +27,15 @@ public abstract class AuditableEntity {
             createdAt = now;
         }
         updatedAt = now;
+        beforeSave();
     }
 
     @PreUpdate
     protected void updateTimestamp() {
         updatedAt = LocalDateTime.now();
+        beforeSave();
+    }
+
+    protected void beforeSave() {
     }
 }
