@@ -4,7 +4,6 @@ import com.zerotrust.zerotrust.converter.UserConverter;
 import com.zerotrust.zerotrust.entity.UserEntity;
 import com.zerotrust.zerotrust.exception.ErrorCode;
 import com.zerotrust.zerotrust.exception.WebException;
-import com.zerotrust.zerotrust.model.request.RegisterRequestDTO;
 import com.zerotrust.zerotrust.model.request.UpdateProfileRequestDTO;
 import com.zerotrust.zerotrust.model.response.UserResponseDTO;
 import com.zerotrust.zerotrust.repository.UserRepository;
@@ -13,7 +12,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.dao.DataIntegrityViolationException;
 
 import java.util.Optional;
 import java.util.UUID;
@@ -42,115 +40,6 @@ class UserServiceImplTest {
                 userRepository,
                 keycloakUserProvisioner,
                 userConverter);
-    }
-
-    @Test
-    void returnsSavedUserAfterRegistration() {
-        RegisterRequestDTO request = validRequest();
-        UUID keycloakUserId = UUID.randomUUID();
-        KeycloakUserProvisioner.ProvisionedUser provisionedUser = provisionedUser(keycloakUserId);
-        UserEntity entity = new UserEntity();
-        UserResponseDTO response = new UserResponseDTO();
-
-        when(userConverter.convertToEntity(request)).thenReturn(entity);
-        when(keycloakUserProvisioner.createUser(request)).thenReturn(provisionedUser);
-        when(userRepository.saveAndFlush(entity)).thenReturn(entity);
-        when(userConverter.convertToDto(entity)).thenReturn(response);
-
-        assertThat(userService.register(request)).isSameAs(response);
-        assertThat(entity.getKeycloakUserId()).isEqualTo(keycloakUserId);
-        verify(keycloakUserProvisioner, never()).deleteUserQuietly(provisionedUser);
-    }
-
-    @Test
-    void deletesKeycloakUserWhenDatabaseSaveFails() {
-        RegisterRequestDTO request = validRequest();
-        UUID keycloakUserId = UUID.randomUUID();
-        KeycloakUserProvisioner.ProvisionedUser provisionedUser = provisionedUser(keycloakUserId);
-        UserEntity entity = new UserEntity();
-        DataIntegrityViolationException databaseException =
-                new DataIntegrityViolationException("unknown constraint");
-
-        when(userConverter.convertToEntity(request)).thenReturn(entity);
-        when(keycloakUserProvisioner.createUser(request)).thenReturn(provisionedUser);
-        when(userRepository.saveAndFlush(entity)).thenThrow(databaseException);
-
-        assertThatThrownBy(() -> userService.register(request))
-                .isSameAs(databaseException);
-        verify(keycloakUserProvisioner).deleteUserQuietly(provisionedUser);
-    }
-
-    @Test
-    void reportsUsernameConflictWhenConcurrentInsertWins() {
-        RegisterRequestDTO request = validRequest();
-        UUID keycloakUserId = UUID.randomUUID();
-        KeycloakUserProvisioner.ProvisionedUser provisionedUser = provisionedUser(keycloakUserId);
-        UserEntity entity = new UserEntity();
-
-        when(userRepository.existsByUsernameIgnoreCase(request.getUsername()))
-                .thenReturn(false, true);
-        when(userConverter.convertToEntity(request)).thenReturn(entity);
-        when(keycloakUserProvisioner.createUser(request)).thenReturn(provisionedUser);
-        when(userRepository.saveAndFlush(entity))
-                .thenThrow(new DataIntegrityViolationException("duplicate username"));
-
-        assertThatThrownBy(() -> userService.register(request))
-                .isInstanceOf(WebException.class)
-                .extracting(exception -> ((WebException) exception).getErrorCode())
-                .isEqualTo(ErrorCode.USERNAME_EXISTS);
-        verify(keycloakUserProvisioner).deleteUserQuietly(provisionedUser);
-    }
-
-    @Test
-    void keepsKeycloakUserWhenResponseMappingFailsAfterDatabaseSave() {
-        RegisterRequestDTO request = validRequest();
-        UUID keycloakUserId = UUID.randomUUID();
-        KeycloakUserProvisioner.ProvisionedUser provisionedUser = provisionedUser(keycloakUserId);
-        UserEntity entity = new UserEntity();
-        RuntimeException mappingException = new RuntimeException("response mapping failed");
-
-        when(userConverter.convertToEntity(request)).thenReturn(entity);
-        when(keycloakUserProvisioner.createUser(request)).thenReturn(provisionedUser);
-        when(userRepository.saveAndFlush(entity)).thenReturn(entity);
-        when(userConverter.convertToDto(entity)).thenThrow(mappingException);
-
-        assertThatThrownBy(() -> userService.register(request))
-                .isSameAs(mappingException);
-        verify(keycloakUserProvisioner, never()).deleteUserQuietly(provisionedUser);
-    }
-
-    @Test
-    void rejectsExistingUsernameBeforeCallingKeycloak() {
-        RegisterRequestDTO request = validRequest();
-        when(userRepository.existsByUsernameIgnoreCase(request.getUsername())).thenReturn(true);
-
-        assertThatThrownBy(() -> userService.register(request))
-                .isInstanceOf(WebException.class)
-                .extracting(exception -> ((WebException) exception).getErrorCode())
-                .isEqualTo(ErrorCode.USERNAME_EXISTS);
-        verify(keycloakUserProvisioner, never()).createUser(request);
-    }
-
-    @Test
-    void doesNotCreateKeycloakUserWhenEntityMappingFails() {
-        RegisterRequestDTO request = validRequest();
-        RuntimeException mappingException = new RuntimeException("entity mapping failed");
-        when(userConverter.convertToEntity(request)).thenThrow(mappingException);
-
-        assertThatThrownBy(() -> userService.register(request))
-                .isSameAs(mappingException);
-        verify(keycloakUserProvisioner, never()).createUser(request);
-    }
-
-    @Test
-    void doesNotCreateKeycloakUserWhenEntityConverterReturnsNull() {
-        RegisterRequestDTO request = validRequest();
-        when(userConverter.convertToEntity(request)).thenReturn(null);
-
-        assertThatThrownBy(() -> userService.register(request))
-                .isInstanceOf(NullPointerException.class)
-                .hasMessage("User converter returned null");
-        verify(keycloakUserProvisioner, never()).createUser(request);
     }
 
     @Test
@@ -280,17 +169,4 @@ class UserServiceImplTest {
         return entity;
     }
 
-    private KeycloakUserProvisioner.ProvisionedUser provisionedUser(UUID userId) {
-        return new KeycloakUserProvisioner.ProvisionedUser(userId);
-    }
-
-    private RegisterRequestDTO validRequest() {
-        return RegisterRequestDTO.builder()
-                .username("student01")
-                .password("strong-password")
-                .firstName("An")
-                .lastName("Nguyen")
-                .email("an@example.com")
-                .build();
-    }
 }

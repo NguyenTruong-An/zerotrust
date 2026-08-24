@@ -9,6 +9,9 @@ import org.springframework.http.HttpStatus;
 public enum ErrorCode {
     USER_NOT_FOUND(HttpStatus.NOT_FOUND, "User not found"),
     USER_INACTIVE(HttpStatus.FORBIDDEN, "User account is inactive"),
+    STUDENT_CLASS_NOT_FOUND(HttpStatus.NOT_FOUND, "Student class not found"),
+    STUDENT_CLASS_CODE_EXISTS(HttpStatus.BAD_REQUEST, "Student class code already exists"),
+    STUDENT_CODE_EXISTS(HttpStatus.BAD_REQUEST, "Student code already exists"),
     INVALID_CREDENTIALS(HttpStatus.FORBIDDEN, "Invalid credentials"),
     EMAIL_EXISTS(HttpStatus.BAD_REQUEST, "Email already exists"),
     USERNAME_EXISTS(HttpStatus.BAD_REQUEST, "Username already exists"),
@@ -16,6 +19,7 @@ public enum ErrorCode {
     INVALID_REQUEST(HttpStatus.BAD_REQUEST, "Request validation failed"),
     IDENTITY_RESPONSE_INVALID(HttpStatus.BAD_GATEWAY, "Identity provider returned an invalid response"),
     IDENTITY_PROVIDER_FORBIDDEN(HttpStatus.BAD_GATEWAY, "Identity provider rejected the service account"),
+    IDENTITY_ROLE_NOT_FOUND(HttpStatus.BAD_GATEWAY, "Required identity role is not configured"),
     IDENTITY_PROVIDER_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "Identity provider is unavailable"),
     UNCATEGORIZED_EXCEPTION(HttpStatus.INTERNAL_SERVER_ERROR, "An unexpected error occurred"),
     UNAUTHORIZED(HttpStatus.UNAUTHORIZED, "Unauthorized access");

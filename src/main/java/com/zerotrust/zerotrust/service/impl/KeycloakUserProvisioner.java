@@ -3,7 +3,6 @@ package com.zerotrust.zerotrust.service.impl;
 import com.zerotrust.zerotrust.config.KeycloakAdminProperties;
 import com.zerotrust.zerotrust.exception.ErrorCode;
 import com.zerotrust.zerotrust.exception.WebException;
-import com.zerotrust.zerotrust.model.request.RegisterRequestDTO;
 import jakarta.ws.rs.ProcessingException;
 import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.Response;
@@ -11,9 +10,11 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.keycloak.admin.client.CreatedResponseUtil;
 import org.keycloak.admin.client.Keycloak;
+import org.keycloak.admin.client.resource.RealmResource;
 import org.keycloak.admin.client.resource.UserResource;
 import org.keycloak.admin.client.resource.UsersResource;
 import org.keycloak.representations.idm.CredentialRepresentation;
+import org.keycloak.representations.idm.RoleRepresentation;
 import org.keycloak.representations.idm.UserRepresentation;
 import org.springframework.stereotype.Service;
 
@@ -28,24 +29,49 @@ public class KeycloakUserProvisioner {
     private final Keycloak keycloak;
     private final KeycloakAdminProperties properties;
 
-    public ProvisionedUser createUser(RegisterRequestDTO request) {
+    public ProvisionedUser createUser(CreateUserCommand command) {
         UsersResource users = users();
 
-        try (Response response = users.create(toUserRepresentation(request))) {
+        try (Response response = users.create(toUserRepresentation(command))) {
             if (response.getStatus() != Response.Status.CREATED.getStatusCode()) {
                 throw mapCreateFailure(response);
             }
-
             try {
                 String createdId = CreatedResponseUtil.getCreatedId(response);
                 return new ProvisionedUser(UUID.fromString(createdId));
             } catch (RuntimeException ex) {
-                deleteUserByUsernameQuietly(users, request.getUsername());
+                deleteUserByUsernameQuietly(users, command.username());
                 throw new WebException(ErrorCode.IDENTITY_RESPONSE_INVALID);
             }
         } catch (ProcessingException ex) {
             throw new WebException(ErrorCode.IDENTITY_PROVIDER_UNAVAILABLE);
         } catch (WebApplicationException ex) {
+            throw mapClientFailure(ex);
+        }
+    }
+
+    public void assignRealmRole(UUID userId, String roleName) {
+        try {
+            RealmResource realm = realm();
+            RoleRepresentation role = realm.roles()
+                    .get(roleName)
+                    .toRepresentation();
+            realm.users()
+                    .get(userId.toString())
+                    .roles()
+                    .realmLevel()
+                    .add(List.of(role));
+        } catch (ProcessingException ex) {
+            throw new WebException(ErrorCode.IDENTITY_PROVIDER_UNAVAILABLE);
+        } catch (WebApplicationException ex) {
+            Response response = ex.getResponse();
+            if (response != null
+                    && response.getStatus() == Response.Status.NOT_FOUND.getStatusCode()) {
+                response.close();
+                throw new WebException(
+                        ErrorCode.IDENTITY_ROLE_NOT_FOUND,
+                        "Realm role " + roleName + " is not configured");
+            }
             throw mapClientFailure(ex);
         }
     }
@@ -94,20 +120,24 @@ public class KeycloakUserProvisioner {
     }
 
     private UsersResource users() {
-        return keycloak.realm(properties.realm()).users();
+        return realm().users();
     }
 
-    private UserRepresentation toUserRepresentation(RegisterRequestDTO request) {
+    private RealmResource realm() {
+        return keycloak.realm(properties.realm());
+    }
+
+    private UserRepresentation toUserRepresentation(CreateUserCommand command) {
         CredentialRepresentation password = new CredentialRepresentation();
         password.setType(CredentialRepresentation.PASSWORD);
-        password.setValue(request.getPassword());
+        password.setValue(command.password());
         password.setTemporary(false);
 
         UserRepresentation user = new UserRepresentation();
-        user.setUsername(request.getUsername());
-        user.setEmail(request.getEmail());
-        user.setFirstName(request.getFirstName());
-        user.setLastName(request.getLastName());
+        user.setUsername(command.username());
+        user.setEmail(command.email());
+        user.setFirstName(command.firstName());
+        user.setLastName(command.lastName());
         user.setEnabled(true);
         user.setEmailVerified(false);
         user.setCredentials(List.of(password));
@@ -188,5 +218,14 @@ public class KeycloakUserProvisioner {
     }
 
     public record ProvisionedUser(UUID userId) {
+    }
+
+    public record CreateUserCommand(
+            String username,
+            String password,
+            String email,
+            String firstName,
+            String lastName
+    ) {
     }
 }

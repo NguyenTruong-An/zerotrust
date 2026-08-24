@@ -27,14 +27,13 @@ import java.util.Map;
 @EnableMethodSecurity
 @RequiredArgsConstructor
 public class SecurityConfig {
-    private static final String[] PUBLIC_ENDPOINTS = {"/api/users/register"};
     private final CustomAuthenticationEntryPoint customAuthenticationEntryPoint;
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity httpSecurity) throws Exception {
         httpSecurity.authorizeHttpRequests(request -> request
-                        .requestMatchers(PUBLIC_ENDPOINTS)
-                .permitAll()
+                .requestMatchers("/api/admin/**")
+                .hasRole("ADMIN")
                 .anyRequest()
                 .authenticated())
                 .exceptionHandling(exception -> exception.authenticationEntryPoint(customAuthenticationEntryPoint));
