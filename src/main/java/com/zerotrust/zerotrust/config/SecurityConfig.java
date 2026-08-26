@@ -34,6 +34,8 @@ public class SecurityConfig {
         httpSecurity.authorizeHttpRequests(request -> request
                 .requestMatchers("/api/admin/**")
                 .hasRole("ADMIN")
+                .requestMatchers("/api/students/**")
+                .hasRole("STUDENT")
                 .anyRequest()
                 .authenticated())
                 .exceptionHandling(exception -> exception.authenticationEntryPoint(customAuthenticationEntryPoint));

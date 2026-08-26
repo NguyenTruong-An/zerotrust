@@ -273,6 +273,65 @@ class AdminControllerSecurityTest {
     }
 
     @Test
+    void rejectsStudentRoleFromStudentScoreList() throws Exception {
+        UUID studentId = UUID.randomUUID();
+
+        mockMvc.perform(get("/api/admin/students/{studentId}/scores", studentId)
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_STUDENT"))))
+                .andExpect(status().isForbidden());
+
+        verify(scoreAdministrationService, never()).getStudentScores(
+                any(), any(), any(), any(), anyInt(), anyInt(), any());
+    }
+
+    @Test
+    void allowsAdminToGetFilteredStudentScores() throws Exception {
+        UUID scoreId = UUID.randomUUID();
+        UUID studentId = UUID.randomUUID();
+        UUID subjectId = UUID.randomUUID();
+        PageResponse<ScoreResponseDTO> response = new PageResponse<>(
+                List.of(scoreResponse(scoreId, studentId, subjectId)),
+                0,
+                10,
+                1,
+                1,
+                true,
+                true);
+        when(scoreAdministrationService.getStudentScores(
+                studentId,
+                subjectId,
+                (short) 1,
+                "2025-2026",
+                0,
+                10,
+                "totalScore,desc"))
+                .thenReturn(response);
+
+        mockMvc.perform(get("/api/admin/students/{studentId}/scores", studentId)
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN")))
+                        .param("subjectId", subjectId.toString())
+                        .param("semester", "1")
+                        .param("academicYear", "2025-2026")
+                        .param("size", "10")
+                        .param("sort", "totalScore,desc"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.content[0].id").value(scoreId.toString()))
+                .andExpect(jsonPath("$.data.content[0].subjectCode").value("SEC101"))
+                .andExpect(jsonPath("$.data.content[0].totalScore").value(8.75))
+                .andExpect(jsonPath("$.data.totalElements").value(1));
+
+        verify(scoreAdministrationService).getStudentScores(
+                studentId,
+                subjectId,
+                (short) 1,
+                "2025-2026",
+                0,
+                10,
+                "totalScore,desc");
+    }
+
+    @Test
     void rejectsStudentRoleFromScoreUpdate() throws Exception {
         UUID scoreId = UUID.randomUUID();
 

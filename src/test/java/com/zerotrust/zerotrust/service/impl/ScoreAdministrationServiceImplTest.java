@@ -3,6 +3,7 @@ package com.zerotrust.zerotrust.service.impl;
 import com.zerotrust.zerotrust.entity.ScoreEntity;
 import com.zerotrust.zerotrust.entity.StudentEntity;
 import com.zerotrust.zerotrust.entity.SubjectEntity;
+import com.zerotrust.zerotrust.entity.UserEntity;
 import com.zerotrust.zerotrust.exception.ErrorCode;
 import com.zerotrust.zerotrust.exception.WebException;
 import com.zerotrust.zerotrust.model.request.CreateScoreRequestDTO;
@@ -17,8 +18,12 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -158,6 +163,169 @@ class ScoreAdministrationServiceImplTest {
                 .isInstanceOf(WebException.class)
                 .extracting(exception -> ((WebException) exception).getErrorCode())
                 .isEqualTo(ErrorCode.SCORE_EXISTS);
+    }
+
+    @Test
+    void listsFilteredScoresForStudent() {
+        UUID studentId = UUID.randomUUID();
+        UUID subjectId = UUID.randomUUID();
+        ScoreEntity score = score(UUID.randomUUID(), studentId, subjectId);
+        when(studentRepository.existsById(studentId)).thenReturn(true);
+        when(scoreRepository.findAllByStudentFiltered(
+                any(), any(), any(), any(), any(Pageable.class)))
+                .thenAnswer(invocation -> new PageImpl<>(
+                        List.of(score),
+                        invocation.getArgument(4),
+                        5));
+
+        var response = service.getStudentScores(
+                studentId,
+                subjectId,
+                (short) 1,
+                " 2025-2026 ",
+                1,
+                2,
+                "subjectCode,desc");
+
+        ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
+        verify(scoreRepository).findAllByStudentFiltered(
+                org.mockito.ArgumentMatchers.eq(studentId),
+                org.mockito.ArgumentMatchers.eq(subjectId),
+                org.mockito.ArgumentMatchers.eq((short) 1),
+                org.mockito.ArgumentMatchers.eq("2025-2026"),
+                pageableCaptor.capture());
+        Pageable pageable = pageableCaptor.getValue();
+        Sort.Order subjectCodeOrder = pageable.getSort()
+                .getOrderFor("subjectEntity.subjectCode");
+        assertThat(pageable.getPageNumber()).isEqualTo(1);
+        assertThat(pageable.getPageSize()).isEqualTo(2);
+        assertThat(subjectCodeOrder).isNotNull();
+        assertThat(subjectCodeOrder.getDirection()).isEqualTo(Sort.Direction.DESC);
+        assertThat(response.content()).hasSize(1);
+        assertThat(response.content().get(0).id()).isEqualTo(score.getId());
+        assertThat(response.content().get(0).subjectCode()).isEqualTo("SEC101");
+        assertThat(response.page()).isEqualTo(1);
+        assertThat(response.size()).isEqualTo(2);
+        assertThat(response.totalElements()).isEqualTo(5);
+        assertThat(response.totalPages()).isEqualTo(3);
+    }
+
+    @Test
+    void reportsMissingStudentWhenListingScores() {
+        UUID studentId = UUID.randomUUID();
+        when(studentRepository.existsById(studentId)).thenReturn(false);
+
+        assertThatThrownBy(() -> service.getStudentScores(
+                studentId, null, null, null, 0, 20, null))
+                .isInstanceOf(WebException.class)
+                .extracting(exception -> ((WebException) exception).getErrorCode())
+                .isEqualTo(ErrorCode.STUDENT_NOT_FOUND);
+        verify(scoreRepository, never()).findAllByStudentFiltered(
+                any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void rejectsInvalidStudentScoreListParameters() {
+        assertThatThrownBy(() -> service.getStudentScores(
+                UUID.randomUUID(), null, (short) 4, null, 0, 20, null))
+                .isInstanceOf(WebException.class)
+                .extracting(exception -> ((WebException) exception).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_REQUEST);
+        assertThatThrownBy(() -> service.getStudentScores(
+                UUID.randomUUID(), null, null, "2026-2025", 0, 20, null))
+                .isInstanceOf(WebException.class)
+                .extracting(exception -> ((WebException) exception).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_REQUEST);
+        assertThatThrownBy(() -> service.getStudentScores(
+                UUID.randomUUID(), null, null, null, -1, 20, null))
+                .isInstanceOf(WebException.class)
+                .extracting(exception -> ((WebException) exception).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_REQUEST);
+        assertThatThrownBy(() -> service.getStudentScores(
+                UUID.randomUUID(), null, null, null, 0, 101, null))
+                .isInstanceOf(WebException.class)
+                .extracting(exception -> ((WebException) exception).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_REQUEST);
+        assertThatThrownBy(() -> service.getStudentScores(
+                UUID.randomUUID(), null, null, null, 0, 20, "id,asc"))
+                .isInstanceOf(WebException.class)
+                .extracting(exception -> ((WebException) exception).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_REQUEST);
+        verify(studentRepository, never()).existsById(any());
+    }
+
+    @Test
+    void listsScoresForStudentResolvedFromKeycloakUserId() {
+        UUID keycloakUserId = UUID.randomUUID();
+        UUID studentId = UUID.randomUUID();
+        UUID subjectId = UUID.randomUUID();
+        ScoreEntity score = score(UUID.randomUUID(), studentId, subjectId);
+        StudentEntity student = student(studentId);
+        UserEntity user = new UserEntity();
+        user.setKeycloakUserId(keycloakUserId);
+        user.setStatus(UserEntity.Status.ACTIVE);
+        student.setUserEntity(user);
+        when(studentRepository.findByUserEntityKeycloakUserId(keycloakUserId))
+                .thenReturn(Optional.of(student));
+        when(scoreRepository.findAllByStudentFiltered(
+                any(), any(), any(), any(), any(Pageable.class)))
+                .thenAnswer(invocation -> new PageImpl<>(
+                        List.of(score),
+                        invocation.getArgument(4),
+                        1));
+
+        var response = service.getCurrentStudentScores(
+                keycloakUserId,
+                subjectId,
+                (short) 1,
+                " 2025-2026 ",
+                0,
+                20,
+                null);
+
+        verify(scoreRepository).findAllByStudentFiltered(
+                org.mockito.ArgumentMatchers.eq(studentId),
+                org.mockito.ArgumentMatchers.eq(subjectId),
+                org.mockito.ArgumentMatchers.eq((short) 1),
+                org.mockito.ArgumentMatchers.eq("2025-2026"),
+                any(Pageable.class));
+        assertThat(response.content()).hasSize(1);
+        assertThat(response.content().get(0).studentId()).isEqualTo(studentId);
+        assertThat(response.content().get(0).id()).isEqualTo(score.getId());
+    }
+
+    @Test
+    void reportsMissingStudentLinkedToCurrentIdentity() {
+        UUID keycloakUserId = UUID.randomUUID();
+        when(studentRepository.findByUserEntityKeycloakUserId(keycloakUserId))
+                .thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.getCurrentStudentScores(
+                keycloakUserId, null, null, null, 0, 20, null))
+                .isInstanceOf(WebException.class)
+                .extracting(exception -> ((WebException) exception).getErrorCode())
+                .isEqualTo(ErrorCode.STUDENT_NOT_FOUND);
+        verify(scoreRepository, never()).findAllByStudentFiltered(
+                any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void rejectsInactiveStudentWhenListingOwnScores() {
+        UUID keycloakUserId = UUID.randomUUID();
+        StudentEntity student = student(UUID.randomUUID());
+        UserEntity user = new UserEntity();
+        user.setStatus(UserEntity.Status.INACTIVE);
+        student.setUserEntity(user);
+        when(studentRepository.findByUserEntityKeycloakUserId(keycloakUserId))
+                .thenReturn(Optional.of(student));
+
+        assertThatThrownBy(() -> service.getCurrentStudentScores(
+                keycloakUserId, null, null, null, 0, 20, null))
+                .isInstanceOf(WebException.class)
+                .extracting(exception -> ((WebException) exception).getErrorCode())
+                .isEqualTo(ErrorCode.USER_INACTIVE);
+        verify(scoreRepository, never()).findAllByStudentFiltered(
+                any(), any(), any(), any(), any());
     }
 
     @Test

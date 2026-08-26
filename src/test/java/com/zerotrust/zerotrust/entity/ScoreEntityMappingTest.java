@@ -1,6 +1,7 @@
 package com.zerotrust.zerotrust.entity;
 
 import com.zerotrust.zerotrust.repository.ScoreRepository;
+import com.zerotrust.zerotrust.repository.StudentRepository;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import org.hibernate.exception.ConstraintViolationException;
@@ -8,6 +9,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.math.BigDecimal;
@@ -23,6 +26,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class ScoreEntityMappingTest {
     @Autowired
     private ScoreRepository scoreRepository;
+    @Autowired
+    private StudentRepository studentRepository;
     @PersistenceContext
     private EntityManager entityManager;
 
@@ -61,6 +66,24 @@ class ScoreEntityMappingTest {
                         "2025-2026",
                         stored.getId()))
                 .isFalse();
+        var filteredScores = scoreRepository.findAllByStudentFiltered(
+                student.getId(),
+                subject.getId(),
+                (short) 1,
+                "2025-2026",
+                PageRequest.of(
+                        0,
+                        10,
+                        Sort.by(Sort.Direction.ASC, "subjectEntity.subjectCode")));
+        assertThat(filteredScores.getContent())
+                .extracting(ScoreEntity::getId)
+                .containsExactly(stored.getId());
+        assertThat(filteredScores.getContent().get(0).getSubjectEntity().getSubjectCode())
+                .isEqualTo("SEC101");
+        assertThat(studentRepository.findByUserEntityKeycloakUserId(
+                student.getUserEntity().getKeycloakUserId()))
+                .map(StudentEntity::getId)
+                .contains(student.getId());
     }
 
     @Test

@@ -109,6 +109,27 @@ public class AdminController {
                 .body(ApiResponse.success(score, "Student score created successfully"));
     }
 
+    @GetMapping("/students/{studentId}/scores")
+    public ResponseEntity<ApiResponse<PageResponse<ScoreResponseDTO>>> getStudentScores(
+            @PathVariable UUID studentId,
+            @RequestParam(required = false) UUID subjectId,
+            @RequestParam(required = false) Short semester,
+            @RequestParam(required = false) String academicYear,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(defaultValue = "academicYear,desc") String sort) {
+        PageResponse<ScoreResponseDTO> scores = scoreAdministrationService.getStudentScores(
+                studentId,
+                subjectId,
+                semester,
+                academicYear,
+                page,
+                size,
+                sort);
+        return ResponseEntity.ok(
+                ApiResponse.success(scores, "Fetched student scores successfully"));
+    }
+
     @PatchMapping("/scores/{scoreId}")
     public ResponseEntity<ApiResponse<ScoreResponseDTO>> updateScore(
             @PathVariable UUID scoreId,

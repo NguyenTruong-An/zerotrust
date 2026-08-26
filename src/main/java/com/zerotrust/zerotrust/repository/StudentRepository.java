@@ -49,4 +49,7 @@ public interface StudentRepository extends JpaRepository<StudentEntity, UUID> {
     @EntityGraph(attributePaths = {"userEntity", "studentClassEntity"})
     @Query("SELECT student FROM StudentEntity student WHERE student.id = :id")
     Optional<StudentEntity> findDetailedById(@Param("id") UUID id);
+
+    @EntityGraph(attributePaths = {"userEntity"})
+    Optional<StudentEntity> findByUserEntityKeycloakUserId(UUID keycloakUserId);
 }
