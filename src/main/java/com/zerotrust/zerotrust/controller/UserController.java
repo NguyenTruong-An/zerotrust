@@ -7,7 +7,7 @@ import com.zerotrust.zerotrust.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
@@ -20,8 +20,9 @@ public class UserController {
     private final UserService userService;
 
     @GetMapping("/me")
-    public ResponseEntity<?> getCurrentUser(@AuthenticationPrincipal Jwt jwt) {
-        UUID keycloakUserId = parseKeycloakUserId(jwt.getSubject());
+    public ResponseEntity<?> getCurrentUser(@AuthenticationPrincipal OidcUser oidcUser) {
+        UUID keycloakUserId = parseKeycloakUserId(
+                oidcUser == null ? null : oidcUser.getSubject());
         var currentUser = userService.getCurrentUser(keycloakUserId);
         return ResponseEntity.ok(
                 ApiResponse.success(currentUser, "Fetched current user successfully"));

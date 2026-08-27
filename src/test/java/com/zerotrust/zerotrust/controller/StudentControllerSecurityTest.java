@@ -10,7 +10,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -24,7 +24,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.oidcLogin;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -37,7 +37,7 @@ class StudentControllerSecurityTest {
     @MockitoBean
     private ScoreAdministrationService scoreAdministrationService;
     @MockitoBean
-    private JwtDecoder jwtDecoder;
+    private ClientRegistrationRepository clientRegistrationRepository;
 
     @Test
     void rejectsUnauthenticatedStudentScoreRequest() throws Exception {
@@ -51,7 +51,7 @@ class StudentControllerSecurityTest {
     @Test
     void rejectsAdminWithoutStudentRole() throws Exception {
         mockMvc.perform(get("/api/students/me/scores")
-                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
+                        .with(oidcLogin().authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
                 .andExpect(status().isForbidden());
 
         verify(scoreAdministrationService, never()).getCurrentStudentScores(
@@ -59,7 +59,7 @@ class StudentControllerSecurityTest {
     }
 
     @Test
-    void returnsOnlyScoresResolvedFromStudentJwtSubject() throws Exception {
+    void returnsOnlyScoresResolvedFromStudentOidcSubject() throws Exception {
         UUID keycloakUserId = UUID.randomUUID();
         UUID studentId = UUID.randomUUID();
         UUID subjectId = UUID.randomUUID();
@@ -83,8 +83,8 @@ class StudentControllerSecurityTest {
                 .thenReturn(response);
 
         mockMvc.perform(get("/api/students/me/scores")
-                        .with(jwt()
-                                .jwt(token -> token.subject(keycloakUserId.toString()))
+                        .with(oidcLogin()
+                                .idToken(token -> token.subject(keycloakUserId.toString()))
                                 .authorities(new SimpleGrantedAuthority("ROLE_STUDENT")))
                         .param("subjectId", subjectId.toString())
                         .param("semester", "1")
@@ -109,10 +109,10 @@ class StudentControllerSecurityTest {
     }
 
     @Test
-    void rejectsJwtWithNonUuidSubject() throws Exception {
+    void rejectsOidcUserWithNonUuidSubject() throws Exception {
         mockMvc.perform(get("/api/students/me/scores")
-                        .with(jwt()
-                                .jwt(token -> token.subject("not-a-keycloak-uuid"))
+                        .with(oidcLogin()
+                                .idToken(token -> token.subject("not-a-keycloak-uuid"))
                                 .authorities(new SimpleGrantedAuthority("ROLE_STUDENT"))))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.error").value("UNAUTHORIZED"));

@@ -11,7 +11,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
-import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 
 import java.util.UUID;
 
@@ -34,13 +34,13 @@ class UserControllerTest {
     }
 
     @Test
-    void returnsCurrentUserIdentifiedByJwtSubject() {
+    void returnsCurrentUserIdentifiedByOidcSubject() {
         UUID keycloakUserId = UUID.randomUUID();
-        Jwt jwt = jwtWithSubject(keycloakUserId.toString());
+        OidcUser oidcUser = oidcUserWithSubject(keycloakUserId.toString());
         UserResponseDTO user = new UserResponseDTO();
         when(userService.getCurrentUser(keycloakUserId)).thenReturn(user);
 
-        var response = userController.getCurrentUser(jwt);
+        var response = userController.getCurrentUser(oidcUser);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody()).isInstanceOf(ApiResponse.class);
@@ -51,19 +51,18 @@ class UserControllerTest {
     }
 
     @Test
-    void rejectsJwtWithNonUuidSubject() {
-        Jwt jwt = jwtWithSubject("not-a-keycloak-uuid");
+    void rejectsOidcUserWithNonUuidSubject() {
+        OidcUser oidcUser = oidcUserWithSubject("not-a-keycloak-uuid");
 
-        assertThatThrownBy(() -> userController.getCurrentUser(jwt))
+        assertThatThrownBy(() -> userController.getCurrentUser(oidcUser))
                 .isInstanceOf(WebException.class)
                 .extracting(exception -> ((WebException) exception).getErrorCode())
                 .isEqualTo(ErrorCode.UNAUTHORIZED);
     }
 
-    private Jwt jwtWithSubject(String subject) {
-        return Jwt.withTokenValue("token")
-                .header("alg", "none")
-                .subject(subject)
-                .build();
+    private OidcUser oidcUserWithSubject(String subject) {
+        OidcUser oidcUser = org.mockito.Mockito.mock(OidcUser.class);
+        when(oidcUser.getSubject()).thenReturn(subject);
+        return oidcUser;
     }
 }
