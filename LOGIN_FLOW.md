@@ -1,431 +1,251 @@
-# Luồng đăng nhập production V1
+# Luồng đăng nhập SPA + PKCE
 
-**Trạng thái:** Đã chấp nhận (Accepted)  
-**Ngày chốt:** 2026-08-26  
-**Phạm vi:** Toàn bộ đăng nhập, phiên người dùng, mật khẩu, email, MFA và phân quyền của phiên bản V1 chưa có Risk Score Service
+**Trạng thái:** Đã chấp nhận (Accepted)
 
-## 1. Quyền ưu tiên của tài liệu
+**Ngày cập nhật:** 2026-09-04
 
-Đây là **nguồn sự thật duy nhất** cho việc thiết kế và triển khai luồng đăng nhập V1.
+**Nhánh triển khai:** `zerotrust-v3-spa`
 
-Nếu nội dung về đăng nhập trong tài liệu khác, kể cả `ARCHITECTURE.md`, mâu thuẫn với file này thì **`LOGIN_FLOW.md` được ưu tiên cho V1**. Các phần Risk Scoring, Custom Authenticator và adaptive authentication trong `ARCHITECTURE.md` chỉ là kiến trúc V2 tương lai, chưa thuộc phạm vi triển khai hiện tại.
+Tài liệu này là nguồn sự thật cho luồng đăng nhập, refresh token và logout của Portal. Kiến trúc hiện tại là SPA dùng Authorization Code Flow + PKCE; Spring Boot chỉ là OAuth2 Resource Server stateless, không còn là BFF.
 
-Không được tự ý thay đổi luồng này. Mọi thay đổi phải:
-
-1. Nêu rõ lý do và tác động.
-2. Được chủ đồ án chấp thuận rõ ràng.
-3. Cập nhật file này trước hoặc cùng lúc với code.
-
-## 2. Các quyết định đã chốt
-
-V1 sử dụng:
-
-- OpenID Connect Authorization Code Flow.
-- PKCE với `S256`.
-- Spring Boot làm BFF và Portal API trong cùng hệ thống triển khai.
-- Keycloak chịu trách nhiệm xác thực username, password và MFA.
-- Redis lưu session phía server.
-- Trình duyệt chỉ giữ session cookie; không giữ Access Token hoặc Refresh Token.
-- Admin tự nhập email và mật khẩu khi tạo sinh viên, đúng như API hiện tại.
-- Email không được tự sinh.
-- Email không cần xác minh trong V1.
-- Mật khẩu do admin đặt là mật khẩu chính thức, `temporary=false`.
-- Sinh viên không bị bắt đổi mật khẩu ở lần đăng nhập đầu tiên.
-- Không có Risk Score Service, Custom Authenticator hoặc quyết định rủi ro thích ứng trong V1.
-- MFA áp dụng theo chính sách cố định, không phụ thuộc Risk Score.
-
-## 3. Kiến trúc V1
+## 1. Kiến trúc đã chốt
 
 ```mermaid
 flowchart LR
-    USER["Trình duyệt"] -->|"HTTPS + session cookie"| RP["Reverse Proxy"]
-    RP --> APP["Spring Boot<br/>BFF + Portal API"]
-    APP --> REDIS[("Redis<br/>Session + OAuth tokens")]
-    APP --> PORTAL_DB[("Portal DB · MySQL")]
-    APP -->|"Authorization Code + PKCE"| KC["Keycloak"]
-    APP -->|"Service account riêng"| KC_ADMIN["Keycloak Admin API"]
-    KC --> KC_DB[("Keycloak DB")]
-    KC_ADMIN --> KC_DB
+    U["Người dùng"] --> SPA["Frontend SPA<br/>localhost:3000"]
+    SPA -->|"Authorization Code + PKCE S256"| KC["Keycloak<br/>localhost:8180"]
+    KC -->|"code"| SPA
+    SPA -->|"code + code_verifier"| KC
+    KC -->|"Access Token + Refresh Token"| SPA
+    SPA -->|"Authorization: Bearer access_token"| API["Portal API<br/>localhost:8080"]
+    API -. "JWKS: xác minh chữ ký" .-> KC
+    API --> DB[("Portal DB")]
 ```
 
-Frontend và API phải được đưa ra ngoài qua cùng một site, ví dụ:
+Phân chia trách nhiệm:
 
-```text
-https://app.example.com/       -> frontend
-https://app.example.com/api/** -> Spring Boot
-https://auth.example.com/      -> Keycloak public login
+- Frontend điều hướng người dùng sang Keycloak, xử lý callback, giữ token trong memory, refresh và gắn Bearer token vào request.
+- Keycloak kiểm tra mật khẩu, MFA, risk authentication flow và phát hành token.
+- Portal API không đăng nhập người dùng. API chỉ xác minh access token và kiểm tra quyền.
+- Redis không còn cần cho phiên Portal. Redis trong `ARCHITECTURE.md` chỉ phục vụ Risk Scoring Service.
+- Client `zerotrust-provisioner` vẫn là confidential service account riêng để backend tạo/quản lý tài khoản Keycloak. Nó không tham gia đăng nhập trình duyệt.
+
+## 2. Vì sao không có `/auth/login`
+
+Frontend không gửi username/password tới Portal API. Nút đăng nhập gọi:
+
+```ts
+getKeycloak().login({ redirectUri: appRedirectUri() });
 ```
 
-Keycloak Admin Console và Admin REST API không được công khai chung với hostname đăng nhập nếu triển khai thật.
+Code nằm trong `frontend/app/page.tsx`. `keycloak-js` tạo authorization request và chuyển trình duyệt trực tiếp tới authorization endpoint của Keycloak. Vì vậy:
 
-## 4. Hai Keycloak client bắt buộc tách riêng
+- không cần và không được tạo `POST /auth/login`;
+- Portal API không nhìn thấy mật khẩu hoặc OTP;
+- chỉ Keycloak chịu trách nhiệm xác thực;
+- Custom Authenticator/Risk Scoring trong Keycloak vẫn chạy như trước khi Keycloak phát hành code.
 
-### 4.1. `zerotrust-bff`
+## 3. PKCE bảo vệ điều gì
 
-Client dùng cho người dùng đăng nhập:
+Trước khi redirect, `keycloak-js` tạo một chuỗi bí mật ngẫu nhiên gọi là `code_verifier`, rồi băm SHA-256 thành `code_challenge`.
 
-```text
-Client type / capability: Confidential
-Client authentication: ON
-Standard flow: ON
-PKCE method: S256
-Implicit flow: OFF
-Direct access grants: OFF
-Service accounts: OFF
-```
+1. Authorization request chỉ gửi `code_challenge` tới Keycloak.
+2. Sau đăng nhập, Keycloak redirect về SPA với authorization code dùng một lần.
+3. SPA đổi code lấy token và phải gửi đúng `code_verifier`.
+4. Keycloak tự băm verifier và so sánh với challenge đã lưu.
 
-Redirect URI phải khai báo chính xác, không dùng wildcard rộng:
+Nếu authorization code bị chặn hoặc bị lấy khỏi URL, kẻ tấn công vẫn không đổi được code thành token vì không có verifier. SPA là public client, không thể giữ client secret an toàn, nên PKCE S256 là lớp bảo vệ bắt buộc thay cho việc giả vờ giấu secret trong JavaScript.
 
-```text
-https://app.example.com/login/oauth2/code/keycloak
-```
+PKCE không chống XSS. XSS vẫn có thể đọc token đang nằm trong memory hoặc gọi API dưới danh nghĩa người dùng. Vì vậy frontend vẫn cần CSP, kiểm soát dependency, không render HTML không tin cậy và tránh lưu token lâu dài.
 
-### 4.2. `zerotrust-provisioner`
-
-Client chỉ dùng để backend tạo user, đặt mật khẩu và gán realm role:
-
-```text
-Client authentication: ON
-Service accounts: ON
-Standard flow: OFF
-Implicit flow: OFF
-Direct access grants: OFF
-```
-
-Client này chỉ được cấp các quyền Keycloak Admin tối thiểu cần thiết. Không dùng chung client secret với `zerotrust-bff`.
-
-## 5. Luồng tạo tài khoản sinh viên
-
-Luồng hiện tại được giữ nguyên về email và mật khẩu:
-
-1. Admin đã đăng nhập bằng role `ADMIN`.
-2. Admin gọi `POST /api/admin/students`.
-3. Admin nhập trực tiếp `username`, `email` và `password` của sinh viên.
-4. Backend kiểm tra dữ liệu và tính duy nhất của username, email, mã sinh viên.
-5. Backend dùng client `zerotrust-provisioner` để tạo user trong Keycloak.
-6. Keycloak lưu credential với `temporary=false`.
-7. Backend gán realm role `STUDENT`.
-8. Backend lưu hồ sơ vào Portal DB cùng `keycloak_user_id` trả về từ Keycloak.
-9. Portal DB tuyệt đối không lưu password.
-10. Nếu lưu Portal DB thất bại, backend phải rollback/xóa user Keycloak vừa tạo.
-
-Quyết định riêng của đồ án:
-
-- Không tự sinh email.
-- Không gửi email kích hoạt.
-- Không yêu cầu `VERIFY_EMAIL`.
-- Không yêu cầu `UPDATE_PASSWORD` khi đăng nhập lần đầu.
-- Admin giao username/password cho sinh viên bằng kênh trực tiếp ngoài hệ thống.
-
-Password không được xuất hiện trong response, log, audit payload, exception hoặc database của Portal.
-
-## 6. Chính sách email V1
-
-Email tiếp tục là trường do admin nhập và được lưu như code hiện tại.
-
-Cấu hình Keycloak V1:
-
-```text
-Verify Email: OFF
-Email as username: OFF
-Login with email: OFF
-Forgot Password qua email: OFF
-```
-
-Người dùng đăng nhập bằng `username`, không đăng nhập bằng email. Hệ thống không tự sửa, thay thế hoặc sinh email.
-
-## 7. Chính sách mật khẩu V1
-
-Admin đặt mật khẩu chính thức khi tạo sinh viên:
-
-```java
-password.setTemporary(false);
-```
-
-Không yêu cầu đổi mật khẩu ở lần đăng nhập đầu tiên.
-
-Password policy tối thiểu trên Keycloak:
-
-```text
-Độ dài tối thiểu: 12 ký tự
-Có chữ hoa
-Có chữ thường
-Có chữ số
-Có ký tự đặc biệt
-Không trùng username
-Không thuộc danh sách mật khẩu phổ biến nếu môi trường hỗ trợ
-```
-
-Sau khi tạo tài khoản:
-
-- Không có API đọc lại mật khẩu.
-- Giao diện phải xóa password khỏi form/state.
-- Sinh viên có thể chủ động đổi mật khẩu sau khi đăng nhập nhưng không bị bắt buộc.
-
-## 8. Quên hoặc reset mật khẩu khi không có email thật
-
-V1 không dùng email reset password.
-
-Luồng reset:
-
-1. Sinh viên liên hệ admin ngoài hệ thống.
-2. Admin xác minh sinh viên theo quy trình của đồ án.
-3. Admin đặt một mật khẩu mới qua Keycloak Admin API.
-4. Mật khẩu reset tiếp tục là mật khẩu chính thức với `temporary=false`.
-5. Không ép đổi mật khẩu ở lần đăng nhập sau reset.
-
-API dự kiến khi triển khai:
-
-```http
-POST /api/admin/students/{studentId}/reset-password
-```
-
-Không được triển khai Forgot Password dựa trên email giả khi chưa có phê duyệt thay đổi tài liệu này.
-
-## 9. Chính sách MFA cố định V1
-
-V1 chưa có Risk Score nên không có quyết định `ALLOW`, `STEP_UP_MFA`, `DENY` dựa trên điểm rủi ro.
-
-Chính sách cố định:
-
-- `ADMIN`: bắt buộc MFA; ưu tiên WebAuthn/Passkey, có thể dùng TOTP cho đồ án.
-- `STUDENT`: bắt buộc cấu hình TOTP ở lần đăng nhập đầu tiên và dùng TOTP ở các phiên đăng nhập tiếp theo.
-- Việc cấu hình TOTP lần đầu không đồng nghĩa với đổi mật khẩu.
-- Bật Brute Force Detection trên Keycloak.
-
-Không được tự thêm thu thập fingerprint, IP risk, geolocation risk, login velocity hoặc gọi Risk Score Service trong V1.
-
-## 10. Luồng đăng nhập chi tiết
+## 4. Luồng login chi tiết theo code
 
 ```mermaid
 sequenceDiagram
     actor U as Người dùng
-    participant B as Trình duyệt
-    participant A as Spring Boot BFF
-    participant R as Redis
+    participant F as SPA
     participant K as Keycloak
+    participant A as Portal API
 
-    U->>B: Mở ứng dụng
-    B->>A: GET /api/auth/session
-    A-->>B: Chưa có session
-    B->>A: GET /oauth2/authorization/keycloak
-    A->>A: Tạo state, nonce, PKCE verifier/challenge
-    A-->>B: Redirect tới Keycloak /authorize
-    B->>K: Authorization request + code_challenge S256
-    K->>U: Form username/password + MFA
-    U->>K: Credentials + OTP/Passkey
-    K-->>B: Redirect callback với authorization code
-    B->>A: GET /login/oauth2/code/keycloak?code=...
-    A->>K: POST /token với code + verifier + client authentication
-    K-->>A: ID Token + Access Token + Refresh Token
-    A->>R: Lưu session và OAuth tokens phía server
-    A-->>B: Set-Cookie __Host-session; redirect về ứng dụng
-    B->>A: GET /api/auth/session + session cookie
-    A-->>B: Thông tin user và role
-    B->>A: Gọi API + session cookie + CSRF token nếu cần
-    A-->>B: Kết quả API
+    U->>F: Mở http://localhost:3000
+    F->>K: check-sso im lặng
+    K-->>F: Chưa có SSO session
+    F-->>U: Hiện nút đăng nhập
+    U->>F: Bấm Đăng nhập với Keycloak
+    F->>K: /auth + code_challenge(S256)
+    K-->>U: Trang username/password/MFA
+    K->>K: Custom Authenticator + Risk decision
+    K-->>F: Redirect /?code=...&state=...
+    F->>K: /token + code + code_verifier
+    K-->>F: access_token + refresh_token + id_token
+    F->>A: GET /api/... + Bearer access_token
+    A->>A: Kiểm tra signature, iss, exp, nbf, aud, role
+    A-->>F: JSON nghiệp vụ
 ```
 
-Trình duyệt không gọi `/token`. Chỉ Spring Boot BFF gọi `/token` từ phía server.
+Code flow:
 
-## 11. Session, cookie và CSRF
+1. `frontend/lib/keycloak.ts` tạo singleton Keycloak với URL, realm và public client ID.
+2. `initializeKeycloak()` gọi `init` với `onLoad: 'check-sso'`, `pkceMethod: 'S256'` và silent SSO page.
+3. Nếu chưa đăng nhập, `frontend/app/page.tsx` hiển thị màn hình login.
+4. `login()` redirect sang Keycloak. Đoạn redirect nằm ở hàm `login` cuối `page.tsx`, không nằm trong backend.
+5. Khi Keycloak redirect về `/`, lời gọi `init()` tự kiểm tra `state`, dùng verifier để đổi code lấy token và xử lý callback.
+6. Frontend lấy `preferred_username` và `realm_access.roles` từ token để hiển thị UI. Đây chỉ là kiểm tra UX; backend luôn kiểm tra role lại.
+7. `frontend/lib/api.ts` gọi `apiFetch()`, refresh nếu cần rồi thêm header `Authorization: Bearer ...`.
+8. `SecurityConfig` bật Resource Server, tạo session policy `STATELESS`, xác minh JWT và bảo vệ endpoint theo role.
+9. `KeycloakJwtAuthenticationConverter` đổi `realm_access.roles = ["admin"]` thành `ROLE_ADMIN` cho Spring Security.
+10. `StudentController` và `UserController` lấy `sub` trực tiếp từ principal `Jwt` để liên kết với `users.keycloak_user_id`.
 
-Session được lưu trong Redis. Access Token, Refresh Token và dữ liệu OAuth authorized client không được ghi vào cookie phía trình duyệt.
+## 5. Token được lưu ở đâu
 
-Cookie phiên:
+`keycloak-js` giữ access token, refresh token và ID token trong biến JavaScript của tab hiện tại. Code không ghi token vào:
+
+- `localStorage`;
+- `sessionStorage`;
+- IndexedDB;
+- cookie do JavaScript tạo;
+- URL hoặc log ứng dụng.
+
+Reload tab sẽ mất token trong memory. `check-sso` dùng SSO session của Keycloak để khôi phục đăng nhập mà không yêu cầu nhập lại mật khẩu nếu Keycloak session còn hiệu lực.
+
+Đây là đánh đổi chính của SPA: tránh rủi ro token tồn tại lâu trong storage, nhưng XSS chạy trong tab vẫn có thể lợi dụng token hiện tại. Access token nên có TTL ngắn, ví dụ khoảng 5 phút; giới hạn cuối cùng phải được cấu hình tại Keycloak theo yêu cầu đồ án.
+
+## 6. Refresh token nằm ở đoạn nào
+
+Refresh nằm trong `frontend/lib/api.ts`, hàm `refreshToken()`:
+
+```ts
+await keycloak.updateToken(30);
+```
+
+Trước mỗi API request, token được refresh nếu còn dưới 30 giây. Các request đồng thời dùng chung `refreshInFlight` để không gửi nhiều refresh request song song.
+
+Nếu API trả 401, `apiFetch()` force refresh đúng một lần bằng `updateToken(-1)` rồi retry request đúng một lần. Nếu refresh thất bại, token trong memory bị xóa và UI quay về trạng thái chưa đăng nhập. Không retry vô hạn.
+
+Refresh token rotation, reuse detection và thời hạn SSO phải được cấu hình ở Keycloak. SPA không tự phát hành hoặc tự xác minh refresh token.
+
+## 7. Backend xác minh access token
+
+`SecurityConfig` và `JwtAudienceValidator` kiểm tra:
+
+- chữ ký JWT qua JWKS của realm;
+- `iss` đúng `KEYCLOAK_ISSUER_URI`;
+- token chưa hết hạn và hợp lệ theo thời gian;
+- `aud` có `zerotrust-api` hoặc giá trị `KEYCLOAK_API_AUDIENCE`;
+- realm role phù hợp với endpoint.
+
+Quyền hiện tại:
 
 ```text
-Name: __Host-session
-Secure: true
-HttpOnly: true
-SameSite: Lax
-Path: /
-Domain: không đặt
+/api/admin/**      -> ROLE_ADMIN
+/api/students/**   -> ROLE_STUDENT
+/api/users/**      -> JWT hợp lệ
+mọi đường dẫn khác -> deny
 ```
 
-`SameSite=Lax` được chốt để callback điều hướng từ Keycloak về ứng dụng hoạt động ổn định. Các request thay đổi dữ liệu vẫn phải được bảo vệ bằng CSRF token.
+`/api/users/me` và truy vấn điểm của sinh viên còn kiểm tra liên kết `sub` với Portal DB; tài khoản Portal không `ACTIVE` bị từ chối. Tài khoản quản trị được quản lý trạng thái enabled/disabled tại Keycloak.
 
-CSRF:
+Portal không introspect Keycloak ở mỗi request. Việc khóa tài khoản/thu hồi role có hiệu lực với API khi access token hiện tại hết hạn hoặc bị thay thế, nên access token phải có TTL ngắn.
 
-- Không được giữ `csrf.disable()` khi chuyển sang BFF cookie session.
-- `POST`, `PUT`, `PATCH`, `DELETE` phải yêu cầu CSRF token.
-- Frontend gửi token bằng header, ví dụ `X-CSRF-TOKEN`.
-- Session cookie vẫn luôn `HttpOnly`; CSRF token không phải Access Token.
+## 8. CORS và CSRF
 
-## 12. Refresh token và thời gian phiên
+SPA ở origin `http://localhost:3000` gọi API ở `http://localhost:8080`, nên browser áp dụng CORS. Backend chỉ cho phép origin trong `CORS_ALLOWED_ORIGINS`, các method cần thiết và ba header `Authorization`, `Content-Type`, `Accept`.
 
-Cấu hình khởi đầu V1:
+Không dùng `allowedOrigins=*` trong production. Production phải dùng HTTPS và khai báo origin đầy đủ, ví dụ `https://portal.example.edu`.
 
-```text
-Access Token Lifespan: 5 phút
-Session Idle: 30 phút
-Session Max: 8 giờ
-Refresh Token Rotation / Revoke Refresh Token: ON
-Offline Access: OFF
-Remember Me: OFF ở V1
+CSRF được tắt vì Portal API chỉ nhận Bearer token trong header và không dùng cookie để xác thực. Browser không tự gắn Bearer token vào request từ website khác. Nếu sau này thêm bất kỳ cookie xác thực nào, quyết định này phải được xem lại và cần CSRF protection tương ứng.
+
+CORS không phải cơ chế xác thực: client ngoài browser vẫn gọi được API. JWT validation và authorization mới là hàng rào bảo mật thật.
+
+## 9. Luồng logout
+
+Nút logout ở `frontend/app/page.tsx` gọi:
+
+```ts
+keycloak.logout({ redirectUri: appRedirectUri() });
 ```
 
-Khi Access Token gần hết hạn, BFF tự dùng Refresh Token để lấy token mới và lưu lại token đã rotate trong Redis. Frontend không thực hiện refresh.
+Trình duyệt được đưa tới end-session endpoint của Keycloak. Keycloak kết thúc SSO session rồi redirect về SPA. `keycloak-js` xóa token trong memory. Nếu Keycloak không phản hồi, frontend vẫn dọn token cục bộ, nhưng logout toàn cục chỉ hoàn tất khi end-session request thành công.
 
-Khi Refresh Token hết hạn hoặc bị thu hồi:
+Backend không có `/api/auth/logout` vì backend không giữ session và không giữ token của người dùng.
 
-1. BFF hủy session Redis.
-2. Xóa session cookie.
-3. Trả trạng thái chưa đăng nhập để frontend bắt đầu Authorization Code Flow mới.
+## 10. Cấu hình client Keycloak bắt buộc
 
-## 13. Khởi tạo giao diện sau đăng nhập
+Tạo OIDC client `zerotrust-spa` trong realm `DoAn`:
 
-Sau khi login thành công, frontend gọi:
+- Client authentication: `Off` (public client).
+- Standard flow: `On`.
+- Implicit flow: `Off`.
+- Direct access grants: `Off`.
+- Service accounts roles: `Off`.
+- PKCE method/code challenge method: `S256`.
+- Valid redirect URIs: `http://localhost:3000/` và `http://localhost:3000/silent-check-sso.html`.
+- Valid post logout redirect URIs: `http://localhost:3000/`.
+- Web origins: `http://localhost:3000`.
 
-```http
-GET /api/auth/session
-```
+Thêm Audience protocol mapper vào token của `zerotrust-spa`:
 
-Response phải chứa tối thiểu:
+- Mapper type: `Audience`.
+- Included Custom Audience: `zerotrust-api`.
+- Add to access token: `On`.
+- Add to ID token: không bắt buộc.
+
+Access token phải chứa ít nhất:
 
 ```json
 {
-  "authenticated": true,
-  "username": "student01",
-  "roles": ["STUDENT"]
+  "iss": "http://localhost:8180/realms/DoAn",
+  "aud": ["zerotrust-api"],
+  "sub": "<UUID user Keycloak>",
+  "preferred_username": "admin01",
+  "realm_access": { "roles": ["ADMIN"] }
 }
 ```
 
-Frontend điều hướng theo role:
+Không cấu hình client secret cho SPA và không đặt secret trong biến `NEXT_PUBLIC_*`; mọi biến public đều có thể được đọc từ browser bundle.
+
+## 11. Biến môi trường
+
+Frontend xem `frontend/.env.example`:
+
+```properties
+NEXT_PUBLIC_KEYCLOAK_URL=http://localhost:8180
+NEXT_PUBLIC_KEYCLOAK_REALM=DoAn
+NEXT_PUBLIC_KEYCLOAK_CLIENT_ID=zerotrust-spa
+NEXT_PUBLIC_API_BASE_URL=http://localhost:8080
+```
+
+Backend:
+
+```properties
+KEYCLOAK_ISSUER_URI=http://localhost:8180/realms/DoAn
+KEYCLOAK_JWK_SET_URI=http://localhost:8180/realms/DoAn/protocol/openid-connect/certs
+KEYCLOAK_API_AUDIENCE=zerotrust-api
+CORS_ALLOWED_ORIGINS=http://localhost:3000
+```
+
+`KEYCLOAK_ADMIN_CLIENT_SECRET` chỉ thuộc client service account `zerotrust-provisioner`, không được dùng ở frontend.
+
+## 12. Mã lỗi quan trọng
 
 ```text
-ADMIN   -> trang quản trị
-STUDENT -> trang sinh viên
+401 UNAUTHORIZED -> thiếu/sai/hết hạn token, sai issuer, signature hoặc audience
+403 FORBIDDEN    -> JWT hợp lệ nhưng thiếu role cho endpoint
+403 USER_INACTIVE -> hồ sơ Portal của sinh viên không ACTIVE
+404 USER_NOT_FOUND -> sub không có hồ sơ Portal tương ứng
 ```
 
-Các API nghiệp vụ hiện tại giữ nguyên đường dẫn, ví dụ:
+## 13. Checklist trước khi demo
 
-```http
-GET /api/users/me
-GET /api/students/me/scores
-GET /api/admin/students
-```
-
-Browser gọi các API này bằng session cookie, không gửi Bearer Token từ JavaScript.
-
-## 14. Kiểm tra quyền và trạng thái tài khoản
-
-Keycloak xác thực danh tính và cung cấp realm role. Portal vẫn phải kiểm tra quyền trên từng tài nguyên:
-
-- `STUDENT` chỉ xem dữ liệu và điểm của chính mình.
-- `ADMIN` quản lý sinh viên, lớp, môn học và điểm.
-- Tài khoản `INACTIVE` hoặc `DELETED` trong Portal DB bị từ chối dù Keycloak session vẫn còn hợp lệ.
-- `sub` từ danh tính OIDC được đối chiếu với `users.keycloak_user_id`.
-
-Không được nhận `studentId` từ client cho API xem điểm của chính sinh viên. Endpoint `/api/students/me/scores` luôn tự suy ra sinh viên từ danh tính đăng nhập.
-
-## 15. Logout
-
-Logout phải dùng request thay đổi trạng thái và có CSRF protection:
-
-```http
-POST /api/auth/logout
-```
-
-Backend phải:
-
-1. Hủy session Redis.
-2. Xóa `__Host-session` cookie.
-3. Kết thúc hoặc thu hồi session tương ứng trên Keycloak.
-4. Redirect hoặc trả URL để frontend về trang chưa đăng nhập.
-
-Chỉ xóa cookie phía frontend mà không kết thúc session server/Keycloak không được xem là logout hoàn chỉnh.
-
-## 16. Xử lý lỗi chuẩn
-
-```text
-401 Unauthorized -> chưa đăng nhập, session/token không hợp lệ hoặc hết hạn
-403 Forbidden    -> đã đăng nhập nhưng không có role/quyền
-USER_INACTIVE    -> tài khoản Portal bị khóa
-STUDENT_NOT_FOUND -> tài khoản Keycloak chưa liên kết hồ sơ sinh viên
-```
-
-Không được phân biệt thông báo username sai và password sai trên màn hình đăng nhập. Không ghi credential hoặc token vào log lỗi.
-
-## 17. Thay đổi bắt buộc so với code hiện tại
-
-Code hiện tại vẫn là OAuth2 Resource Server stateless nhận Bearer Token từ frontend. Đây là trạng thái trung gian, chưa phải kiến trúc đích V1 trong file này.
-
-Khi triển khai login BFF phải:
-
-1. Thêm `spring-boot-starter-oauth2-client`.
-2. Thêm Spring Session Redis.
-3. Cấu hình `oauth2Login()` với client `zerotrust-bff`.
-4. Đổi `SessionCreationPolicy.STATELESS` sang session server-side phù hợp.
-5. Bật lại CSRF protection.
-6. Thay principal `Jwt` ở controller trình duyệt bằng `OidcUser` hoặc `OAuth2AuthenticationToken`.
-7. Ánh xạ realm roles của Keycloak sang Spring authorities.
-8. Lưu OAuth authorized client và session trong Redis.
-9. Frontend bỏ hoàn toàn việc lưu/gửi Bearer Token.
-10. Frontend dùng `credentials: "include"` và CSRF token khi gọi API thay đổi dữ liệu.
-
-Không được triển khai nửa BFF, nửa SPA token flow nếu chưa thiết kế rõ các `SecurityFilterChain` tách biệt và được chủ đồ án chấp thuận.
-
-## 18. Những điều bị cấm trong V1
-
-- Không tạo `POST /api/auth/login` nhận username/password.
-- Không dùng Resource Owner Password Credentials Grant (`grant_type=password`).
-- Không bật Direct Access Grants cho client đăng nhập.
-- Không dùng Implicit Flow.
-- Không để frontend gọi trực tiếp `/token`.
-- Không lưu Access Token hoặc Refresh Token trong `localStorage`, `sessionStorage`, IndexedDB hoặc cookie do JavaScript đọc được.
-- Không lưu password trong Portal DB.
-- Không ghi password, token, authorization code hoặc client secret vào log.
-- Không tự sinh email.
-- Không bắt xác minh email.
-- Không gửi email kích hoạt trong V1.
-- Không dùng temporary password khi tạo sinh viên.
-- Không bắt sinh viên đổi mật khẩu ở lần đăng nhập đầu tiên.
-- Không tự thêm Risk Score Service, Custom Authenticator hoặc adaptive decision vào V1.
-- Không tự thay đổi đường dẫn API nghiệp vụ chỉ để phục vụ login.
-
-## 19. Chuẩn bị cho V2 Risk Scoring nhưng chưa triển khai
-
-V1 có thể ghi audit event tối thiểu mà không đưa ra quyết định rủi ro:
-
-```text
-LOGIN_SUCCESS
-LOGIN_FAILURE
-MFA_SUCCESS
-MFA_FAILURE
-TOKEN_REFRESH
-LOGOUT
-ACCOUNT_LOCKED
-```
-
-Các event này chỉ dùng cho audit ở V1. Không tính Risk Score, không phân loại `LOW/MEDIUM/HIGH`, không step-up theo rủi ro và không deny dựa trên mô hình rủi ro.
-
-Khi bắt đầu V2, phải có phê duyệt mới và cập nhật file này trước khi thêm Risk Scoring vào authentication flow.
-
-## 20. Checklist nghiệm thu login V1
-
-- [ ] Login dùng Authorization Code + PKCE S256.
-- [ ] Browser không thấy Access Token hoặc Refresh Token.
-- [ ] Session và OAuth tokens nằm trong Redis.
-- [ ] Cookie có `Secure`, `HttpOnly`, `SameSite=Lax`, `Path=/`, không có `Domain`.
-- [ ] CSRF được bật cho request thay đổi dữ liệu.
-- [ ] Direct Access Grants và Implicit Flow đã tắt.
-- [ ] `zerotrust-bff` và `zerotrust-provisioner` là hai client riêng.
-- [ ] Admin nhập email và password; hệ thống không tự sinh email.
-- [ ] Email verification đã tắt.
-- [ ] Credential tạo mới có `temporary=false`.
-- [ ] Không có required action `UPDATE_PASSWORD` khi tạo sinh viên.
-- [ ] MFA cố định hoạt động cho ADMIN và STUDENT.
-- [ ] Brute Force Detection đã bật.
-- [ ] `/api/students/me/scores` chỉ trả điểm của danh tính hiện tại.
-- [ ] Account `INACTIVE` hoặc `DELETED` bị chặn.
-- [ ] Logout hủy session BFF và session Keycloak.
-- [ ] HTTPS hoạt động trên toàn bộ đường truyền public.
-- [ ] Không có Risk Score Service trong V1.
-
-## 21. Tham chiếu tiêu chuẩn
-
-- OAuth 2.0 for Browser-Based Applications — RFC 10017: https://www.rfc-editor.org/rfc/rfc10017.html
-- OAuth 2.0 Security Best Current Practice — RFC 9700: https://www.rfc-editor.org/rfc/rfc9700.html
-- Keycloak production configuration: https://www.keycloak.org/server/configuration-production
-- Keycloak Server Administration Guide: https://www.keycloak.org/docs/latest/server_admin/
+- [ ] Client `zerotrust-spa` là public client và chỉ bật Standard Flow.
+- [ ] PKCE bắt buộc là S256.
+- [ ] Redirect URI, post-logout URI và Web Origin khớp chính xác môi trường.
+- [ ] Access token có audience `zerotrust-api` và realm role cần thiết.
+- [ ] Token không xuất hiện trong browser storage hoặc log.
+- [ ] API không tạo `JSESSIONID` và không có Redis session.
+- [ ] Request không Bearer token trả 401 JSON.
+- [ ] STUDENT gọi `/api/admin/**` trả 403 JSON.
+- [ ] Origin ngoài allow-list không nhận CORS header.
+- [ ] Access token hết hạn được refresh; refresh thất bại quay lại login.
+- [ ] Logout đi qua Keycloak và trở về SPA.
+- [ ] Production dùng HTTPS cho SPA, API và Keycloak.

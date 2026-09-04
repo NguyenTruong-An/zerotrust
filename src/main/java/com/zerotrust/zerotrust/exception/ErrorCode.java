@@ -27,7 +27,8 @@ public enum ErrorCode {
     IDENTITY_ROLE_NOT_FOUND(HttpStatus.BAD_GATEWAY, "Required identity role is not configured"),
     IDENTITY_PROVIDER_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "Identity provider is unavailable"),
     UNCATEGORIZED_EXCEPTION(HttpStatus.INTERNAL_SERVER_ERROR, "An unexpected error occurred"),
-    UNAUTHORIZED(HttpStatus.UNAUTHORIZED, "Unauthorized access");
+    UNAUTHORIZED(HttpStatus.UNAUTHORIZED, "Unauthorized access"),
+    FORBIDDEN(HttpStatus.FORBIDDEN, "Access denied");
 
     private final HttpStatus status;
     private final String message;

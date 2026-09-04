@@ -11,7 +11,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
-import org.springframework.security.oauth2.core.oidc.user.OidcUser;
+import org.springframework.security.oauth2.jwt.Jwt;
 
 import java.util.UUID;
 
@@ -34,13 +34,13 @@ class UserControllerTest {
     }
 
     @Test
-    void returnsCurrentUserIdentifiedByOidcSubject() {
+    void returnsCurrentUserIdentifiedByJwtSubject() {
         UUID keycloakUserId = UUID.randomUUID();
-        OidcUser oidcUser = oidcUserWithSubject(keycloakUserId.toString());
+        Jwt jwt = jwtWithSubject(keycloakUserId.toString());
         UserResponseDTO user = new UserResponseDTO();
         when(userService.getCurrentUser(keycloakUserId)).thenReturn(user);
 
-        var response = userController.getCurrentUser(oidcUser);
+        var response = userController.getCurrentUser(jwt);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody()).isInstanceOf(ApiResponse.class);
@@ -51,18 +51,18 @@ class UserControllerTest {
     }
 
     @Test
-    void rejectsOidcUserWithNonUuidSubject() {
-        OidcUser oidcUser = oidcUserWithSubject("not-a-keycloak-uuid");
+    void rejectsJwtWithNonUuidSubject() {
+        Jwt jwt = jwtWithSubject("not-a-keycloak-uuid");
 
-        assertThatThrownBy(() -> userController.getCurrentUser(oidcUser))
+        assertThatThrownBy(() -> userController.getCurrentUser(jwt))
                 .isInstanceOf(WebException.class)
                 .extracting(exception -> ((WebException) exception).getErrorCode())
                 .isEqualTo(ErrorCode.UNAUTHORIZED);
     }
 
-    private OidcUser oidcUserWithSubject(String subject) {
-        OidcUser oidcUser = org.mockito.Mockito.mock(OidcUser.class);
-        when(oidcUser.getSubject()).thenReturn(subject);
-        return oidcUser;
+    private Jwt jwtWithSubject(String subject) {
+        Jwt jwt = org.mockito.Mockito.mock(Jwt.class);
+        when(jwt.getSubject()).thenReturn(subject);
+        return jwt;
     }
 }

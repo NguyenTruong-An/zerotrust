@@ -1,7 +1,9 @@
 package com.zerotrust.zerotrust.controller;
 
 import com.zerotrust.zerotrust.config.SecurityConfig;
+import com.zerotrust.zerotrust.exception.CustomAccessDeniedHandler;
 import com.zerotrust.zerotrust.exception.CustomAuthenticationEntryPoint;
+import com.zerotrust.zerotrust.security.KeycloakJwtAuthenticationConverter;
 import com.zerotrust.zerotrust.model.response.PageResponse;
 import com.zerotrust.zerotrust.model.response.ScoreResponseDTO;
 import com.zerotrust.zerotrust.service.ScoreAdministrationService;
@@ -10,7 +12,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -24,20 +26,21 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.oidcLogin;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(StudentController.class)
-@Import({SecurityConfig.class, CustomAuthenticationEntryPoint.class})
+@Import({SecurityConfig.class, CustomAuthenticationEntryPoint.class,
+        CustomAccessDeniedHandler.class, KeycloakJwtAuthenticationConverter.class})
 class StudentControllerSecurityTest {
     @Autowired
     private MockMvc mockMvc;
     @MockitoBean
     private ScoreAdministrationService scoreAdministrationService;
     @MockitoBean
-    private ClientRegistrationRepository clientRegistrationRepository;
+    private JwtDecoder jwtDecoder;
 
     @Test
     void rejectsUnauthenticatedStudentScoreRequest() throws Exception {
@@ -51,7 +54,7 @@ class StudentControllerSecurityTest {
     @Test
     void rejectsAdminWithoutStudentRole() throws Exception {
         mockMvc.perform(get("/api/students/me/scores")
-                        .with(oidcLogin().authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
                 .andExpect(status().isForbidden());
 
         verify(scoreAdministrationService, never()).getCurrentStudentScores(
@@ -59,7 +62,7 @@ class StudentControllerSecurityTest {
     }
 
     @Test
-    void returnsOnlyScoresResolvedFromStudentOidcSubject() throws Exception {
+    void returnsOnlyScoresResolvedFromStudentJwtSubject() throws Exception {
         UUID keycloakUserId = UUID.randomUUID();
         UUID studentId = UUID.randomUUID();
         UUID subjectId = UUID.randomUUID();
@@ -83,8 +86,8 @@ class StudentControllerSecurityTest {
                 .thenReturn(response);
 
         mockMvc.perform(get("/api/students/me/scores")
-                        .with(oidcLogin()
-                                .idToken(token -> token.subject(keycloakUserId.toString()))
+                        .with(jwt()
+                                .jwt(token -> token.subject(keycloakUserId.toString()))
                                 .authorities(new SimpleGrantedAuthority("ROLE_STUDENT")))
                         .param("subjectId", subjectId.toString())
                         .param("semester", "1")
@@ -109,10 +112,10 @@ class StudentControllerSecurityTest {
     }
 
     @Test
-    void rejectsOidcUserWithNonUuidSubject() throws Exception {
+    void rejectsJwtWithNonUuidSubject() throws Exception {
         mockMvc.perform(get("/api/students/me/scores")
-                        .with(oidcLogin()
-                                .idToken(token -> token.subject("not-a-keycloak-uuid"))
+                        .with(jwt()
+                                .jwt(token -> token.subject("not-a-keycloak-uuid"))
                                 .authorities(new SimpleGrantedAuthority("ROLE_STUDENT"))))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.error").value("UNAUTHORIZED"));

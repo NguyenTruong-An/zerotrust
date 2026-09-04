@@ -10,6 +10,7 @@ import {
   KeyRound,
   LayoutDashboard,
   LockKeyhole,
+  LogOut,
   Menu,
   Plus,
   School,
@@ -17,10 +18,11 @@ import {
   ShieldCheck,
   UsersRound,
 } from 'lucide-react';
+import { apiFetch, AuthenticationExpiredError } from '../lib/api';
+import { appRedirectUri, getKeycloak, initializeKeycloak } from '../lib/keycloak';
 
-type AuthSession = {
-  authenticated: boolean;
-  username: string | null;
+type Identity = {
+  username: string;
   roles: string[];
 };
 
@@ -71,7 +73,7 @@ function formatNumber(value: number | null) {
 }
 
 async function getTotal(path: string): Promise<number> {
-  const response = await fetch(path, { credentials: 'include' });
+  const response = await apiFetch(path);
   if (!response.ok) {
     throw new Error(`Request failed with ${response.status}`);
   }
@@ -79,17 +81,32 @@ async function getTotal(path: string): Promise<number> {
   return payload.data.totalElements;
 }
 
+function currentIdentity(): Identity {
+  const keycloak = getKeycloak();
+  const claims = keycloak.tokenParsed as { preferred_username?: string } | undefined;
+  return {
+    username: claims?.preferred_username ?? keycloak.subject ?? 'Người dùng',
+    roles: (keycloak.realmAccess?.roles ?? []).map((role) => role.toUpperCase()),
+  };
+}
+
 function AuthLoading() {
   return (
     <main className="auth-loading" role="status" aria-live="polite">
       <span className="brand-mark"><ShieldCheck aria-hidden="true" size={22} /></span>
       <span className="auth-spinner" aria-hidden="true" />
-      <p>Đang kiểm tra phiên đăng nhập…</p>
+      <p>Đang kiểm tra đăng nhập với Keycloak…</p>
     </main>
   );
 }
 
-function LoginScreen({ serverUnavailable = false }: { serverUnavailable?: boolean }) {
+function LoginScreen({
+  identityUnavailable = false,
+  onLogin,
+}: {
+  identityUnavailable?: boolean;
+  onLogin: () => void;
+}) {
   return (
     <main className="login-screen">
       <section className="login-intro" aria-labelledby="login-brand-title">
@@ -105,27 +122,27 @@ function LoginScreen({ serverUnavailable = false }: { serverUnavailable?: boolea
           <p className="login-kicker">Cổng học vụ bảo mật</p>
           <h1 id="login-brand-title">Quản trị dữ liệu học vụ an toàn hơn.</h1>
           <p>
-            Một phiên đăng nhập duy nhất để quản lý sinh viên, lớp hành chính,
+            Một lần đăng nhập qua Keycloak để quản lý sinh viên, lớp hành chính,
             môn học và điểm số.
           </p>
         </div>
 
         <div className="login-assurances" aria-label="Các lớp bảo vệ đăng nhập">
-          <span><LockKeyhole aria-hidden="true" size={17} /> Session HttpOnly</span>
+          <span><LockKeyhole aria-hidden="true" size={17} /> Authorization Code + PKCE S256</span>
           <span><ShieldCheck aria-hidden="true" size={17} /> MFA qua Keycloak</span>
-          <span><CheckCircle2 aria-hidden="true" size={17} /> Phân quyền theo vai trò</span>
+          <span><CheckCircle2 aria-hidden="true" size={17} /> Token chỉ giữ trong bộ nhớ</span>
         </div>
       </section>
 
       <section className="login-action" aria-labelledby="login-title">
         <div className="login-card">
-          {serverUnavailable ? (
+          {identityUnavailable ? (
             <>
               <span className="login-icon login-icon-warning"><ServerOff aria-hidden="true" size={25} /></span>
               <p className="login-kicker">Kết nối hệ thống</p>
               <h2 id="login-title">Chưa thể kết nối máy chủ</h2>
               <p className="login-description">
-                Spring Boot BFF chưa phản hồi. Hãy khởi động backend rồi thử kết nối lại.
+                Keycloak hoặc Portal API chưa phản hồi. Hãy kiểm tra các dịch vụ rồi thử lại.
               </p>
               <button className="login-button" onClick={() => window.location.reload()} type="button">
                 Thử kết nối lại <ArrowRight aria-hidden="true" size={18} />
@@ -139,9 +156,9 @@ function LoginScreen({ serverUnavailable = false }: { serverUnavailable?: boolea
               <p className="login-description">
                 Tiếp tục tới Keycloak để đăng nhập bằng tài khoản được nhà trường cấp.
               </p>
-              <a className="login-button" href="/oauth2/authorization/keycloak">
+              <button className="login-button" onClick={onLogin} type="button">
                 Đăng nhập với Keycloak <ArrowRight aria-hidden="true" size={18} />
-              </a>
+              </button>
               <p className="login-footnote">
                 Mật khẩu và mã MFA chỉ được nhập trên trang xác thực của Keycloak.
               </p>
@@ -153,14 +170,17 @@ function LoginScreen({ serverUnavailable = false }: { serverUnavailable?: boolea
   );
 }
 
-function ForbiddenScreen() {
+function ForbiddenScreen({ onLogout }: { onLogout: () => void }) {
   return (
     <main className="access-page">
       <div className="access-dialog">
         <span className="access-mark"><ShieldCheck aria-hidden="true" size={23} /></span>
         <p className="eyebrow">ZeroTrust Academic Portal</p>
         <h1>Không có quyền quản trị</h1>
-        <p>Phiên hiện tại không có role ADMIN. Hãy sử dụng tài khoản quản trị phù hợp.</p>
+        <p>Access token hiện tại không có role ADMIN. Hãy sử dụng tài khoản phù hợp.</p>
+        <button className="login-button" onClick={onLogout} type="button">
+          Đăng xuất <LogOut aria-hidden="true" size={18} />
+        </button>
       </div>
     </main>
   );
@@ -169,7 +189,7 @@ function ForbiddenScreen() {
 export default function AdminDashboard() {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [accessState, setAccessState] = useState<AccessState>('checking');
-  const [session, setSession] = useState<AuthSession | null>(null);
+  const [identity, setIdentity] = useState<Identity | null>(null);
   const [stats, setStats] = useState({
     students: null,
     classes: null,
@@ -181,44 +201,49 @@ export default function AdminDashboard() {
 
     async function bootstrap() {
       try {
-        const response = await fetch('/api/auth/session', { credentials: 'include' });
-        if (!response.ok) {
-          throw new Error(`Session request failed with ${response.status}`);
-        }
-
-        const currentSession = (await response.json()) as AuthSession;
+        const authenticated = await initializeKeycloak();
         if (!active) return;
-        setSession(currentSession);
 
-        if (!currentSession.authenticated) {
+        const keycloak = getKeycloak();
+        keycloak.onAuthLogout = () => active && setAccessState('unauthenticated');
+        keycloak.onAuthRefreshError = () => active && setAccessState('unauthenticated');
+
+        if (!authenticated) {
           setAccessState('unauthenticated');
           return;
         }
-        if (!currentSession.roles.includes('ADMIN')) {
+
+        const loggedInIdentity = currentIdentity();
+        setIdentity(loggedInIdentity);
+        if (!loggedInIdentity.roles.includes('ADMIN')) {
           setAccessState('forbidden');
           return;
         }
 
-        setAccessState('admin');
-        const results = await Promise.allSettled([
+        const [students, classes, subjects] = await Promise.all([
           getTotal('/api/admin/students?page=0&size=1'),
           getTotal('/api/admin/student-classes?page=0&size=1'),
           getTotal('/api/admin/subjects?page=0&size=1'),
         ]);
         if (!active) return;
-        setStats({
-          students: results[0].status === 'fulfilled' ? results[0].value : null,
-          classes: results[1].status === 'fulfilled' ? results[1].value : null,
-          subjects: results[2].status === 'fulfilled' ? results[2].value : null,
-        });
-      } catch {
-        if (active) setAccessState('offline');
+        setStats({ students, classes, subjects });
+        setAccessState('admin');
+      } catch (error) {
+        if (!active) return;
+        setAccessState(
+          error instanceof AuthenticationExpiredError ? 'unauthenticated' : 'offline',
+        );
       }
     }
 
     void bootstrap();
     return () => {
       active = false;
+      if (typeof window !== 'undefined') {
+        const keycloak = getKeycloak();
+        keycloak.onAuthLogout = undefined;
+        keycloak.onAuthRefreshError = undefined;
+      }
     };
   }, []);
 
@@ -233,10 +258,25 @@ export default function AdminDashboard() {
     [],
   );
 
+  const login = () => {
+    void getKeycloak().login({ redirectUri: appRedirectUri() });
+  };
+
+  const logout = () => {
+    setAccessState('checking');
+    void getKeycloak()
+      .logout({ redirectUri: appRedirectUri() })
+      .catch(() => {
+        getKeycloak().clearToken();
+        setIdentity(null);
+        setAccessState('unauthenticated');
+      });
+  };
+
   if (accessState === 'checking') return <AuthLoading />;
-  if (accessState === 'unauthenticated') return <LoginScreen />;
-  if (accessState === 'offline') return <LoginScreen serverUnavailable />;
-  if (accessState === 'forbidden') return <ForbiddenScreen />;
+  if (accessState === 'unauthenticated') return <LoginScreen onLogin={login} />;
+  if (accessState === 'offline') return <LoginScreen identityUnavailable onLogin={login} />;
+  if (accessState === 'forbidden') return <ForbiddenScreen onLogout={logout} />;
 
   return (
     <main className="admin-shell">
@@ -264,7 +304,7 @@ export default function AdminDashboard() {
           ))}
         </nav>
 
-        <p className="sidebar-version">ZeroTrust Portal · 2026</p>
+        <p className="sidebar-version">ZeroTrust Portal · SPA/PKCE</p>
       </aside>
 
       {mobileNavOpen && (
@@ -292,12 +332,15 @@ export default function AdminDashboard() {
           </div>
           <div className="topbar-actions">
             <div className="profile">
-              <span className="avatar">{session?.username?.slice(0, 2).toUpperCase() || 'AD'}</span>
+              <span className="avatar">{identity?.username.slice(0, 2).toUpperCase() || 'AD'}</span>
               <div>
-                <strong>{session?.username || 'Quản trị viên'}</strong>
+                <strong>{identity?.username || 'Quản trị viên'}</strong>
                 <span>ADMIN</span>
               </div>
             </div>
+            <button aria-label="Đăng xuất" className="logout-button" onClick={logout} type="button">
+              <LogOut aria-hidden="true" size={18} />
+            </button>
           </div>
         </header>
 
@@ -306,7 +349,7 @@ export default function AdminDashboard() {
             <div>
               <p className="eyebrow">{today}</p>
               <h1 id="dashboard-heading">
-                Xin chào, <span>{session?.username || 'Quản trị viên'}.</span>
+                Xin chào, <span>{identity?.username || 'Quản trị viên'}.</span>
               </h1>
               <p className="hero-copy">
                 Theo dõi dữ liệu học vụ và xử lý các công việc quan trọng từ một nơi duy nhất.
@@ -343,10 +386,10 @@ export default function AdminDashboard() {
               <span>Trong danh mục đào tạo</span>
             </article>
             <article className="stat-card stat-dark">
-              <div className="stat-index">V1</div>
-              <p>Bảo mật phiên</p>
-              <strong>{accessState === 'admin' ? 'An toàn' : 'Chờ BFF'}</strong>
-              <span>Cookie HttpOnly · CSRF</span>
+              <div className="stat-index">V3</div>
+              <p>Bảo mật truy cập</p>
+              <strong>Đã xác thực</strong>
+              <span>Bearer JWT · PKCE S256</span>
             </article>
           </section>
 
@@ -361,10 +404,7 @@ export default function AdminDashboard() {
               </div>
               <div className="quick-list">
                 {quickActions.map((action) => (
-                  <div
-                    className="quick-action"
-                    key={action.title}
-                  >
+                  <div className="quick-action" key={action.title}>
                     <span className={`quick-code ${action.accent}`}>
                       <action.icon aria-hidden="true" size={19} strokeWidth={1.9} />
                     </span>
@@ -376,11 +416,9 @@ export default function AdminDashboard() {
                 ))}
               </div>
             </div>
-
           </section>
         </div>
       </section>
-
     </main>
   );
 }

@@ -1,14 +1,8 @@
 package com.zerotrust.zerotrust.config;
 
+import com.zerotrust.zerotrust.security.KeycloakJwtAuthenticationConverter;
 import org.junit.jupiter.api.Test;
-import org.springframework.mock.web.MockHttpServletRequest;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.security.oauth2.client.registration.ClientRegistration;
-import org.springframework.security.oauth2.client.registration.InMemoryClientRegistrationRepository;
-import org.springframework.security.oauth2.core.AuthorizationGrantType;
-import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
-import org.springframework.security.oauth2.core.oidc.OidcIdToken;
-import org.springframework.security.oauth2.core.oidc.user.OidcUserAuthority;
+import org.springframework.security.oauth2.jwt.Jwt;
 
 import java.time.Instant;
 import java.util.List;
@@ -17,82 +11,57 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class SecurityConfigTest {
-
-    private final SecurityConfig securityConfig = new SecurityConfig();
+    private final KeycloakJwtAuthenticationConverter converter =
+            new KeycloakJwtAuthenticationConverter();
 
     @Test
-    void mapsKeycloakRealmRolesToSpringRoles() {
-        OidcIdToken idToken = idToken(Map.of(
-                "realm_access", Map.of("roles", List.of("admin", "student"))));
-        OidcUserAuthority oidcAuthority = new OidcUserAuthority(idToken);
+    void mapsKeycloakRealmRolesAndScopesToSpringAuthorities() {
+        Jwt jwt = jwt(Map.of(
+                "preferred_username", "admin01",
+                "scope", "openid profile",
+                "realm_access", Map.of("roles", List.of("admin", "student"))),
+                List.of("zerotrust-api"));
 
-        var authorities = securityConfig.keycloakAuthoritiesMapper().mapAuthorities(List.of(
-                oidcAuthority,
-                new SimpleGrantedAuthority("SCOPE_users.read")));
+        var authentication = converter.convert(jwt);
 
-        assertThat(authorities)
+        assertThat(authentication).isNotNull();
+        assertThat(authentication.getName()).isEqualTo("admin01");
+        assertThat(authentication.getAuthorities())
                 .extracting("authority")
                 .containsExactlyInAnyOrder(
-                        "OIDC_USER",
-                        "SCOPE_users.read",
+                        "SCOPE_openid",
+                        "SCOPE_profile",
                         "ROLE_ADMIN",
                         "ROLE_STUDENT");
     }
 
     @Test
-    void handlesIdTokensWithoutRealmRoles() {
-        OidcUserAuthority oidcAuthority = new OidcUserAuthority(idToken(Map.of()));
+    void handlesJwtWithoutRealmRoles() {
+        var authentication = converter.convert(jwt(Map.of(), List.of("zerotrust-api")));
 
-        var authorities = securityConfig.keycloakAuthoritiesMapper()
-                .mapAuthorities(List.of(oidcAuthority));
-
-        assertThat(authorities)
-                .extracting("authority")
-                .containsExactly("OIDC_USER");
+        assertThat(authentication).isNotNull();
+        assertThat(authentication.getAuthorities()).isEmpty();
     }
 
     @Test
-    void addsPkceToConfidentialClientAuthorizationRequest() {
-        ClientRegistration registration = ClientRegistration
-                .withRegistrationId("keycloak")
-                .clientId("zerotrust-bff")
-                .clientSecret("secret")
-                .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC)
-                .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
-                .redirectUri("{baseUrl}/login/oauth2/code/{registrationId}")
-                .scope("openid")
-                .authorizationUri("http://localhost:8180/realms/DoAn/protocol/openid-connect/auth")
-                .tokenUri("http://localhost:8180/realms/DoAn/protocol/openid-connect/token")
-                .jwkSetUri("http://localhost:8180/realms/DoAn/protocol/openid-connect/certs")
-                .userInfoUri("http://localhost:8180/realms/DoAn/protocol/openid-connect/userinfo")
-                .userNameAttributeName("sub")
-                .clientName("Keycloak")
-                .build();
-        var resolver = securityConfig.authorizationRequestResolver(
-                new InMemoryClientRegistrationRepository(registration));
-        MockHttpServletRequest request = new MockHttpServletRequest();
-        request.setScheme("http");
-        request.setServerName("localhost");
-        request.setServerPort(8080);
-        request.setRequestURI("/oauth2/authorization/keycloak");
+    void validatesRequiredAudience() {
+        JwtAudienceValidator validator = new JwtAudienceValidator("zerotrust-api");
 
-        var authorizationRequest = resolver.resolve(request, "keycloak");
-
-        assertThat(authorizationRequest).isNotNull();
-        assertThat(authorizationRequest.getAdditionalParameters())
-                .containsEntry("code_challenge_method", "S256")
-                .containsKey("code_challenge");
-        assertThat(authorizationRequest.getAttributes()).containsKey("code_verifier");
+        assertThat(validator.validate(jwt(Map.of(), List.of("zerotrust-api"))).hasErrors())
+                .isFalse();
+        assertThat(validator.validate(jwt(Map.of(), List.of("account"))).hasErrors())
+                .isTrue();
     }
 
-    private OidcIdToken idToken(Map<String, Object> additionalClaims) {
+    private Jwt jwt(Map<String, Object> additionalClaims, List<String> audience) {
         Instant issuedAt = Instant.now();
-        Map<String, Object> claims = new java.util.HashMap<>(additionalClaims);
-        claims.put("sub", "user-id");
-        return new OidcIdToken(
-                "token",
-                issuedAt,
-                issuedAt.plusSeconds(300),
-                claims);
+        Jwt.Builder builder = Jwt.withTokenValue("token")
+                .header("alg", "RS256")
+                .subject("00000000-0000-4000-8000-000000000001")
+                .issuedAt(issuedAt)
+                .expiresAt(issuedAt.plusSeconds(300))
+                .audience(audience);
+        additionalClaims.forEach(builder::claim);
+        return builder.build();
     }
 }

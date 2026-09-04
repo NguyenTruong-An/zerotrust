@@ -1,7 +1,7 @@
 # Kiến trúc chuẩn của đồ án Zero Trust
 
 **Trạng thái:** Đã chấp nhận (Accepted)  
-**Ngày cập nhật:** 2026-08-24
+**Ngày cập nhật:** 2026-09-04
 
 **Phạm vi:** Kiến trúc đích và nguyên tắc triển khai bắt buộc của toàn bộ đồ án
 
@@ -20,7 +20,8 @@ flowchart TB
     USER["Internet / Người dùng"] --> RP["Reverse Proxy<br/>TLS Termination"]
 
     subgraph ACCESS["Lớp truy cập"]
-        RP --> GW["API Gateway<br/>Routing · Rate Limit"]
+        RP --> SPA["Frontend SPA<br/>Authorization Code + PKCE"]
+        SPA -->|"Bearer JWT"| GW["API Gateway<br/>Routing · Rate Limit"]
     end
 
     subgraph PORTAL["Hệ thống nghiệp vụ"]
@@ -29,7 +30,7 @@ flowchart TB
     end
 
     subgraph IAM["Xác thực và quản lý danh tính"]
-        RP --> KC["Keycloak<br/>IAM · Realm · Clients · MFA"]
+        SPA <-->|"OIDC + PKCE S256"| KC["Keycloak<br/>IAM · Realm · Clients · MFA"]
         KC --> PA["Primary Authentication<br/>Username + Password"]
         PA --> SPI["Custom Authenticator<br/>Keycloak SPI"]
         KC --> EL["Keycloak Event Listener<br/>Ghi nhận đăng nhập thất bại"]
@@ -137,6 +138,14 @@ Cho đến khi chủ đồ án phê duyệt, code không được hard-code tr�
 - TLS termination.
 - Chuyển traffic đến API Gateway hoặc Keycloak.
 
+### Frontend SPA
+
+- Là public OIDC client, không có client secret.
+- Dùng Authorization Code Flow với PKCE S256 trực tiếp với Keycloak.
+- Chỉ giữ token trong memory của tab và gọi Portal API bằng Bearer access token.
+- Không tự xử lý password/MFA và không quyết định quyền truy cập cuối cùng.
+- Luồng triển khai chi tiết được quy định trong `LOGIN_FLOW.md`.
+
 ### API Gateway
 
 - Routing đến Portal API.
@@ -188,6 +197,7 @@ Cho đến khi chủ đồ án phê duyệt, code không được hard-code tr�
 - Xác minh JWT của Keycloak bằng JWKS.
 - Kiểm tra realm role và quyền trên từng tài nguyên.
 - Không kiểm tra mật khẩu và không tự chấm điểm rủi ro đăng nhập.
+- Không giữ phiên người dùng, refresh token hoặc OAuth authorized client.
 
 ### Portal DB
 
@@ -211,6 +221,9 @@ Portal xác minh chữ ký, issuer, expiration và audience của JWT bằng JWK
 - Không đặt logic chấm điểm trong controller hoặc Keycloak SPI.
 - Không gộp Portal DB và Risk DB thành một miền dữ liệu.
 - Không lưu mật khẩu tại Portal DB.
+- Không lưu access token hoặc refresh token vào browser storage lâu dài.
+- Không thêm client secret vào SPA hoặc biến môi trường `NEXT_PUBLIC_*`.
+- Không chuyển Portal API về xác thực cookie/session nếu chưa cập nhật `LOGIN_FLOW.md` và mô hình CSRF.
 - Không để Risk Scoring Service đọc trực tiếp dữ liệu nghiệp vụ Portal DB.
 - Không bỏ qua Reverse Proxy, API Gateway, Keycloak hoặc bước xác minh JWT/JWKS trong kiến trúc đích.
 - Không tự chọn trọng số, ngưỡng hoặc công thức chấm điểm khi chưa được phê duyệt.

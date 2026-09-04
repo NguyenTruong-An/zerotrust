@@ -1,7 +1,9 @@
 package com.zerotrust.zerotrust.controller;
 
 import com.zerotrust.zerotrust.config.SecurityConfig;
+import com.zerotrust.zerotrust.exception.CustomAccessDeniedHandler;
 import com.zerotrust.zerotrust.exception.CustomAuthenticationEntryPoint;
+import com.zerotrust.zerotrust.security.KeycloakJwtAuthenticationConverter;
 import com.zerotrust.zerotrust.model.response.PageResponse;
 import com.zerotrust.zerotrust.model.response.ScoreResponseDTO;
 import com.zerotrust.zerotrust.model.response.StudentResponseDTO;
@@ -16,9 +18,10 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -32,16 +35,18 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.oidcLogin;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(AdminController.class)
-@Import({SecurityConfig.class, CustomAuthenticationEntryPoint.class})
+@Import({SecurityConfig.class, CustomAuthenticationEntryPoint.class,
+        CustomAccessDeniedHandler.class, KeycloakJwtAuthenticationConverter.class})
 class AdminControllerSecurityTest {
     @Autowired
     private MockMvc mockMvc;
@@ -56,12 +61,33 @@ class AdminControllerSecurityTest {
     @MockitoBean
     private UserService userService;
     @MockitoBean
-    private ClientRegistrationRepository clientRegistrationRepository;
+    private JwtDecoder jwtDecoder;
+
+    @Test
+    void allowsPreflightFromConfiguredSpaOrigin() throws Exception {
+        mockMvc.perform(options("/api/admin/students")
+                        .header(HttpHeaders.ORIGIN, "http://localhost:3000")
+                        .header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, "POST")
+                        .header(HttpHeaders.ACCESS_CONTROL_REQUEST_HEADERS,
+                                "authorization,content-type"))
+                .andExpect(status().isOk())
+                .andExpect(header().string(
+                        HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN,
+                        "http://localhost:3000"));
+    }
+
+    @Test
+    void rejectsPreflightFromUnknownOrigin() throws Exception {
+        mockMvc.perform(options("/api/admin/students")
+                        .header(HttpHeaders.ORIGIN, "https://evil.example")
+                        .header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, "POST"))
+                .andExpect(status().isForbidden())
+                .andExpect(header().doesNotExist(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN));
+    }
 
     @Test
     void rejectsUnauthenticatedStudentCreation() throws Exception {
         mockMvc.perform(post("/api/admin/students")
-                        .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(validRequestJson()))
                 .andExpect(status().isUnauthorized());
@@ -72,8 +98,7 @@ class AdminControllerSecurityTest {
     @Test
     void rejectsStudentRoleFromAdminEndpoint() throws Exception {
         mockMvc.perform(post("/api/admin/students")
-                        .with(csrf())
-                        .with(oidcLogin().authorities(new SimpleGrantedAuthority("ROLE_STUDENT")))
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_STUDENT")))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(validRequestJson()))
                 .andExpect(status().isForbidden());
@@ -82,14 +107,17 @@ class AdminControllerSecurityTest {
     }
 
     @Test
-    void rejectsAdminMutationWithoutCsrfToken() throws Exception {
+    void allowsBearerAuthenticatedMutationWithoutCsrfToken() throws Exception {
+        when(studentAdministrationService.createStudent(any()))
+                .thenReturn(org.mockito.Mockito.mock(StudentResponseDTO.class));
+
         mockMvc.perform(post("/api/admin/students")
-                        .with(oidcLogin().authorities(new SimpleGrantedAuthority("ROLE_ADMIN")))
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN")))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(validRequestJson()))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isCreated());
 
-        verify(studentAdministrationService, never()).createStudent(any());
+        verify(studentAdministrationService).createStudent(any());
     }
 
     @Test
@@ -98,8 +126,7 @@ class AdminControllerSecurityTest {
                 .thenReturn(org.mockito.Mockito.mock(StudentResponseDTO.class));
 
         mockMvc.perform(post("/api/admin/students")
-                        .with(csrf())
-                        .with(oidcLogin().authorities(new SimpleGrantedAuthority("ROLE_ADMIN")))
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN")))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(validRequestJson()))
                 .andExpect(status().isCreated());
@@ -118,8 +145,7 @@ class AdminControllerSecurityTest {
                         "2022-2026"));
 
         mockMvc.perform(post("/api/admin/student-classes")
-                        .with(csrf())
-                        .with(oidcLogin().authorities(new SimpleGrantedAuthority("ROLE_ADMIN")))
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN")))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(validStudentClassRequestJson()))
                 .andExpect(status().isCreated());
@@ -148,7 +174,7 @@ class AdminControllerSecurityTest {
                 .thenReturn(response);
 
         mockMvc.perform(get("/api/admin/student-classes")
-                        .with(oidcLogin().authorities(new SimpleGrantedAuthority("ROLE_ADMIN")))
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN")))
                         .param("keyword", "AT19")
                         .param("department", "An toan thong tin")
                         .param("academicYear", "2022-2026"))
@@ -164,8 +190,7 @@ class AdminControllerSecurityTest {
     @Test
     void rejectsStudentRoleFromSubjectCreation() throws Exception {
         mockMvc.perform(post("/api/admin/subjects")
-                        .with(csrf())
-                        .with(oidcLogin().authorities(new SimpleGrantedAuthority("ROLE_STUDENT")))
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_STUDENT")))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(validSubjectRequestJson()))
                 .andExpect(status().isForbidden());
@@ -185,8 +210,7 @@ class AdminControllerSecurityTest {
                         "Kien thuc co ban"));
 
         mockMvc.perform(post("/api/admin/subjects")
-                        .with(csrf())
-                        .with(oidcLogin().authorities(new SimpleGrantedAuthority("ROLE_ADMIN")))
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN")))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(validSubjectRequestJson()))
                 .andExpect(status().isCreated())
@@ -201,7 +225,7 @@ class AdminControllerSecurityTest {
     @Test
     void rejectsStudentRoleFromSubjectList() throws Exception {
         mockMvc.perform(get("/api/admin/subjects")
-                        .with(oidcLogin().authorities(new SimpleGrantedAuthority("ROLE_STUDENT"))))
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_STUDENT"))))
                 .andExpect(status().isForbidden());
 
         verify(subjectAdministrationService, never())
@@ -229,7 +253,7 @@ class AdminControllerSecurityTest {
                 .thenReturn(response);
 
         mockMvc.perform(get("/api/admin/subjects")
-                        .with(oidcLogin().authorities(new SimpleGrantedAuthority("ROLE_ADMIN")))
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN")))
                         .param("keyword", "SEC"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
@@ -245,8 +269,7 @@ class AdminControllerSecurityTest {
         UUID studentId = UUID.randomUUID();
 
         mockMvc.perform(post("/api/admin/students/{studentId}/scores", studentId)
-                        .with(csrf())
-                        .with(oidcLogin().authorities(new SimpleGrantedAuthority("ROLE_STUDENT")))
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_STUDENT")))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(validScoreRequestJson(UUID.randomUUID())))
                 .andExpect(status().isForbidden());
@@ -263,8 +286,7 @@ class AdminControllerSecurityTest {
                 .thenReturn(scoreResponse(scoreId, studentId, subjectId));
 
         mockMvc.perform(post("/api/admin/students/{studentId}/scores", studentId)
-                        .with(csrf())
-                        .with(oidcLogin().authorities(new SimpleGrantedAuthority("ROLE_ADMIN")))
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN")))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(validScoreRequestJson(subjectId)))
                 .andExpect(status().isCreated())
@@ -283,8 +305,7 @@ class AdminControllerSecurityTest {
         UUID subjectId = UUID.randomUUID();
 
         mockMvc.perform(post("/api/admin/students/{studentId}/scores", studentId)
-                        .with(csrf())
-                        .with(oidcLogin().authorities(new SimpleGrantedAuthority("ROLE_ADMIN")))
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN")))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(invalidScoreRequestJson(subjectId)))
                 .andExpect(status().isBadRequest())
@@ -298,7 +319,7 @@ class AdminControllerSecurityTest {
         UUID studentId = UUID.randomUUID();
 
         mockMvc.perform(get("/api/admin/students/{studentId}/scores", studentId)
-                        .with(oidcLogin().authorities(new SimpleGrantedAuthority("ROLE_STUDENT"))))
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_STUDENT"))))
                 .andExpect(status().isForbidden());
 
         verify(scoreAdministrationService, never()).getStudentScores(
@@ -329,7 +350,7 @@ class AdminControllerSecurityTest {
                 .thenReturn(response);
 
         mockMvc.perform(get("/api/admin/students/{studentId}/scores", studentId)
-                        .with(oidcLogin().authorities(new SimpleGrantedAuthority("ROLE_ADMIN")))
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN")))
                         .param("subjectId", subjectId.toString())
                         .param("semester", "1")
                         .param("academicYear", "2025-2026")
@@ -357,8 +378,7 @@ class AdminControllerSecurityTest {
         UUID scoreId = UUID.randomUUID();
 
         mockMvc.perform(patch("/api/admin/scores/{scoreId}", scoreId)
-                        .with(csrf())
-                        .with(oidcLogin().authorities(new SimpleGrantedAuthority("ROLE_STUDENT")))
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_STUDENT")))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(validScoreUpdateRequestJson()))
                 .andExpect(status().isForbidden());
@@ -375,8 +395,7 @@ class AdminControllerSecurityTest {
                 .thenReturn(scoreResponse(scoreId, studentId, subjectId));
 
         mockMvc.perform(patch("/api/admin/scores/{scoreId}", scoreId)
-                        .with(csrf())
-                        .with(oidcLogin().authorities(new SimpleGrantedAuthority("ROLE_ADMIN")))
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN")))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(validScoreUpdateRequestJson()))
                 .andExpect(status().isOk())
@@ -392,8 +411,7 @@ class AdminControllerSecurityTest {
         UUID scoreId = UUID.randomUUID();
 
         mockMvc.perform(patch("/api/admin/scores/{scoreId}", scoreId)
-                        .with(csrf())
-                        .with(oidcLogin().authorities(new SimpleGrantedAuthority("ROLE_ADMIN")))
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN")))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -424,7 +442,7 @@ class AdminControllerSecurityTest {
                 .thenReturn(response);
 
         mockMvc.perform(get("/api/admin/students")
-                        .with(oidcLogin().authorities(new SimpleGrantedAuthority("ROLE_ADMIN")))
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN")))
                         .param("keyword", "student01")
                         .param("classCode", "AT19B")
                         .param("status", "ACTIVE"))
@@ -443,7 +461,7 @@ class AdminControllerSecurityTest {
         when(studentAdministrationService.getStudent(id)).thenReturn(studentResponse(id));
 
         mockMvc.perform(get("/api/admin/students/{id}", id)
-                        .with(oidcLogin().authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.id").value(id.toString()))
@@ -457,8 +475,7 @@ class AdminControllerSecurityTest {
         UUID id = UUID.randomUUID();
 
         mockMvc.perform(patch("/api/admin/students/{id}", id)
-                        .with(csrf())
-                        .with(oidcLogin().authorities(new SimpleGrantedAuthority("ROLE_STUDENT")))
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_STUDENT")))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(validUpdateRequestJson()))
                 .andExpect(status().isForbidden());
@@ -473,8 +490,7 @@ class AdminControllerSecurityTest {
                 .thenReturn(studentResponse(id));
 
         mockMvc.perform(patch("/api/admin/students/{id}", id)
-                        .with(csrf())
-                        .with(oidcLogin().authorities(new SimpleGrantedAuthority("ROLE_ADMIN")))
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN")))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(validUpdateRequestJson()))
                 .andExpect(status().isOk())
