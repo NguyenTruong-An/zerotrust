@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { apiFetch, AuthenticationExpiredError } from '../lib/api';
 import { appRedirectUri, getKeycloak, initializeKeycloak } from '../lib/keycloak';
+import { StudentScoreDashboard } from '../components/student-score-dashboard';
 
 type Identity = {
   username: string;
@@ -37,7 +38,7 @@ type ApiResponse<T> = {
   success: boolean;
 };
 
-type AccessState = 'checking' | 'admin' | 'unauthenticated' | 'forbidden' | 'offline';
+type AccessState = 'checking' | 'admin' | 'student' | 'unauthenticated' | 'forbidden' | 'offline';
 
 const navItems = [
   { icon: LayoutDashboard, label: 'Tổng quan', active: true },
@@ -120,10 +121,10 @@ function LoginScreen({
 
         <div className="login-intro-copy">
           <p className="login-kicker">Cổng học vụ bảo mật</p>
-          <h1 id="login-brand-title">Quản trị dữ liệu học vụ an toàn hơn.</h1>
+          <h1 id="login-brand-title">Dữ liệu học vụ của bạn, được bảo vệ tốt hơn.</h1>
           <p>
-            Một lần đăng nhập qua Keycloak để quản lý sinh viên, lớp hành chính,
-            môn học và điểm số.
+            Một lần đăng nhập qua Keycloak để quản trị dữ liệu hoặc theo dõi
+            kết quả học tập theo đúng quyền được cấp.
           </p>
         </div>
 
@@ -176,8 +177,8 @@ function ForbiddenScreen({ onLogout }: { onLogout: () => void }) {
       <div className="access-dialog">
         <span className="access-mark"><ShieldCheck aria-hidden="true" size={23} /></span>
         <p className="eyebrow">ZeroTrust Academic Portal</p>
-        <h1>Không có quyền quản trị</h1>
-        <p>Access token hiện tại không có role ADMIN. Hãy sử dụng tài khoản phù hợp.</p>
+        <h1>Chưa có quyền truy cập</h1>
+        <p>Access token hiện tại không có role ADMIN hoặc STUDENT. Hãy sử dụng tài khoản phù hợp.</p>
         <button className="login-button" onClick={onLogout} type="button">
           Đăng xuất <LogOut aria-hidden="true" size={18} />
         </button>
@@ -215,6 +216,11 @@ export default function AdminDashboard() {
 
         const loggedInIdentity = currentIdentity();
         setIdentity(loggedInIdentity);
+        if (loggedInIdentity.roles.includes('STUDENT') && !loggedInIdentity.roles.includes('ADMIN')) {
+          setAccessState('student');
+          return;
+        }
+
         if (!loggedInIdentity.roles.includes('ADMIN')) {
           setAccessState('forbidden');
           return;
@@ -277,6 +283,15 @@ export default function AdminDashboard() {
   if (accessState === 'unauthenticated') return <LoginScreen onLogin={login} />;
   if (accessState === 'offline') return <LoginScreen identityUnavailable onLogin={login} />;
   if (accessState === 'forbidden') return <ForbiddenScreen onLogout={logout} />;
+  if (accessState === 'student' && identity) {
+    return (
+      <StudentScoreDashboard
+        username={identity.username}
+        onAuthenticationExpired={() => setAccessState('unauthenticated')}
+        onLogout={logout}
+      />
+    );
+  }
 
   return (
     <main className="admin-shell">

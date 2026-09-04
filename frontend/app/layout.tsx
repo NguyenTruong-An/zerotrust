@@ -10,17 +10,17 @@ const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
-  title: 'Quản trị | ZeroTrust Academic Portal',
-  description: 'Bảng điều khiển quản trị dữ liệu học vụ của ZeroTrust Academic Portal.',
+  title: 'Cổng học vụ | ZeroTrust Academic Portal',
+  description: 'Quản trị dữ liệu và theo dõi kết quả học tập an toàn qua ZeroTrust Academic Portal.',
   openGraph: {
     title: 'ZeroTrust Academic Portal',
-    description: 'Quản trị học vụ an toàn',
+    description: 'Quản trị và tra cứu kết quả học tập an toàn',
     images: [{ url: '/og.png', width: 1200, height: 630 }],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'ZeroTrust Academic Portal',
-    description: 'Quản trị học vụ an toàn',
+    description: 'Quản trị và tra cứu kết quả học tập an toàn',
     images: ['/og.png'],
   },
 };
