@@ -1,0 +1,2 @@
+com.zerotrust.keycloak.risk.authenticator.RiskAuthenticatorFactory
+com.zerotrust.keycloak.risk.authenticator.RiskStepUpConditionFactory
