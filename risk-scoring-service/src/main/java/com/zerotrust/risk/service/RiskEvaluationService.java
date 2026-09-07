@@ -6,24 +6,16 @@ import com.zerotrust.risk.domain.RiskEvaluation;
 import com.zerotrust.risk.domain.RiskFeatureExtraction;
 import com.zerotrust.risk.feature.RiskFeatureExtractor;
 import com.zerotrust.risk.rule.PrioritySecurityRuleEvaluator;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 @Service
+@RequiredArgsConstructor
 public class RiskEvaluationService {
 
     private final PrioritySecurityRuleEvaluator priorityRuleEvaluator;
     private final RiskFeatureExtractor featureExtractor;
     private final RiskScoringService riskScoringService;
-
-    public RiskEvaluationService(
-            PrioritySecurityRuleEvaluator priorityRuleEvaluator,
-            RiskFeatureExtractor featureExtractor,
-            RiskScoringService riskScoringService
-    ) {
-        this.priorityRuleEvaluator = priorityRuleEvaluator;
-        this.featureExtractor = featureExtractor;
-        this.riskScoringService = riskScoringService;
-    }
 
     public RiskEvaluation evaluate(LoginContext context) {
         return priorityRuleEvaluator.firstViolation(context)
@@ -33,6 +25,11 @@ public class RiskEvaluationService {
 
     private RiskEvaluation evaluateFeatures(LoginContext context) {
         RiskFeatureExtraction extraction = featureExtractor.extract(context);
+        if (extraction.priorityViolation().isPresent()) {
+            return riskScoringService.denyForPriorityRule(
+                    extraction.priorityViolation().orElseThrow()
+            );
+        }
         if (extraction.dataStatus() != RiskDataStatus.COMPLETE) {
             return riskScoringService.stepUpForIncompleteData(extraction.reasons());
         }

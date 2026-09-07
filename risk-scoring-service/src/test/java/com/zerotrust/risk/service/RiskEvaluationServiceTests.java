@@ -55,6 +55,24 @@ class RiskEvaluationServiceTests {
         assertThat(result.reasons()).containsExactly(RiskReason.BLOCKED_IP_ADDRESS);
     }
 
+    @Test
+    void featurePriorityViolationDeniesBeforeWeightedScoring() {
+        RiskFeatureExtractor extractor = context -> new RiskFeatureExtraction(
+                zeroFactors(),
+                RiskDataStatus.INCOMPLETE,
+                List.of(RiskReason.REVOKED_DEVICE),
+                Optional.of(RiskReason.REVOKED_DEVICE)
+        );
+        RiskEvaluationService service = evaluationService(List.of(), extractor);
+
+        RiskEvaluation result = service.evaluate(context());
+
+        assertThat(result.riskScore()).isNull();
+        assertThat(result.dataStatus()).isEqualTo(RiskDataStatus.NOT_EVALUATED);
+        assertThat(result.decision()).isEqualTo(RiskDecision.DENY);
+        assertThat(result.reasons()).containsExactly(RiskReason.REVOKED_DEVICE);
+    }
+
     private RiskEvaluationService evaluationService(
             List<PrioritySecurityRule> rules,
             RiskFeatureExtractor extractor

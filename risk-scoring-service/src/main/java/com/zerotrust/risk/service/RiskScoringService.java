@@ -7,6 +7,7 @@ import com.zerotrust.risk.domain.RiskEvaluation;
 import com.zerotrust.risk.domain.RiskFactors;
 import com.zerotrust.risk.domain.RiskLevel;
 import com.zerotrust.risk.domain.RiskReason;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -17,15 +18,12 @@ import java.util.List;
 import java.util.UUID;
 
 @Service
+@RequiredArgsConstructor
 public class RiskScoringService {
 
     private static final BigDecimal ZERO = BigDecimal.ZERO;
 
     private final RiskPolicyProperties policy;
-
-    public RiskScoringService(RiskPolicyProperties policy) {
-        this.policy = policy;
-    }
 
     public RiskEvaluation evaluate(RiskFactors factors) {
         BigDecimal score = weightedScore(factors);
