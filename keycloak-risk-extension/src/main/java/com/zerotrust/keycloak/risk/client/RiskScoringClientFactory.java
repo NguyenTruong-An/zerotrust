@@ -1,9 +1,9 @@
 package com.zerotrust.keycloak.risk.client;
 
-import com.zerotrust.keycloak.risk.config.RiskScoringClientConfig;
+import com.zerotrust.keycloak.risk.config.RiskAuthenticatorConfig;
 
 @FunctionalInterface
 public interface RiskScoringClientFactory {
 
-    RiskScoringClient create(RiskScoringClientConfig config);
+    RiskScoringClient create(RiskAuthenticatorConfig config);
 }

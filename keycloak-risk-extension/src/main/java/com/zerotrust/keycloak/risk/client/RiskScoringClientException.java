@@ -61,6 +61,15 @@ public final class RiskScoringClientException extends RuntimeException {
         );
     }
 
+    static RiskScoringClientException tokenEndpointStatus(int statusCode) {
+        return new RiskScoringClientException(
+                FailureType.HTTP_ERROR,
+                "Token endpoint returned HTTP " + statusCode,
+                statusCode,
+                null
+        );
+    }
+
     static RiskScoringClientException invalidResponse(String message, Throwable cause) {
         return new RiskScoringClientException(
                 FailureType.INVALID_RESPONSE,

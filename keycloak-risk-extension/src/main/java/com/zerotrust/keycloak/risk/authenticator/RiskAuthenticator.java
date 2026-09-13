@@ -57,7 +57,7 @@ public final class RiskAuthenticator implements Authenticator {
 
             RiskEvaluationRequest request = contextExtractor.extract(context);
             RiskEvaluationResponse evaluation = clientFactory
-                    .create(config.clientConfig())
+                    .create(config)
                     .evaluate(request);
             decisionHandler.handle(context, evaluation);
         } catch (RiskScoringClientException exception) {

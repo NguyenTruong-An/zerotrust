@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import org.keycloak.models.AuthenticatorConfigModel;
 
 import java.net.URI;
+import java.util.HashMap;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -28,6 +29,14 @@ class RiskAuthenticatorConfigResolverTest {
                 result.clientConfig().serviceBaseUri()
         );
         assertEquals(RiskFailureMode.DENY, result.failureMode());
+        assertEquals(
+                URI.create("http://keycloak:8080/realms/DoAn/protocol/openid-connect/token"),
+                result.serviceTokenConfig().tokenEndpointUri()
+        );
+        assertEquals(
+                ServiceTokenConfig.DEFAULT_CLIENT_ID,
+                result.serviceTokenConfig().clientId()
+        );
         assertEquals(
                 RiskScoringClientConfig.DEFAULT_MAX_RESPONSE_BYTES,
                 result.clientConfig().maxResponseBytes()
@@ -59,6 +68,21 @@ class RiskAuthenticatorConfigResolverTest {
     }
 
     @Test
+    void rejectsMissingServiceClientSecret() {
+        AuthenticatorConfigModel model = new AuthenticatorConfigModel();
+        model.setConfig(Map.of(
+                RiskAuthenticatorConfigResolver.SERVICE_BASE_URL, "http://localhost:8081",
+                RiskAuthenticatorConfigResolver.TOKEN_ENDPOINT_URL,
+                "http://localhost:8180/realms/DoAn/protocol/openid-connect/token"
+        ));
+
+        assertThrows(
+                RiskAuthenticatorConfigurationException.class,
+                () -> resolver.resolve(model)
+        );
+    }
+
+    @Test
     void rejectsInvalidIntegerSetting() {
         AuthenticatorConfigModel model = model(Map.of(
                 RiskAuthenticatorConfigResolver.SERVICE_BASE_URL, "http://localhost:8081",
@@ -72,8 +96,18 @@ class RiskAuthenticatorConfigResolverTest {
     }
 
     private static AuthenticatorConfigModel model(Map<String, String> values) {
+        Map<String, String> completeValues = new HashMap<>();
+        completeValues.put(
+                RiskAuthenticatorConfigResolver.TOKEN_ENDPOINT_URL,
+                "http://keycloak:8080/realms/DoAn/protocol/openid-connect/token"
+        );
+        completeValues.put(
+                RiskAuthenticatorConfigResolver.SERVICE_CLIENT_SECRET,
+                "test-client-secret"
+        );
+        completeValues.putAll(values);
         AuthenticatorConfigModel model = new AuthenticatorConfigModel();
-        model.setConfig(values);
+        model.setConfig(completeValues);
         return model;
     }
 }

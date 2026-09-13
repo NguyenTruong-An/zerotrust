@@ -10,6 +10,10 @@ import java.util.Map;
 public final class RiskAuthenticatorConfigResolver {
 
     public static final String SERVICE_BASE_URL = "riskServiceBaseUrl";
+    public static final String TOKEN_ENDPOINT_URL = "tokenEndpointUrl";
+    public static final String SERVICE_CLIENT_ID = "serviceClientId";
+    public static final String SERVICE_CLIENT_SECRET = "serviceClientSecret";
+    public static final String TOKEN_REFRESH_SKEW_MS = "tokenRefreshSkewMs";
     public static final String CONNECTION_REQUEST_TIMEOUT_MS = "connectionRequestTimeoutMs";
     public static final String CONNECT_TIMEOUT_MS = "connectTimeoutMs";
     public static final String SOCKET_TIMEOUT_MS = "socketTimeoutMs";
@@ -21,16 +25,7 @@ public final class RiskAuthenticatorConfigResolver {
                 ? Map.of()
                 : model.getConfig();
 
-        String serviceBaseUrl = requireText(values.get(SERVICE_BASE_URL), SERVICE_BASE_URL);
-        URI serviceBaseUri;
-        try {
-            serviceBaseUri = URI.create(serviceBaseUrl);
-        } catch (IllegalArgumentException exception) {
-            throw new RiskAuthenticatorConfigurationException(
-                    SERVICE_BASE_URL + " is not a valid URI",
-                    exception
-            );
-        }
+        URI serviceBaseUri = uri(values, SERVICE_BASE_URL);
 
         try {
             RiskScoringClientConfig clientConfig = new RiskScoringClientConfig(
@@ -44,13 +39,44 @@ public final class RiskAuthenticatorConfigResolver {
                     integer(values, MAX_RESPONSE_BYTES,
                             RiskScoringClientConfig.DEFAULT_MAX_RESPONSE_BYTES)
             );
-            return new RiskAuthenticatorConfig(clientConfig, failureMode(values));
+            ServiceTokenConfig serviceTokenConfig = new ServiceTokenConfig(
+                    uri(values, TOKEN_ENDPOINT_URL),
+                    text(values, SERVICE_CLIENT_ID, ServiceTokenConfig.DEFAULT_CLIENT_ID),
+                    requireText(values.get(SERVICE_CLIENT_SECRET), SERVICE_CLIENT_SECRET),
+                    nonNegativeDuration(
+                            values,
+                            TOKEN_REFRESH_SKEW_MS,
+                            ServiceTokenConfig.DEFAULT_REFRESH_SKEW
+                    )
+            );
+            return new RiskAuthenticatorConfig(
+                    clientConfig,
+                    serviceTokenConfig,
+                    failureMode(values)
+            );
         } catch (IllegalArgumentException exception) {
             throw new RiskAuthenticatorConfigurationException(
                     "Risk authenticator configuration is invalid",
                     exception
             );
         }
+    }
+
+    private static URI uri(Map<String, String> values, String key) {
+        String value = requireText(values.get(key), key);
+        try {
+            return URI.create(value);
+        } catch (IllegalArgumentException exception) {
+            throw new RiskAuthenticatorConfigurationException(
+                    key + " is not a valid URI",
+                    exception
+            );
+        }
+    }
+
+    private static String text(Map<String, String> values, String key, String defaultValue) {
+        String value = values.get(key);
+        return value == null || value.isBlank() ? defaultValue : value.trim();
     }
 
     private static Duration duration(
@@ -71,6 +97,29 @@ public final class RiskAuthenticatorConfigResolver {
             return defaultValue;
         }
         return parsePositiveInteger(value, key);
+    }
+
+    private static Duration nonNegativeDuration(
+            Map<String, String> values,
+            String key,
+            Duration defaultValue
+    ) {
+        String value = values.get(key);
+        if (value == null || value.isBlank()) {
+            return defaultValue;
+        }
+        try {
+            int parsed = Integer.parseInt(value);
+            if (parsed < 0) {
+                throw new NumberFormatException("negative");
+            }
+            return Duration.ofMillis(parsed);
+        } catch (NumberFormatException exception) {
+            throw new RiskAuthenticatorConfigurationException(
+                    key + " must be a non-negative integer",
+                    exception
+            );
+        }
     }
 
     private static int parsePositiveInteger(String value, String key) {

@@ -1,1 +1,23 @@
-services: { }
+services:
+  risk-db:
+    image: mysql:8.0.46
+    container_name: zerotrust-risk-db
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: risk_db
+      MYSQL_USER: risk_service
+      MYSQL_PASSWORD: ${RISK_DB_PASSWORD:?Set RISK_DB_PASSWORD in .env}
+      MYSQL_ROOT_PASSWORD: ${RISK_DB_ROOT_PASSWORD:?Set RISK_DB_ROOT_PASSWORD in .env}
+    ports:
+      - "127.0.0.1:3307:3306"
+    volumes:
+      - risk-db-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 20s
+
+volumes:
+  risk-db-data:

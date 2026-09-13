@@ -21,6 +21,7 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -53,9 +54,11 @@ class HttpRiskScoringClientTest {
     void postsLoginContextAndReturnsDecision() {
         AtomicReference<String> method = new AtomicReference<>();
         AtomicReference<String> body = new AtomicReference<>();
+        AtomicReference<String> authorization = new AtomicReference<>();
         server.createContext(EVALUATION_PATH, exchange -> {
             method.set(exchange.getRequestMethod());
             body.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+            authorization.set(exchange.getRequestHeaders().getFirst("Authorization"));
             respond(exchange, 200, """
                     {
                       "evaluationId": "0ea3026d-2f0a-4ab8-a45e-8183e47f52e5",
@@ -75,6 +78,7 @@ class HttpRiskScoringClientTest {
         RiskEvaluationResponse response = client().evaluate(request);
 
         assertEquals("POST", method.get());
+        assertEquals("Bearer service-token", authorization.get());
         assertEquals(RiskDecision.STEP_UP_MFA, response.decision());
         assertEquals("user-1", response.subjectId());
 
@@ -233,12 +237,80 @@ class HttpRiskScoringClientTest {
         assertEquals(RiskScoringClientException.FailureType.INVALID_RESPONSE, exception.failureType());
     }
 
+    @Test
+    void refreshesRejectedTokenAndRetriesExactlyOnce() {
+        AtomicInteger calls = new AtomicInteger();
+        AtomicReference<String> secondAuthorization = new AtomicReference<>();
+        server.createContext(EVALUATION_PATH, exchange -> {
+            int call = calls.incrementAndGet();
+            if (call == 1) {
+                assertEquals(
+                        "Bearer rejected-token",
+                        exchange.getRequestHeaders().getFirst("Authorization")
+                );
+                respond(exchange, 401, "{\"error\":\"unauthorized\"}");
+                return;
+            }
+            secondAuthorization.set(exchange.getRequestHeaders().getFirst("Authorization"));
+            respond(exchange, 200, successfulResponse());
+        });
+        AtomicInteger tokenReads = new AtomicInteger();
+        AtomicReference<String> invalidated = new AtomicReference<>();
+        ServiceTokenProvider tokenProvider = new ServiceTokenProvider() {
+            @Override
+            public String accessToken() {
+                return tokenReads.incrementAndGet() == 1 ? "rejected-token" : "fresh-token";
+            }
+
+            @Override
+            public void invalidate(String rejectedToken) {
+                invalidated.set(rejectedToken);
+            }
+        };
+
+        RiskEvaluationResponse response = client(
+                RiskScoringClientConfig.defaults(serviceUri()),
+                tokenProvider
+        ).evaluate(request());
+
+        assertEquals(RiskDecision.ALLOW, response.decision());
+        assertEquals(2, calls.get());
+        assertEquals(2, tokenReads.get());
+        assertEquals("rejected-token", invalidated.get());
+        assertEquals("Bearer fresh-token", secondAuthorization.get());
+    }
+
+    @Test
+    void stopsAfterSecondUnauthorizedResponse() {
+        AtomicInteger calls = new AtomicInteger();
+        server.createContext(EVALUATION_PATH, exchange -> {
+            calls.incrementAndGet();
+            respond(exchange, 401, "{\"error\":\"unauthorized\"}");
+        });
+
+        RiskScoringClientException exception = assertThrows(
+                RiskScoringClientException.class,
+                () -> client().evaluate(request())
+        );
+
+        assertEquals(RiskScoringClientException.FailureType.HTTP_ERROR, exception.failureType());
+        assertEquals(401, exception.statusCode());
+        assertEquals(2, calls.get());
+    }
+
     private HttpRiskScoringClient client() {
         return client(RiskScoringClientConfig.defaults(serviceUri()));
     }
 
     private HttpRiskScoringClient client(RiskScoringClientConfig config) {
-        return new HttpRiskScoringClient(httpClient, config);
+        return client(config, fixedTokenProvider("service-token"));
+    }
+
+    private HttpRiskScoringClient client(
+            RiskScoringClientConfig config,
+            ServiceTokenProvider tokenProvider
+    ) {
+        return new HttpRiskScoringClient(httpClient, config, tokenProvider);
     }
 
     private URI serviceUri() {
@@ -255,6 +327,36 @@ class HttpRiskScoringClientTest {
                 "Mozilla/5.0",
                 "device-123"
         );
+    }
+
+    private static ServiceTokenProvider fixedTokenProvider(String token) {
+        return new ServiceTokenProvider() {
+            @Override
+            public String accessToken() {
+                return token;
+            }
+
+            @Override
+            public void invalidate(String rejectedToken) {
+                // Fixed test token; nothing to evict.
+            }
+        };
+    }
+
+    private static String successfulResponse() {
+        return """
+                {
+                  "evaluationId": "0ea3026d-2f0a-4ab8-a45e-8183e47f52e5",
+                  "subjectId": "user-1",
+                  "authenticationSessionId": "session-1",
+                  "riskScore": 10,
+                  "riskLevel": "LOW",
+                  "decision": "ALLOW",
+                  "dataStatus": "COMPLETE",
+                  "reasons": [],
+                  "evaluatedAt": "2026-09-04T08:00:00Z"
+                }
+                """;
     }
 
     private static void respond(HttpExchange exchange, int statusCode, String responseBody)

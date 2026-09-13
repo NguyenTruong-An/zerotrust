@@ -6,6 +6,7 @@ import com.zerotrust.keycloak.risk.client.RiskScoringClientFactory;
 import com.zerotrust.keycloak.risk.config.RiskAuthenticatorConfig;
 import com.zerotrust.keycloak.risk.config.RiskAuthenticatorConfigResolver;
 import com.zerotrust.keycloak.risk.config.RiskScoringClientConfig;
+import com.zerotrust.keycloak.risk.config.ServiceTokenConfig;
 import com.zerotrust.keycloak.risk.context.LoginContextExtractor;
 import com.zerotrust.keycloak.risk.dto.RiskEvaluationRequest;
 import com.zerotrust.keycloak.risk.dto.RiskEvaluationResponse;
@@ -16,6 +17,7 @@ import org.keycloak.authentication.AuthenticationFlowContext;
 import org.keycloak.models.AuthenticatorConfigModel;
 
 import java.net.URI;
+import java.time.Duration;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -31,7 +33,7 @@ class RiskAuthenticatorTest {
 
         fixture.authenticator.authenticate(fixture.context);
 
-        verify(fixture.clientFactory).create(fixture.config.clientConfig());
+        verify(fixture.clientFactory).create(fixture.config);
         verify(fixture.client).evaluate(fixture.request);
         verify(fixture.decisionHandler).handle(fixture.context, evaluation);
     }
@@ -82,12 +84,18 @@ class RiskAuthenticatorTest {
         private Fixture(RiskFailureMode failureMode) {
             config = new RiskAuthenticatorConfig(
                     RiskScoringClientConfig.defaults(URI.create("http://localhost:8081")),
+                    new ServiceTokenConfig(
+                            URI.create("http://localhost:8180/realms/DoAn/protocol/openid-connect/token"),
+                            "zerotrust-risk-caller",
+                            "test-client-secret",
+                            Duration.ofSeconds(30)
+                    ),
                     failureMode
             );
             when(context.getAuthenticatorConfig()).thenReturn(authenticatorConfig);
             when(configResolver.resolve(authenticatorConfig)).thenReturn(config);
             when(contextExtractor.extract(context)).thenReturn(request);
-            when(clientFactory.create(config.clientConfig())).thenReturn(client);
+            when(clientFactory.create(config)).thenReturn(client);
             authenticator = new RiskAuthenticator(
                     contextExtractor,
                     configResolver,

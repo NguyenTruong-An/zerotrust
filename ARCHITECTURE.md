@@ -1,7 +1,7 @@
 # Kiến trúc chuẩn của đồ án Zero Trust
 
 **Trạng thái:** Đã chấp nhận (Accepted)  
-**Ngày cập nhật:** 2026-09-04
+**Ngày cập nhật:** 2026-09-09
 
 **Phạm vi:** Kiến trúc đích và nguyên tắc triển khai bắt buộc của toàn bộ đồ án
 
@@ -37,7 +37,7 @@ flowchart TB
     end
 
     subgraph RISK["Hệ thống đánh giá rủi ro"]
-        SPI --> RS["Risk Scoring Service<br/>Spring Boot API"]
+        SPI -->|"OAuth2 Client Credentials<br/>Bearer JWT + TLS"| RS["Risk Scoring Service<br/>Spring Boot Resource Server"]
         EL --> RS
         RS --> RDB[("Risk DB · MySQL<br/>Thiết bị · Lịch sử · Audit")]
         RS --> REDIS[("Redis<br/>Cache · Failure Counter · Velocity")]
@@ -162,6 +162,8 @@ Cho đến khi chủ đồ án phê duyệt, code không được hard-code tr�
 - Là Keycloak SPI trong authentication flow.
 - Thu thập context đăng nhập.
 - Gọi Risk Scoring Service.
+- Dùng confidential service client `zerotrust-risk-caller` để lấy access token
+  bằng Client Credentials; không dùng danh tính của người dùng đang đăng nhập.
 - Chuyển quyết định thành allow, step-up MFA hoặc deny.
 - Không tự chứa công thức, trọng số hoặc ngưỡng chấm điểm.
 
@@ -177,6 +179,10 @@ Cho đến khi chủ đồ án phê duyệt, code không được hard-code tr�
 - Áp dụng Priority Security Rules.
 - Thực hiện Policy-based Weighted Risk Scoring sau khi mô hình được phê duyệt.
 - Trả về mức rủi ro, quyết định và lý do.
+- Chỉ nhận evaluation request có JWT đúng issuer, audience
+  `zerotrust-risk-api`, authorized party `zerotrust-risk-caller` và client role
+  `risk:evaluate`.
+- Chỉ expose endpoint nội bộ qua TLS và mạng riêng trong production.
 
 ### Redis
 
@@ -223,12 +229,16 @@ Portal xác minh chữ ký, issuer, expiration và audience của JWT bằng JWK
 - Không lưu mật khẩu tại Portal DB.
 - Không lưu access token hoặc refresh token vào browser storage lâu dài.
 - Không thêm client secret vào SPA hoặc biến môi trường `NEXT_PUBLIC_*`.
+- Không dùng `zerotrust-provisioner`, user token hoặc client secret của SPA để gọi
+  Risk API.
 - Không chuyển Portal API về xác thực cookie/session nếu chưa cập nhật `LOGIN_FLOW.md` và mô hình CSRF.
 - Không để Risk Scoring Service đọc trực tiếp dữ liệu nghiệp vụ Portal DB.
 - Không bỏ qua Reverse Proxy, API Gateway, Keycloak hoặc bước xác minh JWT/JWKS trong kiến trúc đích.
 - Không tự chọn trọng số, ngưỡng hoặc công thức chấm điểm khi chưa được phê duyệt.
 - Không thay mô hình policy-based weighted scoring bằng ML hoặc mô hình khác khi chưa có chấp thuận rõ ràng.
 - Không thay đổi ranh giới dịch vụ hoặc luồng xác thực nếu chưa cập nhật tài liệu này và được chủ đồ án chấp thuận.
+
+Chi tiết triển khai và vận hành kết nối này nằm trong `RISK_API_SECURITY.md`.
 
 ## 9. Quy tắc thay đổi kiến trúc
 

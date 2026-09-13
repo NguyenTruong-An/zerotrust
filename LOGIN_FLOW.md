@@ -2,7 +2,7 @@
 
 **Trạng thái:** Đã chấp nhận (Accepted)
 
-**Ngày cập nhật:** 2026-09-04
+**Ngày cập nhật:** 2026-09-09
 
 **Nhánh triển khai:** `zerotrust-v3-spa`
 
@@ -29,6 +29,10 @@ Phân chia trách nhiệm:
 - Portal API không đăng nhập người dùng. API chỉ xác minh access token và kiểm tra quyền.
 - Redis không còn cần cho phiên Portal. Redis trong `ARCHITECTURE.md` chỉ phục vụ Risk Scoring Service.
 - Client `zerotrust-provisioner` vẫn là confidential service account riêng để backend tạo/quản lý tài khoản Keycloak. Nó không tham gia đăng nhập trình duyệt.
+- Custom Authenticator dùng confidential client `zerotrust-risk-caller` để gọi
+  resource `zerotrust-risk-api` bằng Client Credentials. Client này chỉ có role
+  `risk:evaluate` và tách biệt hoàn toàn với `zerotrust-provisioner`; chi tiết ở
+  `RISK_API_SECURITY.md`.
 
 ## 2. Vì sao không có `/auth/login`
 

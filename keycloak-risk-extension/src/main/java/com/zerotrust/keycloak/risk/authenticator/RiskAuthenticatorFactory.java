@@ -1,9 +1,12 @@
 package com.zerotrust.keycloak.risk.authenticator;
 
+import com.zerotrust.keycloak.risk.client.ClientCredentialsTokenProvider;
 import com.zerotrust.keycloak.risk.client.HttpRiskScoringClient;
 import com.zerotrust.keycloak.risk.client.RiskScoringClientFactory;
+import com.zerotrust.keycloak.risk.client.ServiceTokenCache;
 import com.zerotrust.keycloak.risk.config.RiskAuthenticatorConfigResolver;
 import com.zerotrust.keycloak.risk.config.RiskScoringClientConfig;
+import com.zerotrust.keycloak.risk.config.ServiceTokenConfig;
 import com.zerotrust.keycloak.risk.context.CookieDeviceIdResolver;
 import com.zerotrust.keycloak.risk.context.KeycloakLoginContextExtractor;
 import com.zerotrust.keycloak.risk.policy.RiskDecisionHandler;
@@ -33,8 +36,34 @@ public final class RiskAuthenticatorFactory implements AuthenticatorFactory {
                     RiskAuthenticatorConfigResolver.SERVICE_BASE_URL,
                     "Risk Service base URL",
                     "Base URL of the internal Risk Scoring Service, without the evaluation path.",
-                    ProviderConfigProperty.URL_TYPE,
+                    ProviderConfigProperty.STRING_TYPE,
                     null
+            ),
+            requiredProperty(
+                    RiskAuthenticatorConfigResolver.TOKEN_ENDPOINT_URL,
+                    "Keycloak token endpoint URL",
+                    "Realm token endpoint used by the confidential risk caller client.",
+                    ProviderConfigProperty.STRING_TYPE,
+                    null
+            ),
+            requiredProperty(
+                    RiskAuthenticatorConfigResolver.SERVICE_CLIENT_ID,
+                    "Risk caller client ID",
+                    "Confidential service-account client allowed to call the Risk API.",
+                    ProviderConfigProperty.STRING_TYPE,
+                    ServiceTokenConfig.DEFAULT_CLIENT_ID
+            ),
+            secretProperty(
+                    RiskAuthenticatorConfigResolver.SERVICE_CLIENT_SECRET,
+                    "Risk caller client secret",
+                    "Secret of the confidential risk caller client. The value is never logged."
+            ),
+            property(
+                    RiskAuthenticatorConfigResolver.TOKEN_REFRESH_SKEW_MS,
+                    "Token refresh skew (ms)",
+                    "Refresh a cached token this long before its declared expiry.",
+                    ProviderConfigProperty.INTEGER_TYPE,
+                    Math.toIntExact(ServiceTokenConfig.DEFAULT_REFRESH_SKEW.toMillis())
             ),
             property(
                     RiskAuthenticatorConfigResolver.CONNECTION_REQUEST_TIMEOUT_MS,
@@ -73,13 +102,24 @@ public final class RiskAuthenticatorFactory implements AuthenticatorFactory {
             )
     );
 
+    private final ServiceTokenCache tokenCache = new ServiceTokenCache();
+
     @Override
     public Authenticator create(KeycloakSession session) {
         HttpClientProvider httpClientProvider = session.getProvider(HttpClientProvider.class);
-        RiskScoringClientFactory clientFactory = config -> new HttpRiskScoringClient(
-                httpClientProvider,
-                config
-        );
+        RiskScoringClientFactory clientFactory = config -> {
+            var tokenProvider = new ClientCredentialsTokenProvider(
+                    httpClientProvider,
+                    config.serviceTokenConfig(),
+                    config.clientConfig(),
+                    tokenCache
+            );
+            return new HttpRiskScoringClient(
+                    httpClientProvider,
+                    config.clientConfig(),
+                    tokenProvider
+            );
+        };
 
         return new RiskAuthenticator(
                 new KeycloakLoginContextExtractor(new CookieDeviceIdResolver()),
@@ -141,7 +181,7 @@ public final class RiskAuthenticatorFactory implements AuthenticatorFactory {
 
     @Override
     public void close() {
-        // Keycloak owns all injected providers.
+        tokenCache.clear();
     }
 
     private static ProviderConfigProperty property(
@@ -169,6 +209,22 @@ public final class RiskAuthenticatorFactory implements AuthenticatorFactory {
     ) {
         ProviderConfigProperty property = property(name, label, helpText, type, defaultValue);
         property.setRequired(true);
+        return property;
+    }
+
+    private static ProviderConfigProperty secretProperty(
+            String name,
+            String label,
+            String helpText
+    ) {
+        ProviderConfigProperty property = requiredProperty(
+                name,
+                label,
+                helpText,
+                ProviderConfigProperty.PASSWORD,
+                null
+        );
+        property.setSecret(true);
         return property;
     }
 

@@ -2,18 +2,24 @@ package com.zerotrust.risk.controller;
 
 import com.zerotrust.risk.entity.KnownDeviceEntity;
 import com.zerotrust.risk.repository.KnownDeviceRepository;
+import com.zerotrust.risk.security.RiskJwtAuthenticationConverter;
 import com.zerotrust.risk.service.DeviceFingerprintHasher;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
-import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.RequestPostProcessor;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.List;
+import java.util.Map;
 
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -36,6 +42,7 @@ class RiskEvaluationControllerTests {
     @Test
     void evaluatesValidRequest() throws Exception {
         mockMvc.perform(post("/internal/v1/risk/evaluations")
+                        .with(serviceAuthentication())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -58,6 +65,7 @@ class RiskEvaluationControllerTests {
     @Test
     void rejectsInvalidRequest() throws Exception {
         mockMvc.perform(post("/internal/v1/risk/evaluations")
+                        .with(serviceAuthentication())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -89,6 +97,7 @@ class RiskEvaluationControllerTests {
         knownDeviceRepository.saveAndFlush(device);
 
         mockMvc.perform(post("/internal/v1/risk/evaluations")
+                        .with(serviceAuthentication())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -106,5 +115,17 @@ class RiskEvaluationControllerTests {
                 .andExpect(jsonPath("$.decision").value("DENY"))
                 .andExpect(jsonPath("$.dataStatus").value("NOT_EVALUATED"))
                 .andExpect(jsonPath("$.reasons[0]").value("REVOKED_DEVICE"));
+    }
+    private static RequestPostProcessor serviceAuthentication() {
+        Jwt jwt = Jwt.withTokenValue("test")
+                .header("alg", "RS256")
+                .subject("service-account-id")
+                .claim("azp", "zerotrust-risk-caller")
+                .claim("resource_access", Map.of(
+                        "zerotrust-risk-api",
+                        Map.of("roles", List.of("risk:evaluate"))
+                ))
+                .build();
+        return authentication(new RiskJwtAuthenticationConverter("zerotrust-risk-api").convert(jwt));
     }
 }

@@ -35,21 +35,32 @@ public final class HttpRiskScoringClient implements RiskScoringClient {
     private final URI evaluationUri;
     private final RequestConfig requestConfig;
     private final int maxResponseBytes;
+    private final ServiceTokenProvider tokenProvider;
 
     public HttpRiskScoringClient(
             HttpClientProvider httpClientProvider,
-            RiskScoringClientConfig config
+            RiskScoringClientConfig config,
+            ServiceTokenProvider tokenProvider
     ) {
         this(
                 Objects.requireNonNull(httpClientProvider, "httpClientProvider must not be null")
                         .getHttpClient(),
-                config
+                config,
+                tokenProvider
         );
     }
 
-    HttpRiskScoringClient(CloseableHttpClient httpClient, RiskScoringClientConfig config) {
+    HttpRiskScoringClient(
+            CloseableHttpClient httpClient,
+            RiskScoringClientConfig config,
+            ServiceTokenProvider tokenProvider
+    ) {
         this.httpClient = Objects.requireNonNull(httpClient, "httpClient must not be null");
         Objects.requireNonNull(config, "config must not be null");
+        this.tokenProvider = Objects.requireNonNull(
+                tokenProvider,
+                "tokenProvider must not be null"
+        );
         this.evaluationUri = config.evaluationUri();
         this.requestConfig = RequestConfig.custom()
                 .setConnectionRequestTimeout(RiskScoringClientConfig.timeoutMillis(
@@ -64,12 +75,32 @@ public final class HttpRiskScoringClient implements RiskScoringClient {
     @Override
     public RiskEvaluationResponse evaluate(RiskEvaluationRequest request) {
         Objects.requireNonNull(request, "request must not be null");
+        String requestBody = serialize(request);
+        String accessToken = tokenProvider.accessToken();
 
+        try {
+            return execute(request, requestBody, accessToken);
+        } catch (RiskScoringClientException exception) {
+            if (exception.failureType() != RiskScoringClientException.FailureType.HTTP_ERROR
+                    || exception.statusCode() != 401) {
+                throw exception;
+            }
+            tokenProvider.invalidate(accessToken);
+            return execute(request, requestBody, tokenProvider.accessToken());
+        }
+    }
+
+    private RiskEvaluationResponse execute(
+            RiskEvaluationRequest request,
+            String requestBody,
+            String accessToken
+    ) {
         HttpPost httpRequest = new HttpPost(evaluationUri);
         httpRequest.setConfig(requestConfig);
         httpRequest.setHeader("Accept", "application/json");
+        httpRequest.setHeader("Authorization", "Bearer " + requireAccessToken(accessToken));
         httpRequest.setEntity(new StringEntity(
-                serialize(request),
+                requestBody,
                 JSON_UTF_8
         ));
 
@@ -101,6 +132,25 @@ public final class HttpRiskScoringClient implements RiskScoringClient {
         } catch (IOException exception) {
             throw RiskScoringClientException.connection(exception);
         }
+    }
+
+    private static String requireAccessToken(String accessToken) {
+        if (accessToken == null || accessToken.isBlank()) {
+            throw RiskScoringClientException.invalidResponse(
+                    "Service token provider returned an empty access token",
+                    null
+            );
+        }
+        for (int index = 0; index < accessToken.length(); index++) {
+            char character = accessToken.charAt(index);
+            if (Character.isWhitespace(character) || Character.isISOControl(character)) {
+                throw RiskScoringClientException.invalidResponse(
+                        "Service token provider returned an invalid access token",
+                        null
+                );
+            }
+        }
+        return accessToken;
     }
 
     private static String serialize(RiskEvaluationRequest request) {
