@@ -55,9 +55,9 @@ sequenceDiagram
         SPI-->>KC: context.failure(ACCESS_DENIED)
     end
     KC-->>SPA: Authorization code rồi user tokens
-    SPA->>API: GET /api/students/me/scores + Bearer user JWT
-    API->>DB: Tìm student bằng claim sub và đọc điểm
-    DB-->>API: Dữ liệu điểm
+    SPA->>API: GET /api/users/me, /api/students/me, /scores/summary, /scores
+    API->>DB: Tìm student bằng claim sub và đọc hồ sơ/điểm
+    DB-->>API: Hồ sơ và kết quả học tập
     API-->>SPA: JSON
 ```
 
@@ -758,8 +758,9 @@ Sau khi toàn bộ authentication flow thành công, Keycloak trả authorizatio
 #### `StudentController`
 
 - Class được bảo vệ bằng `hasRole('STUDENT')`.
-- `getCurrentStudentScores()` lấy `jwt.getSubject()`, parse UUID và chuyển chính
-  UUID đó cùng filter xuống service.
+- `getCurrentStudent()` trả hồ sơ học vụ; `getCurrentStudentScoreSummary()` trả
+  thống kê trên toàn bộ môn; `getCurrentStudentScores()` trả bảng điểm phân trang.
+  Cả ba lấy `jwt.getSubject()`, parse UUID rồi mới truy vấn dữ liệu.
 - `parseKeycloakUserId()` trả 401 nếu `sub` thiếu hoặc không phải UUID.
 
 Browser không gửi student ID để chọn bảng điểm. Đây là lớp chống xem điểm của
@@ -767,13 +768,16 @@ người khác.
 
 #### `ScoreAdministrationService`
 
-Interface công bố `getCurrentStudentScores()` cùng các contract quản trị điểm.
+Interface công bố `getCurrentStudentScores()` và
+`getCurrentStudentScoreSummary()` cùng các contract quản trị điểm.
 
 #### `ScoreAdministrationServiceImpl`
 
 - `getCurrentStudentScores()` kiểm tra role lần nữa, validate pagination/filter/
   sort, tìm student theo Keycloak subject, yêu cầu Portal user `ACTIVE`, query
   điểm bằng student ID nội bộ rồi map DTO.
+- `getCurrentStudentScoreSummary()` tính tổng môn, số qua/trượt, trung bình, điểm
+  cao nhất và kỳ gần nhất trên toàn bộ kết quả của chính sinh viên.
 - `validateAcademicYear()`, `validatePagination()`, `validateSemester()` bảo vệ
   input filter.
 - `parseSort()` chỉ cho các field/hướng sort hợp lệ; `invalidSort()` tạo lỗi.
@@ -847,7 +851,8 @@ Keycloak. Logout thành công thì phiên SSO bị kết thúc và flow phải c
 ## 10. Những class liên quan nhưng không chạy trong đường này
 
 - `UserController.getCurrentUser()` và `UserServiceImpl.getCurrentUser()` cung cấp
-  `/api/users/me`; frontend hiện không gọi endpoint này.
+  `/api/users/me`; portal sinh viên gọi endpoint này cùng `/api/students/me` để
+  hiển thị tài khoản và hồ sơ học vụ đúng theo `sub` của JWT.
 - `AdminController` và các administration service chạy cho dashboard/CRUD admin,
   không tham gia risk decision.
 - `KeycloakAdminConfig`, `KeycloakIdentityProviderGateway`, `KeycloakUserClient`,

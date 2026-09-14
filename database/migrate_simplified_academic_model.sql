@@ -80,7 +80,8 @@ migration: BEGIN
         SET
             `score`.`subject_id` = `subject_class`.`subject_id`,
             `score`.`semester` = `subject_class`.`semester`,
-            `score`.`academic_year` = `subject_class`.`academic_year`;
+            `score`.`academic_year` = `subject_class`.`academic_year`
+        WHERE `score`.`subject_class_id` IS NOT NULL;
     END IF;
 
     IF EXISTS (
@@ -97,11 +98,11 @@ migration: BEGIN
     IF EXISTS (
         SELECT 1
         FROM `scores`
-        GROUP BY `student_id`, `subject_id`, `semester`, `academic_year`
+        GROUP BY `student_id`, `subject_id`
         HAVING COUNT(*) > 1
     ) THEN
         SIGNAL SQLSTATE '45000'
-            SET MESSAGE_TEXT = 'duplicate scores exist for the same student, subject and term';
+            SET MESSAGE_TEXT = 'duplicate scores exist for the same student and subject';
     END IF;
 
     -- Add the replacement unique index before removing the legacy one.
@@ -111,11 +112,22 @@ migration: BEGIN
         FROM `information_schema`.`statistics`
         WHERE `table_schema` = DATABASE()
           AND `table_name` = 'scores'
+          AND `index_name` = 'uk_scores_student_subject'
+    ) THEN
+        ALTER TABLE `scores`
+            ADD CONSTRAINT `uk_scores_student_subject`
+                UNIQUE (`student_id`, `subject_id`);
+    END IF;
+
+    IF EXISTS (
+        SELECT 1
+        FROM `information_schema`.`statistics`
+        WHERE `table_schema` = DATABASE()
+          AND `table_name` = 'scores'
           AND `index_name` = 'uk_scores_student_subject_term'
     ) THEN
         ALTER TABLE `scores`
-            ADD CONSTRAINT `uk_scores_student_subject_term`
-                UNIQUE (`student_id`, `subject_id`, `semester`, `academic_year`);
+            DROP INDEX `uk_scores_student_subject_term`;
     END IF;
 
     IF has_subject_class_id = 1 THEN
@@ -178,7 +190,7 @@ migration: BEGIN
     ) THEN
         ALTER TABLE `scores`
             ADD CONSTRAINT `ck_scores_semester`
-                CHECK (`semester` BETWEEN 1 AND 3);
+                CHECK (`semester` BETWEEN 1 AND 2);
     END IF;
 
     IF NOT EXISTS (

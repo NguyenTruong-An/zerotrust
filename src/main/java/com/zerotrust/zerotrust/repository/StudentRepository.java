@@ -10,12 +10,16 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.Optional;
+import java.util.Collection;
+import java.util.List;
 import java.util.UUID;
 
 public interface StudentRepository extends JpaRepository<StudentEntity, UUID> {
     boolean existsByStudentCodeIgnoreCase(String studentCode);
 
     boolean existsByStudentCodeIgnoreCaseAndIdNot(String studentCode, UUID id);
+
+    boolean existsByStudentClassEntityId(UUID classId);
 
     @EntityGraph(attributePaths = {"userEntity", "studentClassEntity"})
     @Query("""
@@ -50,6 +54,9 @@ public interface StudentRepository extends JpaRepository<StudentEntity, UUID> {
     @Query("SELECT student FROM StudentEntity student WHERE student.id = :id")
     Optional<StudentEntity> findDetailedById(@Param("id") UUID id);
 
-    @EntityGraph(attributePaths = {"userEntity"})
+    @EntityGraph(attributePaths = {"userEntity", "studentClassEntity"})
+    List<StudentEntity> findAllByIdIn(Collection<UUID> ids);
+
+    @EntityGraph(attributePaths = {"userEntity", "studentClassEntity"})
     Optional<StudentEntity> findByUserEntityKeycloakUserId(UUID keycloakUserId);
 }

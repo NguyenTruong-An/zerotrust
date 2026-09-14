@@ -5,7 +5,6 @@
 CREATE DATABASE IF NOT EXISTS `vip_pro`
     CHARACTER SET utf8mb4
     COLLATE utf8mb4_unicode_ci;
-
 USE `vip_pro`;
 
 -- =========================================================
@@ -40,7 +39,7 @@ CREATE TABLE `student_classes` (
     `class_code` VARCHAR(30) NOT NULL,
     `class_name` VARCHAR(100) NOT NULL,
     `department` VARCHAR(150) NOT NULL,
-    `academic_year` VARCHAR(9) NOT NULL COMMENT 'Example: 2025-2026',
+    `course_years` VARCHAR(9) NOT NULL COMMENT 'Example: 2022-2027',
     `created_at` DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
     `updated_at` DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
         ON UPDATE CURRENT_TIMESTAMP(6),
@@ -91,10 +90,11 @@ CREATE TABLE `subjects` (
 
     CONSTRAINT `pk_subjects` PRIMARY KEY (`id`),
     CONSTRAINT `uk_subjects_code` UNIQUE (`subject_code`),
+    CONSTRAINT `uk_subjects_name` UNIQUE (`subject_name`),
     CONSTRAINT `ck_subjects_credits` CHECK (`credits` BETWEEN 1 AND 20)
 ) ENGINE = InnoDB;
 
--- Each score belongs directly to a student and subject in a specific term.
+-- Each student has at most one score record for each subject.
 -- Score fields remain NULL until an administrator enters them.
 CREATE TABLE `scores` (
     `id` BINARY(16) NOT NULL,
@@ -112,9 +112,9 @@ CREATE TABLE `scores` (
         ON UPDATE CURRENT_TIMESTAMP(6),
 
     CONSTRAINT `pk_scores` PRIMARY KEY (`id`),
-    CONSTRAINT `uk_scores_student_subject_term`
-        UNIQUE (`student_id`, `subject_id`, `semester`, `academic_year`),
-    CONSTRAINT `ck_scores_semester` CHECK (`semester` BETWEEN 1 AND 3),
+    CONSTRAINT `uk_scores_student_subject`
+        UNIQUE (`student_id`, `subject_id`),
+    CONSTRAINT `ck_scores_semester` CHECK (`semester` BETWEEN 1 AND 2),
     CONSTRAINT `ck_scores_attendance` CHECK (
         `attendance_score` IS NULL OR `attendance_score` BETWEEN 0 AND 10
     ),

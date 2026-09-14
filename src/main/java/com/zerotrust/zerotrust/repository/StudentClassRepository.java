@@ -28,13 +28,13 @@ public interface StudentClassRepository extends JpaRepository<StudentClassEntity
                 OR LOWER(studentClass.department) = LOWER(:department)
             )
             AND (
-                :academicYear IS NULL
-                OR studentClass.academicYear = :academicYear
+                :courseYears IS NULL
+                OR studentClass.courseYears = :courseYears
             )
             """)
     Page<StudentClassEntity> findAllFiltered(
             @Param("keyword") String keyword,
             @Param("department") String department,
-            @Param("academicYear") String academicYear,
+            @Param("courseYears") String courseYears,
             Pageable pageable);
 }

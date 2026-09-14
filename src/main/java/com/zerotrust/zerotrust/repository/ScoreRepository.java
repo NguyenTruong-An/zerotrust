@@ -9,20 +9,25 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.UUID;
+import java.util.Collection;
+import java.util.List;
 
 public interface ScoreRepository extends JpaRepository<ScoreEntity, UUID> {
-    boolean existsByStudentEntityIdAndSubjectEntityIdAndSemesterAndAcademicYear(
-            UUID studentId,
-            UUID subjectId,
-            Short semester,
-            String academicYear);
+    boolean existsBySubjectEntityId(UUID subjectId);
 
-    boolean existsByStudentEntityIdAndSubjectEntityIdAndSemesterAndAcademicYearAndIdNot(
+    boolean existsByStudentEntityIdAndSubjectEntityId(UUID studentId, UUID subjectId);
+
+    boolean existsByStudentEntityIdAndSubjectEntityIdAndIdNot(
             UUID studentId,
             UUID subjectId,
-            Short semester,
-            String academicYear,
             UUID excludedScoreId);
+
+    @EntityGraph(attributePaths = {"studentEntity", "subjectEntity"})
+    List<ScoreEntity> findAllBySubjectEntityIdAndStudentEntityIdIn(
+            UUID subjectId,
+            Collection<UUID> studentIds);
+
+    List<ScoreEntity> findAllByStudentEntityId(UUID studentId);
 
     @EntityGraph(attributePaths = {"studentEntity", "subjectEntity"})
     @Query("""
@@ -32,6 +37,13 @@ public interface ScoreRepository extends JpaRepository<ScoreEntity, UUID> {
             AND (
                 :subjectId IS NULL
                 OR score.subjectEntity.id = :subjectId
+            )
+            AND (
+                :keyword IS NULL
+                OR LOWER(score.subjectEntity.subjectCode)
+                    LIKE LOWER(CONCAT('%', :keyword, '%'))
+                OR LOWER(score.subjectEntity.subjectName)
+                    LIKE LOWER(CONCAT('%', :keyword, '%'))
             )
             AND (
                 :semester IS NULL
@@ -45,6 +57,7 @@ public interface ScoreRepository extends JpaRepository<ScoreEntity, UUID> {
     Page<ScoreEntity> findAllByStudentFiltered(
             @Param("studentId") UUID studentId,
             @Param("subjectId") UUID subjectId,
+            @Param("keyword") String keyword,
             @Param("semester") Short semester,
             @Param("academicYear") String academicYear,
             Pageable pageable);

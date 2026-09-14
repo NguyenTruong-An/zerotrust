@@ -8,7 +8,6 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
-import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -27,7 +26,7 @@ public class CreateScoreRequestDTO {
 
     @NotNull(message = "Semester is required")
     @Min(value = 1, message = "Semester must be at least 1")
-    @Max(value = 3, message = "Semester must not exceed 3")
+    @Max(value = 2, message = "Semester must not exceed 2")
     private Short semester;
 
     @NotBlank(message = "Academic year is required")
@@ -39,23 +38,18 @@ public class CreateScoreRequestDTO {
     @DecimalMin(value = "0.0", message = "Attendance score must be at least 0")
     @DecimalMax(value = "10.0", message = "Attendance score must not exceed 10")
     @Digits(integer = 2, fraction = 2, message = "Attendance score must have at most 2 decimal places")
+    @NotNull(message = "Attendance score is required")
     private BigDecimal attendanceScore;
 
     @DecimalMin(value = "0.0", message = "Midterm score must be at least 0")
     @DecimalMax(value = "10.0", message = "Midterm score must not exceed 10")
     @Digits(integer = 2, fraction = 2, message = "Midterm score must have at most 2 decimal places")
+    @NotNull(message = "Midterm score is required")
     private BigDecimal midtermScore;
 
     @DecimalMin(value = "0.0", message = "Final score must be at least 0")
     @DecimalMax(value = "10.0", message = "Final score must not exceed 10")
     @Digits(integer = 2, fraction = 2, message = "Final score must have at most 2 decimal places")
+    @NotNull(message = "Final score is required")
     private BigDecimal finalScore;
-
-    @DecimalMin(value = "0.0", message = "Total score must be at least 0")
-    @DecimalMax(value = "10.0", message = "Total score must not exceed 10")
-    @Digits(integer = 2, fraction = 2, message = "Total score must have at most 2 decimal places")
-    private BigDecimal totalScore;
-
-    @Size(max = 5, message = "Grade must not exceed 5 characters")
-    private String grade;
 }

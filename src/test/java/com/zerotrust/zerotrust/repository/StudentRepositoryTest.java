@@ -95,7 +95,7 @@ class StudentRepositoryTest {
         studentClass.setClassCode("AT19B");
         studentClass.setClassName("An toan thong tin 19B");
         studentClass.setDepartment("An toan thong tin");
-        studentClass.setAcademicYear("2022-2026");
+        studentClass.setCourseYears("2022-2027");
         return studentClass;
     }
 

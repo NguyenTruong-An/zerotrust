@@ -6,6 +6,7 @@ import com.zerotrust.zerotrust.exception.WebException;
 import com.zerotrust.zerotrust.model.request.CreateSubjectRequestDTO;
 import com.zerotrust.zerotrust.model.response.PageResponse;
 import com.zerotrust.zerotrust.model.response.SubjectResponseDTO;
+import com.zerotrust.zerotrust.repository.ScoreRepository;
 import com.zerotrust.zerotrust.repository.SubjectRepository;
 import com.zerotrust.zerotrust.service.SubjectAdministrationService;
 import lombok.RequiredArgsConstructor;
@@ -20,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Locale;
 import java.util.Set;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -32,26 +34,52 @@ public class SubjectAdministrationServiceImpl implements SubjectAdministrationSe
             "credits");
 
     private final SubjectRepository subjectRepository;
+    private final ScoreRepository scoreRepository;
 
     @Override
     @Transactional
     @PreAuthorize("hasRole('ADMIN')")
     public SubjectResponseDTO createSubject(CreateSubjectRequestDTO request) {
         String subjectCode = request.getSubjectCode().trim().toUpperCase(Locale.ROOT);
+        String subjectName = request.getSubjectName().trim();
         if (subjectRepository.existsBySubjectCodeIgnoreCase(subjectCode)) {
             throw new WebException(ErrorCode.SUBJECT_CODE_EXISTS);
+        }
+        if (subjectRepository.existsBySubjectNameIgnoreCase(subjectName)) {
+            throw new WebException(ErrorCode.SUBJECT_NAME_EXISTS);
         }
 
         SubjectEntity subject = new SubjectEntity();
         subject.setSubjectCode(subjectCode);
-        subject.setSubjectName(request.getSubjectName().trim());
+        subject.setSubjectName(subjectName);
         subject.setCredits(request.getCredits());
         subject.setDescription(normalizeOptional(request.getDescription()));
 
         try {
             return toResponse(subjectRepository.saveAndFlush(subject));
         } catch (DataIntegrityViolationException ex) {
+            if (subjectRepository.existsBySubjectNameIgnoreCase(subjectName)) {
+                throw new WebException(ErrorCode.SUBJECT_NAME_EXISTS);
+            }
             throw new WebException(ErrorCode.SUBJECT_CODE_EXISTS);
+        }
+    }
+
+    @Override
+    @Transactional
+    @PreAuthorize("hasRole('ADMIN')")
+    public void deleteSubject(UUID subjectId) {
+        SubjectEntity subject = subjectRepository.findById(subjectId)
+                .orElseThrow(() -> new WebException(ErrorCode.SUBJECT_NOT_FOUND));
+        if (scoreRepository.existsBySubjectEntityId(subjectId)) {
+            throw new WebException(ErrorCode.SUBJECT_IN_USE);
+        }
+
+        try {
+            subjectRepository.delete(subject);
+            subjectRepository.flush();
+        } catch (DataIntegrityViolationException ex) {
+            throw new WebException(ErrorCode.SUBJECT_IN_USE);
         }
     }
 

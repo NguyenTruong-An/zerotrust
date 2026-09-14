@@ -91,6 +91,39 @@ class StudentQueryServiceTest {
     }
 
     @Test
+    void returnsCurrentActiveStudentResolvedFromKeycloakIdentity() {
+        UUID keycloakUserId = UUID.randomUUID();
+        StudentEntity student = new StudentEntity();
+        UserEntity user = new UserEntity();
+        user.setStatus(UserEntity.Status.ACTIVE);
+        student.setUserEntity(user);
+        StudentResponseDTO response = org.mockito.Mockito.mock(StudentResponseDTO.class);
+        when(studentRepository.findByUserEntityKeycloakUserId(keycloakUserId))
+                .thenReturn(Optional.of(student));
+        when(studentConverter.convertToDto(student)).thenReturn(response);
+
+        assertThat(service.getCurrentStudent(keycloakUserId)).isSameAs(response);
+        verify(studentConverter).convertToDto(student);
+    }
+
+    @Test
+    void rejectsInactiveCurrentStudent() {
+        UUID keycloakUserId = UUID.randomUUID();
+        StudentEntity student = new StudentEntity();
+        UserEntity user = new UserEntity();
+        user.setStatus(UserEntity.Status.INACTIVE);
+        student.setUserEntity(user);
+        when(studentRepository.findByUserEntityKeycloakUserId(keycloakUserId))
+                .thenReturn(Optional.of(student));
+
+        assertThatThrownBy(() -> service.getCurrentStudent(keycloakUserId))
+                .isInstanceOf(WebException.class)
+                .extracting(exception -> ((WebException) exception).getErrorCode())
+                .isEqualTo(ErrorCode.USER_INACTIVE);
+        verify(studentConverter, never()).convertToDto(any());
+    }
+
+    @Test
     void reportsMissingStudent() {
         UUID id = UUID.randomUUID();
         when(studentRepository.findDetailedById(id)).thenReturn(Optional.empty());

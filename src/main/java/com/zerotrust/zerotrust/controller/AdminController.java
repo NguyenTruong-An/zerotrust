@@ -6,12 +6,15 @@ import com.zerotrust.zerotrust.model.request.CreateScoreRequestDTO;
 import com.zerotrust.zerotrust.model.request.CreateSubjectRequestDTO;
 import com.zerotrust.zerotrust.model.request.UpdateStudentRequestDTO;
 import com.zerotrust.zerotrust.model.request.UpdateScoreRequestDTO;
+import com.zerotrust.zerotrust.model.request.UpsertSubjectScoresRequestDTO;
 import com.zerotrust.zerotrust.model.response.ApiResponse;
+import com.zerotrust.zerotrust.model.response.BatchScoreResponseDTO;
 import com.zerotrust.zerotrust.model.response.PageResponse;
 import com.zerotrust.zerotrust.model.response.ScoreResponseDTO;
 import com.zerotrust.zerotrust.model.response.StudentClassResponseDTO;
 import com.zerotrust.zerotrust.model.response.StudentResponseDTO;
 import com.zerotrust.zerotrust.model.response.SubjectResponseDTO;
+import com.zerotrust.zerotrust.model.response.SubjectScoreSheetRowResponseDTO;
 import com.zerotrust.zerotrust.model.response.UserResponseDTO;
 import com.zerotrust.zerotrust.service.StudentAdministrationService;
 import com.zerotrust.zerotrust.service.ScoreAdministrationService;
@@ -24,6 +27,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -59,7 +63,7 @@ public class AdminController {
     public ResponseEntity<ApiResponse<PageResponse<StudentClassResponseDTO>>> getStudentClasses(
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) String department,
-            @RequestParam(required = false) String academicYear,
+            @RequestParam(required = false) String courseYears,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(defaultValue = "classCode,asc") String sort) {
@@ -67,12 +71,18 @@ public class AdminController {
                 studentClassAdministrationService.getStudentClasses(
                         keyword,
                         department,
-                        academicYear,
+                        courseYears,
                         page,
                         size,
                         sort);
         return ResponseEntity.ok(
                 ApiResponse.success(studentClasses, "Fetched student classes successfully"));
+    }
+
+    @DeleteMapping("/student-classes/{classId}")
+    public ResponseEntity<Void> deleteStudentClass(@PathVariable UUID classId) {
+        studentClassAdministrationService.deleteStudentClass(classId);
+        return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/subjects")
@@ -96,6 +106,35 @@ public class AdminController {
                 sort);
         return ResponseEntity.ok(
                 ApiResponse.success(subjects, "Fetched subjects successfully"));
+    }
+
+    @DeleteMapping("/subjects/{subjectId}")
+    public ResponseEntity<Void> deleteSubject(@PathVariable UUID subjectId) {
+        subjectAdministrationService.deleteSubject(subjectId);
+        return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/subjects/{subjectId}/score-sheet")
+    public ResponseEntity<ApiResponse<PageResponse<SubjectScoreSheetRowResponseDTO>>>
+            getSubjectScoreSheet(
+                    @PathVariable UUID subjectId,
+                    @RequestParam String classCode,
+                    @RequestParam(required = false) String keyword,
+                    @RequestParam(defaultValue = "0") int page,
+                    @RequestParam(defaultValue = "50") int size) {
+        return ResponseEntity.ok(ApiResponse.success(
+                scoreAdministrationService.getSubjectScoreSheet(
+                        subjectId, classCode, keyword, page, size),
+                "Fetched subject score sheet successfully"));
+    }
+
+    @PostMapping("/subjects/{subjectId}/scores/batch")
+    public ResponseEntity<ApiResponse<BatchScoreResponseDTO>> upsertSubjectScores(
+            @PathVariable UUID subjectId,
+            @Valid @RequestBody UpsertSubjectScoresRequestDTO request) {
+        return ResponseEntity.ok(ApiResponse.success(
+                scoreAdministrationService.upsertSubjectScores(subjectId, request),
+                "Saved subject scores successfully"));
     }
 
     @PostMapping("/students/{studentId}/scores")
@@ -137,6 +176,12 @@ public class AdminController {
         return ResponseEntity.ok(ApiResponse.success(
                 scoreAdministrationService.updateScore(scoreId, request),
                 "Student score updated successfully"));
+    }
+
+    @DeleteMapping("/scores/{scoreId}")
+    public ResponseEntity<Void> deleteScore(@PathVariable UUID scoreId) {
+        scoreAdministrationService.deleteScore(scoreId);
+        return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/students")

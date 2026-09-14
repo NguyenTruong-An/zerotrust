@@ -47,28 +47,24 @@ class ScoreEntityMappingTest {
         assertThat(stored.getSemester()).isEqualTo((short) 1);
         assertThat(stored.getAcademicYear()).isEqualTo("2025-2026");
         assertThat(scoreRepository
-                .existsByStudentEntityIdAndSubjectEntityIdAndSemesterAndAcademicYear(
-                        student.getId(), subject.getId(), (short) 1, "2025-2026"))
+                .existsByStudentEntityIdAndSubjectEntityId(student.getId(), subject.getId()))
                 .isTrue();
         assertThat(scoreRepository
-                .existsByStudentEntityIdAndSubjectEntityIdAndSemesterAndAcademicYearAndIdNot(
+                .existsByStudentEntityIdAndSubjectEntityIdAndIdNot(
                         student.getId(),
                         subject.getId(),
-                        (short) 1,
-                        "2025-2026",
                         UUID.randomUUID()))
                 .isTrue();
         assertThat(scoreRepository
-                .existsByStudentEntityIdAndSubjectEntityIdAndSemesterAndAcademicYearAndIdNot(
+                .existsByStudentEntityIdAndSubjectEntityIdAndIdNot(
                         student.getId(),
                         subject.getId(),
-                        (short) 1,
-                        "2025-2026",
                         stored.getId()))
                 .isFalse();
         var filteredScores = scoreRepository.findAllByStudentFiltered(
                 student.getId(),
                 subject.getId(),
+                "AN TOAN",
                 (short) 1,
                 "2025-2026",
                 PageRequest.of(
@@ -80,6 +76,16 @@ class ScoreEntityMappingTest {
                 .containsExactly(stored.getId());
         assertThat(filteredScores.getContent().get(0).getSubjectEntity().getSubjectCode())
                 .isEqualTo("SEC101");
+        var codeFilteredScores = scoreRepository.findAllByStudentFiltered(
+                student.getId(),
+                null,
+                "sec101",
+                null,
+                null,
+                PageRequest.of(0, 10));
+        assertThat(codeFilteredScores.getContent())
+                .extracting(ScoreEntity::getId)
+                .containsExactly(stored.getId());
         assertThat(studentRepository.findByUserEntityKeycloakUserId(
                 student.getUserEntity().getKeycloakUserId()))
                 .map(StudentEntity::getId)
@@ -87,13 +93,16 @@ class ScoreEntityMappingTest {
     }
 
     @Test
-    void rejectsDuplicateScoreForSameStudentSubjectAndTerm() {
+    void rejectsDuplicateScoreForSameStudentAndSubjectEvenInAnotherTerm() {
         StudentEntity student = persistStudent();
         SubjectEntity subject = persistSubject();
         entityManager.persist(score(student, subject));
         entityManager.flush();
 
-        entityManager.persist(score(student, subject));
+        ScoreEntity duplicate = score(student, subject);
+        duplicate.setSemester((short) 2);
+        duplicate.setAcademicYear("2026-2027");
+        entityManager.persist(duplicate);
 
         assertThatThrownBy(entityManager::flush)
                 .isInstanceOf(ConstraintViolationException.class);
@@ -104,7 +113,7 @@ class ScoreEntityMappingTest {
         studentClass.setClassCode("AT19B");
         studentClass.setClassName("An toan thong tin 19B");
         studentClass.setDepartment("An toan thong tin");
-        studentClass.setAcademicYear("2022-2026");
+        studentClass.setCourseYears("2022-2027");
         entityManager.persist(studentClass);
 
         UserEntity user = new UserEntity();

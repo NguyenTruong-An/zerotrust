@@ -7,6 +7,7 @@ import com.zerotrust.zerotrust.model.request.CreateStudentClassRequestDTO;
 import com.zerotrust.zerotrust.model.response.PageResponse;
 import com.zerotrust.zerotrust.model.response.StudentClassResponseDTO;
 import com.zerotrust.zerotrust.repository.StudentClassRepository;
+import com.zerotrust.zerotrust.repository.StudentRepository;
 import com.zerotrust.zerotrust.service.StudentClassAdministrationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -20,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Locale;
 import java.util.Set;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -31,9 +33,10 @@ public class StudentClassAdministrationServiceImpl
             "classCode",
             "className",
             "department",
-            "academicYear");
+            "courseYears");
 
     private final StudentClassRepository studentClassRepository;
+    private final StudentRepository studentRepository;
 
     @Override
     @Transactional
@@ -44,13 +47,13 @@ public class StudentClassAdministrationServiceImpl
             throw new WebException(ErrorCode.STUDENT_CLASS_CODE_EXISTS);
         }
 
-        validateAcademicYear(request.getAcademicYear());
+        validateCourseYears(request.getCourseYears());
 
         StudentClassEntity studentClass = new StudentClassEntity();
         studentClass.setClassCode(classCode);
         studentClass.setClassName(request.getClassName().trim());
         studentClass.setDepartment(request.getDepartment().trim());
-        studentClass.setAcademicYear(request.getAcademicYear().trim());
+        studentClass.setCourseYears(request.getCourseYears().trim());
 
         try {
             StudentClassEntity savedClass = studentClassRepository.saveAndFlush(studentClass);
@@ -61,45 +64,64 @@ public class StudentClassAdministrationServiceImpl
     }
 
     @Override
+    @Transactional
+    @PreAuthorize("hasRole('ADMIN')")
+    public void deleteStudentClass(UUID classId) {
+        StudentClassEntity studentClass = studentClassRepository.findById(classId)
+                .orElseThrow(() -> new WebException(ErrorCode.STUDENT_CLASS_NOT_FOUND));
+
+        if (studentRepository.existsByStudentClassEntityId(classId)) {
+            throw new WebException(ErrorCode.STUDENT_CLASS_IN_USE);
+        }
+
+        try {
+            studentClassRepository.delete(studentClass);
+            studentClassRepository.flush();
+        } catch (DataIntegrityViolationException ex) {
+            throw new WebException(ErrorCode.STUDENT_CLASS_IN_USE);
+        }
+    }
+
+    @Override
     @Transactional(readOnly = true)
     @PreAuthorize("hasRole('ADMIN')")
     public PageResponse<StudentClassResponseDTO> getStudentClasses(
             String keyword,
             String department,
-            String academicYear,
+            String courseYears,
             int page,
             int size,
             String sort) {
         validatePagination(page, size);
-        String normalizedAcademicYear = normalizeOptional(academicYear);
-        if (normalizedAcademicYear != null) {
-            validateAcademicYear(normalizedAcademicYear);
+        String normalizedCourseYears = normalizeOptional(courseYears);
+        if (normalizedCourseYears != null) {
+            validateCourseYears(normalizedCourseYears);
         }
 
         Pageable pageable = PageRequest.of(page, size, parseSort(sort));
         Page<StudentClassResponseDTO> studentClasses = studentClassRepository.findAllFiltered(
                         normalizeOptional(keyword),
                         normalizeOptional(department),
-                        normalizedAcademicYear,
+                        normalizedCourseYears,
                         pageable)
                 .map(this::toResponse);
         return PageResponse.from(studentClasses);
     }
 
-    private void validateAcademicYear(String academicYear) {
-        String normalizedAcademicYear = academicYear.trim();
-        if (!normalizedAcademicYear.matches("\\d{4}-\\d{4}")) {
+    private void validateCourseYears(String courseYears) {
+        String normalizedCourseYears = courseYears.trim();
+        if (!normalizedCourseYears.matches("\\d{4}-\\d{4}")) {
             throw new WebException(
                     ErrorCode.INVALID_REQUEST,
-                    "Academic year must use the format YYYY-YYYY");
+                    "Course years must use the format YYYY-YYYY");
         }
 
-        int startYear = Integer.parseInt(normalizedAcademicYear.substring(0, 4));
-        int endYear = Integer.parseInt(normalizedAcademicYear.substring(5));
+        int startYear = Integer.parseInt(normalizedCourseYears.substring(0, 4));
+        int endYear = Integer.parseInt(normalizedCourseYears.substring(5));
         if (endYear <= startYear) {
             throw new WebException(
                     ErrorCode.INVALID_REQUEST,
-                    "Academic year end must be later than its start");
+                    "Course end year must be later than its start year");
         }
     }
 
@@ -156,6 +178,6 @@ public class StudentClassAdministrationServiceImpl
                 studentClass.getClassCode(),
                 studentClass.getClassName(),
                 studentClass.getDepartment(),
-                studentClass.getAcademicYear());
+                studentClass.getCourseYears());
     }
 }

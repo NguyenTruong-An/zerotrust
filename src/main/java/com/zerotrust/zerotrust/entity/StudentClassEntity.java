@@ -35,6 +35,6 @@ public class StudentClassEntity extends AuditableEntity {
     @Column(name = "department", nullable = false, length = 150)
     private String department;
 
-    @Column(name = "academic_year", nullable = false, length = 9)
-    private String academicYear;
+    @Column(name = "course_years", nullable = false, length = 9)
+    private String courseYears;
 }

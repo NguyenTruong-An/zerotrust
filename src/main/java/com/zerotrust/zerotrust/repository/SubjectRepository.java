@@ -12,6 +12,8 @@ import java.util.UUID;
 public interface SubjectRepository extends JpaRepository<SubjectEntity, UUID> {
     boolean existsBySubjectCodeIgnoreCase(String subjectCode);
 
+    boolean existsBySubjectNameIgnoreCase(String subjectName);
+
     @Query("""
             SELECT subject
             FROM SubjectEntity subject

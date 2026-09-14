@@ -4,6 +4,7 @@ import com.zerotrust.zerotrust.entity.SubjectEntity;
 import com.zerotrust.zerotrust.exception.ErrorCode;
 import com.zerotrust.zerotrust.exception.WebException;
 import com.zerotrust.zerotrust.model.request.CreateSubjectRequestDTO;
+import com.zerotrust.zerotrust.repository.ScoreRepository;
 import com.zerotrust.zerotrust.repository.SubjectRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -30,12 +31,14 @@ import static org.mockito.Mockito.when;
 class SubjectAdministrationServiceImplTest {
     @Mock
     private SubjectRepository subjectRepository;
+    @Mock
+    private ScoreRepository scoreRepository;
 
     private SubjectAdministrationServiceImpl service;
 
     @BeforeEach
     void setUp() {
-        service = new SubjectAdministrationServiceImpl(subjectRepository);
+        service = new SubjectAdministrationServiceImpl(subjectRepository, scoreRepository);
     }
 
     @Test
@@ -51,6 +54,8 @@ class SubjectAdministrationServiceImplTest {
         ArgumentCaptor<SubjectEntity> entityCaptor =
                 ArgumentCaptor.forClass(SubjectEntity.class);
         verify(subjectRepository).existsBySubjectCodeIgnoreCase("SEC101");
+        verify(subjectRepository)
+                .existsBySubjectNameIgnoreCase("Nhap mon an toan thong tin");
         verify(subjectRepository).saveAndFlush(entityCaptor.capture());
         assertThat(entityCaptor.getValue().getSubjectCode()).isEqualTo("SEC101");
         assertThat(entityCaptor.getValue().getSubjectName())
@@ -73,6 +78,21 @@ class SubjectAdministrationServiceImplTest {
     }
 
     @Test
+    void rejectsDuplicateSubjectNameIgnoringCase() {
+        CreateSubjectRequestDTO request = request("SEC102");
+        request.setSubjectName(" nhap MON an TOAN thong TIN ");
+        when(subjectRepository.existsBySubjectNameIgnoreCase(
+                "nhap MON an TOAN thong TIN"))
+                .thenReturn(true);
+
+        assertThatThrownBy(() -> service.createSubject(request))
+                .isInstanceOf(WebException.class)
+                .extracting(exception -> ((WebException) exception).getErrorCode())
+                .isEqualTo(ErrorCode.SUBJECT_NAME_EXISTS);
+        verify(subjectRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
     void translatesConcurrentDuplicateIntoSubjectCodeError() {
         CreateSubjectRequestDTO request = request("SEC101");
         when(subjectRepository.saveAndFlush(any(SubjectEntity.class)))
@@ -82,6 +102,61 @@ class SubjectAdministrationServiceImplTest {
                 .isInstanceOf(WebException.class)
                 .extracting(exception -> ((WebException) exception).getErrorCode())
                 .isEqualTo(ErrorCode.SUBJECT_CODE_EXISTS);
+    }
+
+    @Test
+    void translatesConcurrentDuplicateIntoSubjectNameError() {
+        CreateSubjectRequestDTO request = request("SEC102");
+        when(subjectRepository.existsBySubjectNameIgnoreCase(request.getSubjectName()))
+                .thenReturn(false, true);
+        when(subjectRepository.saveAndFlush(any(SubjectEntity.class)))
+                .thenThrow(new DataIntegrityViolationException("duplicate subject name"));
+
+        assertThatThrownBy(() -> service.createSubject(request))
+                .isInstanceOf(WebException.class)
+                .extracting(exception -> ((WebException) exception).getErrorCode())
+                .isEqualTo(ErrorCode.SUBJECT_NAME_EXISTS);
+    }
+
+    @Test
+    void deletesUnusedSubject() {
+        UUID subjectId = UUID.randomUUID();
+        SubjectEntity subject = new SubjectEntity();
+        subject.setId(subjectId);
+        when(subjectRepository.findById(subjectId)).thenReturn(java.util.Optional.of(subject));
+
+        service.deleteSubject(subjectId);
+
+        verify(scoreRepository).existsBySubjectEntityId(subjectId);
+        verify(subjectRepository).delete(subject);
+        verify(subjectRepository).flush();
+    }
+
+    @Test
+    void rejectsDeletingSubjectUsedByScores() {
+        UUID subjectId = UUID.randomUUID();
+        SubjectEntity subject = new SubjectEntity();
+        subject.setId(subjectId);
+        when(subjectRepository.findById(subjectId)).thenReturn(java.util.Optional.of(subject));
+        when(scoreRepository.existsBySubjectEntityId(subjectId)).thenReturn(true);
+
+        assertThatThrownBy(() -> service.deleteSubject(subjectId))
+                .isInstanceOf(WebException.class)
+                .extracting(exception -> ((WebException) exception).getErrorCode())
+                .isEqualTo(ErrorCode.SUBJECT_IN_USE);
+        verify(subjectRepository, never()).delete(any());
+    }
+
+    @Test
+    void reportsMissingSubjectDuringDeletion() {
+        UUID subjectId = UUID.randomUUID();
+        when(subjectRepository.findById(subjectId)).thenReturn(java.util.Optional.empty());
+
+        assertThatThrownBy(() -> service.deleteSubject(subjectId))
+                .isInstanceOf(WebException.class)
+                .extracting(exception -> ((WebException) exception).getErrorCode())
+                .isEqualTo(ErrorCode.SUBJECT_NOT_FOUND);
+        verify(scoreRepository, never()).existsBySubjectEntityId(any());
     }
 
     @Test

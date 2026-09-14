@@ -13,6 +13,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -58,6 +59,17 @@ public class StudentQueryService {
     public StudentResponseDTO getStudent(UUID id) {
         StudentEntity student = studentRepository.findDetailedById(id)
                 .orElseThrow(() -> new WebException(ErrorCode.STUDENT_NOT_FOUND));
+        return studentConverter.convertToDto(student);
+    }
+
+    @Transactional(readOnly = true)
+    @PreAuthorize("hasRole('STUDENT')")
+    public StudentResponseDTO getCurrentStudent(UUID keycloakUserId) {
+        StudentEntity student = studentRepository.findByUserEntityKeycloakUserId(keycloakUserId)
+                .orElseThrow(() -> new WebException(ErrorCode.STUDENT_NOT_FOUND));
+        if (student.getUserEntity().getStatus() != UserEntity.Status.ACTIVE) {
+            throw new WebException(ErrorCode.USER_INACTIVE);
+        }
         return studentConverter.convertToDto(student);
     }
 

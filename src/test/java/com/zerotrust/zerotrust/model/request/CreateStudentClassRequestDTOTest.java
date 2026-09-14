@@ -15,7 +15,7 @@ class CreateStudentClassRequestDTOTest {
                 .classCode("AT19B")
                 .className("An toan thong tin 19B")
                 .department("An toan thong tin")
-                .academicYear("2022-2026")
+                .courseYears("2022-2027")
                 .build();
 
         assertThat(validator.validate(request)).isEmpty();
@@ -27,11 +27,11 @@ class CreateStudentClassRequestDTOTest {
                 .classCode("AT 19B")
                 .className(" ")
                 .department("")
-                .academicYear("2022/2026")
+                .courseYears("2022/2027")
                 .build();
 
         assertThat(validator.validate(request))
                 .extracting(violation -> violation.getPropertyPath().toString())
-                .contains("classCode", "className", "department", "academicYear");
+                .contains("classCode", "className", "department", "courseYears");
     }
 }

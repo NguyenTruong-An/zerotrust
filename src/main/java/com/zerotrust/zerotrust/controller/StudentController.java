@@ -5,7 +5,10 @@ import com.zerotrust.zerotrust.exception.WebException;
 import com.zerotrust.zerotrust.model.response.ApiResponse;
 import com.zerotrust.zerotrust.model.response.PageResponse;
 import com.zerotrust.zerotrust.model.response.ScoreResponseDTO;
+import com.zerotrust.zerotrust.model.response.StudentResponseDTO;
+import com.zerotrust.zerotrust.model.response.StudentScoreSummaryResponseDTO;
 import com.zerotrust.zerotrust.service.ScoreAdministrationService;
+import com.zerotrust.zerotrust.service.impl.student.StudentQueryService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -24,11 +27,31 @@ import java.util.UUID;
 @PreAuthorize("hasRole('STUDENT')")
 public class StudentController {
     private final ScoreAdministrationService scoreAdministrationService;
+    private final StudentQueryService studentQueryService;
+
+    @GetMapping("/me")
+    public ResponseEntity<ApiResponse<StudentResponseDTO>> getCurrentStudent(
+            @AuthenticationPrincipal Jwt jwt) {
+        UUID keycloakUserId = parseKeycloakUserId(jwt == null ? null : jwt.getSubject());
+        return ResponseEntity.ok(ApiResponse.success(
+                studentQueryService.getCurrentStudent(keycloakUserId),
+                "Fetched current student successfully"));
+    }
+
+    @GetMapping("/me/scores/summary")
+    public ResponseEntity<ApiResponse<StudentScoreSummaryResponseDTO>>
+            getCurrentStudentScoreSummary(@AuthenticationPrincipal Jwt jwt) {
+        UUID keycloakUserId = parseKeycloakUserId(jwt == null ? null : jwt.getSubject());
+        return ResponseEntity.ok(ApiResponse.success(
+                scoreAdministrationService.getCurrentStudentScoreSummary(keycloakUserId),
+                "Fetched current student score summary successfully"));
+    }
 
     @GetMapping("/me/scores")
     public ResponseEntity<ApiResponse<PageResponse<ScoreResponseDTO>>> getCurrentStudentScores(
             @AuthenticationPrincipal Jwt jwt,
             @RequestParam(required = false) UUID subjectId,
+            @RequestParam(required = false) String keyword,
             @RequestParam(required = false) Short semester,
             @RequestParam(required = false) String academicYear,
             @RequestParam(defaultValue = "0") int page,
@@ -40,6 +63,7 @@ public class StudentController {
                 scoreAdministrationService.getCurrentStudentScores(
                         keycloakUserId,
                         subjectId,
+                        keyword,
                         semester,
                         academicYear,
                         page,

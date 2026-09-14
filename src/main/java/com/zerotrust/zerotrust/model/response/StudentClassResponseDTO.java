@@ -7,6 +7,6 @@ public record StudentClassResponseDTO(
         String classCode,
         String className,
         String department,
-        String academicYear
+        String courseYears
 ) {
 }

@@ -28,9 +28,9 @@ public class CreateStudentClassRequestDTO {
     @Size(max = 150, message = "Department must not exceed 150 characters")
     private String department;
 
-    @NotBlank(message = "Academic year is required")
+    @NotBlank(message = "Course years are required")
     @Pattern(
             regexp = "^\\d{4}-\\d{4}$",
-            message = "Academic year must use the format YYYY-YYYY")
-    private String academicYear;
+            message = "Course years must use the format YYYY-YYYY")
+    private String courseYears;
 }

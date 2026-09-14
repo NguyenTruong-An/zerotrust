@@ -13,8 +13,8 @@ import java.util.UUID;
         name = "scores",
         uniqueConstraints = {
                 @UniqueConstraint(
-                        name = "uk_scores_student_subject_term",
-                        columnNames = {"student_id", "subject_id", "semester", "academic_year"})
+                        name = "uk_scores_student_subject",
+                        columnNames = {"student_id", "subject_id"})
         },
         indexes = {
                 @Index(
@@ -23,7 +23,7 @@ import java.util.UUID;
         })
 @Getter
 @Setter
-@Check(constraints = "semester BETWEEN 1 AND 3")
+@Check(constraints = "semester BETWEEN 1 AND 2")
 @Check(constraints = "attendance_score IS NULL OR attendance_score BETWEEN 0 AND 10")
 @Check(constraints = "midterm_score IS NULL OR midterm_score BETWEEN 0 AND 10")
 @Check(constraints = "final_score IS NULL OR final_score BETWEEN 0 AND 10")

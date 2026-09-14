@@ -198,7 +198,7 @@ Cho đến khi chủ đồ án phê duyệt, code không được hard-code tr�
 
 ### Portal API
 
-- Xử lý nghiệp vụ người dùng, sinh viên, lớp hành chính, môn học và điểm.
+- Xử lý nghiệp vụ người dùng, sinh viên, lớp, môn học và điểm.
 - Là OAuth2 Resource Server stateless.
 - Xác minh JWT của Keycloak bằng JWKS.
 - Kiểm tra realm role và quyền trên từng tài nguyên.

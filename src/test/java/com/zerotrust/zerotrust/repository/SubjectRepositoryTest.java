@@ -8,10 +8,12 @@ import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.dao.DataIntegrityViolationException;
 
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @DataJpaTest(showSql = false)
 @ActiveProfiles("test")
@@ -39,6 +41,16 @@ class SubjectRepositoryTest {
         assertThat(result.getContent())
                 .extracting(SubjectEntity::getSubjectCode)
                 .containsExactly("SEC201");
+        assertThat(subjectRepository.existsBySubjectNameIgnoreCase("AN TOAN MANG")).isTrue();
+    }
+
+    @Test
+    void rejectsDuplicateSubjectNameWithAnotherCode() {
+        subjectRepository.saveAndFlush(subject("SEC101", "An toan mang", 3));
+
+        assertThatThrownBy(() -> subjectRepository.saveAndFlush(
+                subject("SEC102", "An toan mang", 4)))
+                .isInstanceOf(DataIntegrityViolationException.class);
     }
 
     private SubjectEntity subject(String code, String name, int credits) {

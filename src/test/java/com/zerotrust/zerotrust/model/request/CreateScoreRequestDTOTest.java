@@ -13,14 +13,14 @@ class CreateScoreRequestDTOTest {
     private final Validator validator = Validation.buildDefaultValidatorFactory().getValidator();
 
     @Test
-    void acceptsValidScoreDataAndOptionalEmptyComponents() {
+    void acceptsThreeRequiredScoreComponents() {
         CreateScoreRequestDTO request = CreateScoreRequestDTO.builder()
                 .subjectId(UUID.randomUUID())
                 .semester((short) 1)
                 .academicYear("2025-2026")
                 .attendanceScore(new BigDecimal("8.50"))
-                .totalScore(new BigDecimal("8.75"))
-                .grade("B+")
+                .midtermScore(new BigDecimal("8.00"))
+                .finalScore(new BigDecimal("9.00"))
                 .build();
 
         assertThat(validator.validate(request)).isEmpty();
@@ -29,13 +29,11 @@ class CreateScoreRequestDTOTest {
     @Test
     void rejectsMalformedScoreData() {
         CreateScoreRequestDTO request = CreateScoreRequestDTO.builder()
-                .semester((short) 4)
+                .semester((short) 3)
                 .academicYear("2025/2026")
                 .attendanceScore(new BigDecimal("-0.01"))
                 .midtermScore(new BigDecimal("10.001"))
                 .finalScore(new BigDecimal("11.00"))
-                .totalScore(new BigDecimal("10.001"))
-                .grade("PASSED")
                 .build();
 
         assertThat(validator.validate(request))
@@ -46,8 +44,19 @@ class CreateScoreRequestDTOTest {
                         "academicYear",
                         "attendanceScore",
                         "midtermScore",
-                        "finalScore",
-                        "totalScore",
-                        "grade");
+                        "finalScore");
+    }
+
+    @Test
+    void requiresAllThreeScoreComponents() {
+        CreateScoreRequestDTO request = CreateScoreRequestDTO.builder()
+                .subjectId(UUID.randomUUID())
+                .semester((short) 1)
+                .academicYear("2025-2026")
+                .build();
+
+        assertThat(validator.validate(request))
+                .extracting(violation -> violation.getPropertyPath().toString())
+                .contains("attendanceScore", "midtermScore", "finalScore");
     }
 }

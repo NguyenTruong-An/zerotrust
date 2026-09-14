@@ -5,10 +5,12 @@ import com.zerotrust.zerotrust.exception.CustomAccessDeniedHandler;
 import com.zerotrust.zerotrust.exception.CustomAuthenticationEntryPoint;
 import com.zerotrust.zerotrust.security.KeycloakJwtAuthenticationConverter;
 import com.zerotrust.zerotrust.model.response.PageResponse;
+import com.zerotrust.zerotrust.model.response.BatchScoreResponseDTO;
 import com.zerotrust.zerotrust.model.response.ScoreResponseDTO;
 import com.zerotrust.zerotrust.model.response.StudentResponseDTO;
 import com.zerotrust.zerotrust.model.response.StudentClassResponseDTO;
 import com.zerotrust.zerotrust.model.response.SubjectResponseDTO;
+import com.zerotrust.zerotrust.model.response.SubjectScoreSheetRowResponseDTO;
 import com.zerotrust.zerotrust.service.ScoreAdministrationService;
 import com.zerotrust.zerotrust.service.StudentAdministrationService;
 import com.zerotrust.zerotrust.service.StudentClassAdministrationService;
@@ -36,6 +38,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -142,7 +145,7 @@ class AdminControllerSecurityTest {
                         "AT19B",
                         "An toan thong tin 19B",
                         "An toan thong tin",
-                        "2022-2026"));
+                        "2022-2027"));
 
         mockMvc.perform(post("/api/admin/student-classes")
                         .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN")))
@@ -160,7 +163,7 @@ class AdminControllerSecurityTest {
                 "AT19B",
                 "An toan thong tin 19B",
                 "An toan thong tin",
-                "2022-2026");
+                "2022-2027");
         PageResponse<StudentClassResponseDTO> response = new PageResponse<>(
                 List.of(studentClass),
                 0,
@@ -170,21 +173,44 @@ class AdminControllerSecurityTest {
                 true,
                 true);
         when(studentClassAdministrationService.getStudentClasses(
-                "AT19", "An toan thong tin", "2022-2026", 0, 20, "classCode,asc"))
+                "AT19", "An toan thong tin", "2022-2027", 0, 20, "classCode,asc"))
                 .thenReturn(response);
 
         mockMvc.perform(get("/api/admin/student-classes")
                         .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN")))
                         .param("keyword", "AT19")
                         .param("department", "An toan thong tin")
-                        .param("academicYear", "2022-2026"))
+                        .param("courseYears", "2022-2027"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.content[0].classCode").value("AT19B"))
+                .andExpect(jsonPath("$.data.content[0].courseYears").value("2022-2027"))
                 .andExpect(jsonPath("$.data.totalElements").value(1));
 
         verify(studentClassAdministrationService).getStudentClasses(
-                "AT19", "An toan thong tin", "2022-2026", 0, 20, "classCode,asc");
+                "AT19", "An toan thong tin", "2022-2027", 0, 20, "classCode,asc");
+    }
+
+    @Test
+    void rejectsStudentRoleFromStudentClassDeletion() throws Exception {
+        UUID classId = UUID.randomUUID();
+
+        mockMvc.perform(delete("/api/admin/student-classes/{classId}", classId)
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_STUDENT"))))
+                .andExpect(status().isForbidden());
+
+        verify(studentClassAdministrationService, never()).deleteStudentClass(classId);
+    }
+
+    @Test
+    void allowsAdminToDeleteStudentClass() throws Exception {
+        UUID classId = UUID.randomUUID();
+
+        mockMvc.perform(delete("/api/admin/student-classes/{classId}", classId)
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
+                .andExpect(status().isNoContent());
+
+        verify(studentClassAdministrationService).deleteStudentClass(classId);
     }
 
     @Test
@@ -265,6 +291,120 @@ class AdminControllerSecurityTest {
     }
 
     @Test
+    void rejectsStudentRoleFromSubjectDeletion() throws Exception {
+        UUID subjectId = UUID.randomUUID();
+
+        mockMvc.perform(delete("/api/admin/subjects/{subjectId}", subjectId)
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_STUDENT"))))
+                .andExpect(status().isForbidden());
+
+        verify(subjectAdministrationService, never()).deleteSubject(any());
+    }
+
+    @Test
+    void allowsAdminToDeleteSubject() throws Exception {
+        UUID subjectId = UUID.randomUUID();
+
+        mockMvc.perform(delete("/api/admin/subjects/{subjectId}", subjectId)
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
+                .andExpect(status().isNoContent());
+
+        verify(subjectAdministrationService).deleteSubject(subjectId);
+    }
+
+    @Test
+    void rejectsStudentRoleFromSubjectScoreSheet() throws Exception {
+        UUID subjectId = UUID.randomUUID();
+
+        mockMvc.perform(get("/api/admin/subjects/{subjectId}/score-sheet", subjectId)
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_STUDENT")))
+                        .param("classCode", "AT19B"))
+                .andExpect(status().isForbidden());
+
+        verify(scoreAdministrationService, never()).getSubjectScoreSheet(
+                any(), any(), any(), anyInt(), anyInt());
+    }
+
+    @Test
+    void allowsAdminToGetSubjectScoreSheet() throws Exception {
+        UUID subjectId = UUID.randomUUID();
+        UUID studentId = UUID.randomUUID();
+        UUID scoreId = UUID.randomUUID();
+        SubjectScoreSheetRowResponseDTO row = new SubjectScoreSheetRowResponseDTO(
+                scoreId,
+                studentId,
+                "SV001",
+                "An",
+                "Nguyen",
+                "AT19B",
+                "An toan thong tin 19B",
+                (short) 1,
+                "2026-2027",
+                new BigDecimal("8.5"),
+                new BigDecimal("8"),
+                new BigDecimal("9"),
+                new BigDecimal("8.7"),
+                "A");
+        when(scoreAdministrationService.getSubjectScoreSheet(
+                subjectId, "AT19B", "SV001", 0, 50))
+                .thenReturn(new PageResponse<>(List.of(row), 0, 50, 1, 1, true, true));
+
+        mockMvc.perform(get("/api/admin/subjects/{subjectId}/score-sheet", subjectId)
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN")))
+                        .param("classCode", "AT19B")
+                        .param("keyword", "SV001"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.content[0].studentId").value(studentId.toString()))
+                .andExpect(jsonPath("$.data.content[0].scoreId").value(scoreId.toString()))
+                .andExpect(jsonPath("$.data.content[0].grade").value("A"));
+
+        verify(scoreAdministrationService).getSubjectScoreSheet(
+                subjectId, "AT19B", "SV001", 0, 50);
+    }
+
+    @Test
+    void allowsAdminToUpsertSubjectScoresInBatch() throws Exception {
+        UUID subjectId = UUID.randomUUID();
+        UUID studentId = UUID.randomUUID();
+        ScoreResponseDTO score = scoreResponse(UUID.randomUUID(), studentId, subjectId);
+        when(scoreAdministrationService.upsertSubjectScores(eq(subjectId), any()))
+                .thenReturn(new BatchScoreResponseDTO(1, 0, List.of(score)));
+
+        mockMvc.perform(post("/api/admin/subjects/{subjectId}/scores/batch", subjectId)
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(validBatchScoreRequestJson(studentId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.created").value(1))
+                .andExpect(jsonPath("$.data.updated").value(0))
+                .andExpect(jsonPath("$.data.scores[0].studentId").value(studentId.toString()));
+
+        verify(scoreAdministrationService).upsertSubjectScores(eq(subjectId), any());
+    }
+
+    @Test
+    void rejectsInvalidSubjectScoreBatch() throws Exception {
+        UUID subjectId = UUID.randomUUID();
+
+        mockMvc.perform(post("/api/admin/subjects/{subjectId}/scores/batch", subjectId)
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "semester": 3,
+                                  "academicYear": "2026/2027",
+                                  "scores": []
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("INVALID_REQUEST"));
+
+        verify(scoreAdministrationService, never()).upsertSubjectScores(any(), any());
+    }
+
+    @Test
     void rejectsStudentRoleFromScoreCreation() throws Exception {
         UUID studentId = UUID.randomUUID();
 
@@ -294,7 +434,7 @@ class AdminControllerSecurityTest {
                 .andExpect(jsonPath("$.data.id").value(scoreId.toString()))
                 .andExpect(jsonPath("$.data.studentId").value(studentId.toString()))
                 .andExpect(jsonPath("$.data.subjectCode").value("SEC101"))
-                .andExpect(jsonPath("$.data.totalScore").value(8.75));
+                .andExpect(jsonPath("$.data.totalScore").value(8.7));
 
         verify(scoreAdministrationService).createStudentScore(eq(studentId), any());
     }
@@ -360,7 +500,7 @@ class AdminControllerSecurityTest {
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.content[0].id").value(scoreId.toString()))
                 .andExpect(jsonPath("$.data.content[0].subjectCode").value("SEC101"))
-                .andExpect(jsonPath("$.data.content[0].totalScore").value(8.75))
+                .andExpect(jsonPath("$.data.content[0].totalScore").value(8.7))
                 .andExpect(jsonPath("$.data.totalElements").value(1));
 
         verify(scoreAdministrationService).getStudentScores(
@@ -401,7 +541,7 @@ class AdminControllerSecurityTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.id").value(scoreId.toString()))
-                .andExpect(jsonPath("$.data.totalScore").value(8.75));
+                .andExpect(jsonPath("$.data.totalScore").value(8.7));
 
         verify(scoreAdministrationService).updateScore(eq(scoreId), any());
     }
@@ -415,7 +555,7 @@ class AdminControllerSecurityTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "semester": 4,
+                                  "semester": 3,
                                   "finalScore": 11,
                                   "grade": "PASSED"
                                 }
@@ -424,6 +564,28 @@ class AdminControllerSecurityTest {
                 .andExpect(jsonPath("$.error").value("INVALID_REQUEST"));
 
         verify(scoreAdministrationService, never()).updateScore(any(), any());
+    }
+
+    @Test
+    void rejectsStudentRoleFromScoreDeletion() throws Exception {
+        UUID scoreId = UUID.randomUUID();
+
+        mockMvc.perform(delete("/api/admin/scores/{scoreId}", scoreId)
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_STUDENT"))))
+                .andExpect(status().isForbidden());
+
+        verify(scoreAdministrationService, never()).deleteScore(any());
+    }
+
+    @Test
+    void allowsAdminToDeleteScore() throws Exception {
+        UUID scoreId = UUID.randomUUID();
+
+        mockMvc.perform(delete("/api/admin/scores/{scoreId}", scoreId)
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
+                .andExpect(status().isNoContent());
+
+        verify(scoreAdministrationService).deleteScore(scoreId);
     }
 
     @Test
@@ -524,7 +686,7 @@ class AdminControllerSecurityTest {
                   "classCode": "AT19B",
                   "className": "An toan thong tin 19B",
                   "department": "An toan thong tin",
-                  "academicYear": "2022-2026"
+                  "courseYears": "2022-2027"
                 }
                 """;
     }
@@ -548,9 +710,7 @@ class AdminControllerSecurityTest {
                   "academicYear": "2025-2026",
                   "attendanceScore": 8.5,
                   "midtermScore": 8.0,
-                  "finalScore": 9.0,
-                  "totalScore": 8.75,
-                  "grade": "B+"
+                  "finalScore": 9.0
                 }
                 """.formatted(subjectId);
     }
@@ -559,10 +719,9 @@ class AdminControllerSecurityTest {
         return """
                 {
                   "subjectId": "%s",
-                  "semester": 4,
+                  "semester": 3,
                   "academicYear": "2025/2026",
-                  "attendanceScore": 11,
-                  "grade": "PASSED"
+                  "attendanceScore": 11
                 }
                 """.formatted(subjectId);
     }
@@ -570,11 +729,28 @@ class AdminControllerSecurityTest {
     private String validScoreUpdateRequestJson() {
         return """
                 {
-                  "finalScore": 9.5,
-                  "totalScore": 9.0,
-                  "grade": "A"
+                  "attendanceScore": 8.5,
+                  "midtermScore": 8.0,
+                  "finalScore": 9.5
                 }
                 """;
+    }
+
+    private String validBatchScoreRequestJson(UUID studentId) {
+        return """
+                {
+                  "semester": 1,
+                  "academicYear": "2026-2027",
+                  "scores": [
+                    {
+                      "studentId": "%s",
+                      "attendanceScore": 8.5,
+                      "midtermScore": 8.0,
+                      "finalScore": 9.0
+                    }
+                  ]
+                }
+                """.formatted(studentId);
     }
 
     private ScoreResponseDTO scoreResponse(UUID scoreId, UUID studentId, UUID subjectId) {
@@ -590,8 +766,8 @@ class AdminControllerSecurityTest {
                 new BigDecimal("8.50"),
                 new BigDecimal("8.00"),
                 new BigDecimal("9.00"),
-                new BigDecimal("8.75"),
-                "B+");
+                new BigDecimal("8.7"),
+                "A");
     }
 
     private String validUpdateRequestJson() {

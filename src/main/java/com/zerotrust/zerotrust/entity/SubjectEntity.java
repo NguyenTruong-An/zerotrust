@@ -22,7 +22,7 @@ public class SubjectEntity extends AuditableEntity {
     @Column(name = "subject_code", nullable = false, unique = true, length = 30)
     private String subjectCode;
 
-    @Column(name = "subject_name", nullable = false, length = 200)
+    @Column(name = "subject_name", nullable = false, unique = true, length = 200)
     private String subjectName;
 
     @Column(name = "credits", nullable = false, columnDefinition = "TINYINT UNSIGNED")
