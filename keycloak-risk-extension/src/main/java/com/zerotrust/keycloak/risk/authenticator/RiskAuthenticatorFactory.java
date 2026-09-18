@@ -6,6 +6,7 @@ import com.zerotrust.keycloak.risk.client.RiskScoringClientFactory;
 import com.zerotrust.keycloak.risk.client.ServiceTokenCache;
 import com.zerotrust.keycloak.risk.config.RiskAuthenticatorConfigResolver;
 import com.zerotrust.keycloak.risk.config.RiskScoringClientConfig;
+import com.zerotrust.keycloak.risk.config.RiskEventListenerConfigResolver;
 import com.zerotrust.keycloak.risk.config.ServiceTokenConfig;
 import com.zerotrust.keycloak.risk.context.CookieDeviceIdResolver;
 import com.zerotrust.keycloak.risk.context.KeycloakLoginContextExtractor;
@@ -52,6 +53,13 @@ public final class RiskAuthenticatorFactory implements AuthenticatorFactory {
                     "Confidential service-account client allowed to call the Risk API.",
                     ProviderConfigProperty.STRING_TYPE,
                     ServiceTokenConfig.DEFAULT_CLIENT_ID
+            ),
+            property(
+                    RiskEventListenerConfigResolver.MONITORED_CLIENT_ID,
+                    "Monitored login client ID",
+                    "Only LOGIN_ERROR events for this browser client are sent to the Risk Service.",
+                    ProviderConfigProperty.STRING_TYPE,
+                    RiskEventListenerConfigResolver.DEFAULT_MONITORED_CLIENT_ID
             ),
             secretProperty(
                     RiskAuthenticatorConfigResolver.SERVICE_CLIENT_SECRET,

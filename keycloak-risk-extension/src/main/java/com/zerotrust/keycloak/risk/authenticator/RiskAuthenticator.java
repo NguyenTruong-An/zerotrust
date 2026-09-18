@@ -7,6 +7,8 @@ import com.zerotrust.keycloak.risk.config.RiskAuthenticatorConfigResolver;
 import com.zerotrust.keycloak.risk.context.LoginContextExtractor;
 import com.zerotrust.keycloak.risk.dto.RiskEvaluationRequest;
 import com.zerotrust.keycloak.risk.dto.RiskEvaluationResponse;
+import com.zerotrust.keycloak.risk.dto.RiskDecision;
+import com.zerotrust.keycloak.risk.policy.RiskAuthenticationNotes;
 import com.zerotrust.keycloak.risk.policy.RiskDecisionHandler;
 import com.zerotrust.keycloak.risk.policy.RiskFailureMode;
 import org.jboss.logging.Logger;
@@ -60,6 +62,7 @@ public final class RiskAuthenticator implements Authenticator {
                     .create(config)
                     .evaluate(request);
             decisionHandler.handle(context, evaluation);
+            rememberEvaluatorConfig(context, evaluation);
         } catch (RiskScoringClientException exception) {
             LOGGER.warnf(
                     "Risk Scoring Service call failed: type=%s, status=%d",
@@ -79,6 +82,22 @@ public final class RiskAuthenticator implements Authenticator {
                     "INTERNAL_ERROR"
             );
         }
+    }
+
+    private static void rememberEvaluatorConfig(
+            AuthenticationFlowContext context,
+            RiskEvaluationResponse evaluation
+    ) {
+        if (evaluation.decision() != RiskDecision.STEP_UP_MFA
+                || context.getAuthenticatorConfig() == null
+                || context.getAuthenticatorConfig().getId() == null
+                || context.getAuthenticatorConfig().getId().isBlank()) {
+            return;
+        }
+        context.getAuthenticationSession().setAuthNote(
+                RiskAuthenticationNotes.EVALUATOR_CONFIG_ID,
+                context.getAuthenticatorConfig().getId()
+        );
     }
 
     @Override

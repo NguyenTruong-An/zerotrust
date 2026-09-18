@@ -8,6 +8,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.authorization.AuthorizationDecision;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
@@ -57,14 +58,37 @@ public class RiskApiSecurityConfig {
                 .authorizeHttpRequests(requests -> requests
                         .requestMatchers(HttpMethod.GET, "/actuator/health").permitAll()
                         .requestMatchers(HttpMethod.POST, "/internal/v1/risk/evaluations")
-                        .access((authentication, context) -> {
-                            var auth = authentication.get();
-                            boolean allowed = auth instanceof JwtAuthenticationToken token
-                                    && properties.allowedClientId().equals(token.getToken().getClaims().get("azp"))
-                                    && token.getAuthorities().stream().anyMatch(authority ->
-                                    RiskJwtAuthenticationConverter.EVALUATE_AUTHORITY.equals(authority.getAuthority()));
-                            return new AuthorizationDecision(allowed);
-                        })
+                        .access((authentication, context) -> new AuthorizationDecision(
+                                isAuthorizedServiceToken(
+                                        authentication.get(),
+                                        properties,
+                                        RiskJwtAuthenticationConverter.EVALUATE_AUTHORITY
+                                )
+                        ))
+                        .requestMatchers(HttpMethod.POST, "/internal/v1/trusted-devices")
+                        .access((authentication, context) -> new AuthorizationDecision(
+                                isAuthorizedServiceToken(
+                                        authentication.get(),
+                                        properties,
+                                        RiskJwtAuthenticationConverter.DEVICE_WRITE_AUTHORITY
+                                )
+                        ))
+                        .requestMatchers(HttpMethod.POST, "/internal/v1/authentication-failures")
+                        .access((authentication, context) -> new AuthorizationDecision(
+                                isAuthorizedServiceToken(
+                                        authentication.get(),
+                                        properties,
+                                        RiskJwtAuthenticationConverter.EVENTS_WRITE_AUTHORITY
+                                )
+                        ))
+                        .requestMatchers(HttpMethod.POST, "/internal/v1/authentication-successes")
+                        .access((authentication, context) -> new AuthorizationDecision(
+                                isAuthorizedServiceToken(
+                                        authentication.get(),
+                                        properties,
+                                        RiskJwtAuthenticationConverter.EVENTS_WRITE_AUTHORITY
+                                )
+                        ))
                         .anyRequest().denyAll())
                 .oauth2ResourceServer(resource -> resource
                         .jwt(jwt -> jwt.jwtAuthenticationConverter(new RiskJwtAuthenticationConverter(properties.audience())))
@@ -85,6 +109,18 @@ public class RiskApiSecurityConfig {
             }, org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter.class);
         }
         return http.build();
+    }
+
+    private static boolean isAuthorizedServiceToken(
+            Authentication authentication,
+            RiskApiSecurityProperties properties,
+            String requiredAuthority
+    ) {
+        return authentication instanceof JwtAuthenticationToken token
+                && properties.allowedClientId().equals(token.getToken().getClaims().get("azp"))
+                && token.getAuthorities().stream().anyMatch(
+                        authority -> requiredAuthority.equals(authority.getAuthority())
+                );
     }
 
     private static void writeError(ObjectMapper mapper, HttpServletRequest request,

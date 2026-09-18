@@ -1,5 +1,6 @@
 package com.zerotrust.risk.entity;
 
+import com.zerotrust.risk.exception.DeviceTrustRejectedException;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -83,23 +84,47 @@ public class KnownDeviceEntity {
 
     public void trust(Instant trustedAt) {
         Objects.requireNonNull(trustedAt, "trustedAt must not be null");
+
+        if (status == DeviceStatus.REVOKED) {
+            throw new DeviceTrustRejectedException();
+        }
+        requireNotBeforeFirstSeen(trustedAt, "trustedAt");
+
+        if (status == DeviceStatus.TRUSTED) {
+            markSeen(trustedAt);
+            return;
+        }
+
         status = DeviceStatus.TRUSTED;
         this.trustedAt = trustedAt;
-        revokedAt = null;
         markSeen(trustedAt);
     }
 
     public void revoke(Instant revokedAt) {
-        this.revokedAt = Objects.requireNonNull(revokedAt, "revokedAt must not be null");
+        Objects.requireNonNull(revokedAt, "revokedAt must not be null");
+        requireNotBeforeFirstSeen(revokedAt, "revokedAt");
+
+        if (status == DeviceStatus.REVOKED) {
+            markSeen(revokedAt);
+            return;
+        }
+
+        this.revokedAt = revokedAt;
         status = DeviceStatus.REVOKED;
         markSeen(revokedAt);
+    }
+
+    private void requireNotBeforeFirstSeen(Instant timestamp, String name) {
+        if (timestamp.isBefore(firstSeenAt)) {
+            throw new IllegalArgumentException(name + " must not be before firstSeenAt");
+        }
     }
 
     private static String requireText(String value, String name) {
         if (value == null || value.isBlank()) {
             throw new IllegalArgumentException(name + " must not be blank");
         }
-        return value;
+        return value.trim();
     }
 
     private static String requireSha256Hex(String value) {

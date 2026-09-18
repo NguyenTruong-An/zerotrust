@@ -1,6 +1,6 @@
 # Hướng dẫn đọc luồng code đăng nhập, Risk và xem điểm
 
-**Ngày đối chiếu code:** 2026-09-11  
+**Ngày đối chiếu code:** 2026-09-16
 **Phạm vi:** Luồng runtime từ frontend sang Keycloak, Custom Authenticator SPI,
 Risk Scoring Service, OTP và Portal API. Tài liệu liệt kê mọi type production
 viết tay trực tiếp tham gia luồng này; test và CRUD quản trị không nằm trên đường
@@ -211,7 +211,9 @@ Token do `keycloak-js` giữ trong memory của tab, không được code ghi v�
   3. tạo request từ ngữ cảnh Keycloak;
   4. tạo Risk client từ config;
   5. gọi Risk API;
-  6. giao response cho `RiskDecisionHandler`.
+  6. giao response cho `RiskDecisionHandler`;
+  7. nếu decision thật là `STEP_UP_MFA`, lưu ID cấu hình evaluator để execution
+     sau OTP dùng lại mà không sao chép client secret.
 - Catch `RiskScoringClientException` ghi loại lỗi/status và áp dụng failure mode
   đã cấu hình.
 - Catch `RuntimeException` bao gồm lỗi config/context/bug và luôn deny.
@@ -241,11 +243,63 @@ Token do `keycloak-js` giữ trong memory của tab, không được code ghi v�
 - `requiresUser()` trả `true`.
 - `setRequiredActions()` và `close()` không làm gì.
 
+#### `TrustedDeviceRegistrationAuthenticatorFactory`
+
+- `PROVIDER_ID` là `zerotrust-device-registration`; ID được giữ không quá 36 ký
+  tự vì schema Keycloak giới hạn cột authenticator ở độ dài này.
+- `getDisplayType()` trả `ZeroTrust Remember Device after MFA`.
+- `isConfigurable()` trả `false`: provider đọc lại config của execution Risk
+  Evaluation qua ID trong auth-note, nên flow không giữ bản client secret thứ hai.
+- `create()` dựng HTTP client có service-token cache, cookie resolver, secure
+  random generator, cookie writer và `TrustedDeviceRegistrationAuthenticator`.
+
+#### `TrustedDeviceRegistrationAuthenticator`
+
+- Phải đặt `REQUIRED` ở top level ngay sau conditional OTP subflow.
+- `authenticate()` bỏ qua ngay nếu note `trust-device-eligible` không phải true.
+- Nếu đủ điều kiện, nó xóa hai note dùng một lần, tìm config evaluator theo ID,
+  dùng cookie hiện có hoặc sinh device ID mới, rồi gọi trusted-device API.
+- Cookie chỉ được phát sau khi API trả `204`. Lỗi ghi thiết bị không làm hỏng một
+  login đã hoàn tất OTP; user được vào nhưng lần sau phải MFA lại.
+- HTTP `409` nghĩa là ID đã revoke: cookie cũ được phát lại với `Max-Age=0` để bị
+  xóa, nhưng login hiện tại sau MFA vẫn hoàn tất.
+- `action()` chỉ success vì provider không hiển thị form.
+
 #### File đăng ký service
 
 `META-INF/services/org.keycloak.authentication.AuthenticatorFactory` chứa tên
-đầy đủ của `RiskAuthenticatorFactory` và `RiskStepUpConditionFactory`. Thiếu file
-này thì JAR có class nhưng Keycloak không tìm thấy provider.
+đầy đủ của `RiskAuthenticatorFactory`, `RiskStepUpConditionFactory` và
+`TrustedDeviceRegistrationAuthenticatorFactory`. Thiếu file này thì JAR có class
+nhưng Keycloak không tìm thấy provider.
+
+`META-INF/services/org.keycloak.events.EventListenerProviderFactory` đăng ký
+`RiskEventListenerFactory` riêng cho Events SPI. Authenticator SPI và Events SPI
+là hai điểm mở rộng khác nhau dù cùng nằm trong một JAR.
+
+#### `RiskEventListenerFactory`
+
+- `PROVIDER_ID` là `zerotrust-risk-events`; đây là giá trị được thêm vào danh
+  sách Event listeners của realm.
+- `create(session)` lấy `HttpClientProvider` do Keycloak quản lý, tạo token
+  provider và `HttpRiskScoringClient`, rồi inject các dependency vào listener.
+- Factory giữ một `ServiceTokenCache` dùng chung và xóa cache trong `close()`.
+- Không có cấu hình secret riêng ở cấp Events SPI; listener đọc lại config của
+  execution Risk Evaluation trong Browser Flow.
+
+#### `RiskEventListener`
+
+- `onEvent(Event)` bỏ qua mọi event ngoài `LOGIN_ERROR` và `LOGIN`.
+- Listener tìm realm, lấy config Browser Flow, rồi chỉ tiếp tục khi `clientId`
+  khớp client được giám sát, mặc định `zerotrust-spa`.
+- Với `LOGIN_ERROR`, request gửi `eventId`, `userId` nếu có và IP do Keycloak quan
+  sát. Event thiếu ID dùng UUID fallback; event thiếu IP bị bỏ qua.
+- Với `LOGIN`, request gửi `eventId`, subject, client và `event.getTime()` đã đổi
+  thành `Instant`. Event thiếu subject/thời gian bị bỏ qua.
+- `AuthenticationEventClient.recordFailure()` hoặc `recordSuccess()` gửi event tới
+  Risk API. Mọi runtime lỗi bị bắt và chỉ log loại lỗi/status an toàn; telemetry
+  không thể thay đổi kết quả xác thực mà Keycloak đã quyết định.
+- `onEvent(AdminEvent, ...)` không làm gì vì admin event không phải lịch sử đăng
+  nhập Portal; `close()` không đóng HTTP client thuộc quyền quản lý của Keycloak.
 
 ### 4.2. Nhóm thu thập login context
 
@@ -275,8 +329,20 @@ Thiếu user/session/client/IP tạo runtime exception và cuối cùng bị den
 - `validatedValue()` chỉ nhận độ dài 8-255 và ký tự `[A-Za-z0-9._~-]`; giá trị
   sai trở thành `null`.
 
-Code này **chỉ đọc cookie**. Nó chưa phát cookie, chưa ký cookie và chưa ghi nhận
-thiết bị sau OTP.
+#### `DeviceIdGenerator` và `SecureRandomDeviceIdGenerator`
+
+- Interface có `generate()` để authenticator test được bằng fake generator.
+- Implementation dùng `SecureRandom` tạo 32 byte rồi Base64URL không padding,
+  cho device ID dài 43 ký tự với 256 bit entropy.
+
+#### `DeviceCookieWriter` và `KeycloakDeviceCookieWriter`
+
+- Interface tách thao tác `issue()` và `expire()` khỏi orchestration.
+- Implementation phát `ZT_DEVICE_ID` trong response Keycloak, scope theo realm,
+  thời hạn 30 ngày, `HttpOnly`, `SameSite=Lax`; cờ `Secure` theo secure-context
+  resolver của Keycloak để tôn trọng HTTPS/proxy tin cậy.
+- Cookie không ký riêng vì giá trị là ID ngẫu nhiên và trạng thái thật nằm phía
+  server. Giá trị giả chỉ bị phân loại là thiết bị mới và không cấp quyền.
 
 ### 4.3. Nhóm cấu hình typed
 
@@ -301,12 +367,34 @@ reject null trong compact constructor.
 Default hiện tại: caller `zerotrust-risk-caller`, refresh sớm 30 giây, pool wait
 500 ms, connect 2 giây, socket 3 giây, response 64 KiB, failure mode `DENY`.
 
+#### `BrowserFlowRiskConfigLocator`
+
+- `locate(realm)` bắt đầu từ Browser Flow đang bind cho realm rồi duyệt execution
+  theo priority, đi đệ quy vào subflow.
+- Khi gặp provider `zerotrust-risk-authenticator`, nó lấy
+  `AuthenticatorConfigModel` theo config ID và trả lại cho Event Listener.
+- Tập `visitedFlowIds` tránh vòng lặp cấu hình; thiếu realm, Browser Flow hoặc
+  config evaluator tạo `RiskAuthenticatorConfigurationException`.
+
+#### `RiskEventListenerConfig` và `RiskEventListenerConfigResolver`
+
+- Record gom toàn bộ `RiskAuthenticatorConfig` hiện có với `monitoredClientId`.
+- Resolver dùng lại `RiskAuthenticatorConfigResolver`, nên Risk URL, token
+  endpoint, caller secret và timeout chỉ có một nguồn cấu hình.
+- Key `monitoredEventClientId` mặc định là `zerotrust-spa`; giá trị blank cũng
+  quay về default.
+
 #### `RiskScoringClientConfig`
 
 - Compact constructor chỉ nhận HTTP/HTTPS có host, không query/fragment/userinfo;
   timeout phải dương, response limit 1 byte đến 1 MiB.
 - `defaults()` tạo bộ timeout/limit mặc định.
 - `evaluationUri()` nối base URL với `/internal/v1/risk/evaluations`.
+- `trustedDevicesUri()` nối base URL với `/internal/v1/trusted-devices`.
+- `authenticationFailuresUri()` nối base URL với
+  `/internal/v1/authentication-failures`.
+- `authenticationSuccessesUri()` nối base URL với
+  `/internal/v1/authentication-successes`.
 - `requirePositive()` kiểm tra duration.
 - `timeoutMillis()` đổi `Duration` thành integer milliseconds an toàn.
 
@@ -368,15 +456,35 @@ Interface có `evaluate(request)` trả `RiskEvaluationResponse`.
 Functional interface có `create(config)`. Authenticator chỉ tạo client sau khi đã
 đọc config của execution; test có thể thay bằng fake client.
 
+#### `TrustedDeviceClient` và `TrustedDeviceClientFactory`
+
+- `TrustedDeviceClient.register(request)` biểu diễn riêng thao tác ghi trusted
+  device, không trộn nó vào interface chỉ đọc decision.
+- Factory tạo client từ cùng typed config/service credential với evaluator.
+
+#### `AuthenticationEventClient` và `AuthenticationEventClientFactory`
+
+- `recordFailure(request)` và `recordSuccess(request)` biểu diễn hai loại telemetry
+  xác thực trên cùng một transport client.
+- Factory nhận `RiskAuthenticatorConfig` rồi tạo client dùng cùng HTTP pool,
+  service-token cache và timeout với evaluator.
+
 #### `HttpRiskScoringClient`
 
 - Constructor nhận HTTP client, config và token provider; dựng evaluation URI,
-  timeout, response limit và tắt redirect.
+  trusted-device URI, hai authentication-event URI, timeout, response limit và
+  tắt redirect.
 - `evaluate(request)` serialize request, lấy service token và gọi `execute()`. Nếu
   chính Risk API trả 401, nó invalidate token rồi lấy token mới và retry đúng một
   lần.
 - `execute()` POST JSON với Bearer service token, yêu cầu 2xx/body JSON/đúng size,
   deserialize và kiểm tra correlation.
+- `register()` POST `subjectId + deviceId`, chỉ chấp nhận contract `204 No
+  Content`; nhánh `401` cũng invalidate token và retry đúng một lần.
+- `recordFailure()` POST `eventId + subjectId + sourceIp`; `recordSuccess()` POST
+  `eventId + subjectId + clientId + authenticatedAt`; cả hai chỉ nhận `204`.
+- `postNoContentWithTokenRetry()` dùng chung logic Bearer token, retry đúng một
+  lần khi `401` và không đọc error body hoặc ghi dữ liệu nhạy cảm vào log.
 - `requireAccessToken()` reject token blank, whitespace hoặc control character.
 - `serialize()` đổi request record thành JSON.
 - `verifyJsonContentType()` kiểm tra response media type.
@@ -416,12 +524,22 @@ Các enum `RiskDecision`, `RiskLevel`, `RiskDataStatus`, `RiskReason` là vocabu
 JSON phải khớp enum ở Risk Service. Hiện DTO bị lặp ở hai module; đổi contract một
 phía có thể tạo `INVALID_RESPONSE`.
 
+#### `TrustedDeviceRegistrationRequest`
+
+Record chỉ có `subjectId` và `deviceId`; compact constructor không nhận null hoặc
+blank. Risk Service sẽ validate giới hạn độ dài rồi HMAC hai giá trị trước khi lưu.
+
+#### `AuthenticationFailureRequest`
+
+Record chứa `eventId`, `subjectId` có thể null và `sourceIp`. Đây là JSON contract
+từ Keycloak Event Listener tới protected ingestion endpoint của Risk Service.
+
 ### 4.7. Nhóm áp quyết định vào flow
 
 #### `RiskAuthenticationNotes`
 
 - Các constant đặt tên note cho step-up, decision, evaluation ID, level, data
-  status và failure type.
+  status, failure type, quyền ghi trust một lần và ID config evaluator.
 - Constructor private ngăn tạo object tiện ích.
 - `clear(session)` xóa toàn bộ note cũ trước khi áp kết quả mới.
 
@@ -429,9 +547,11 @@ phía có thể tạo `INVALID_RESPONSE`.
 
 - `handle(context, evaluation)` clear note, lưu metadata rồi switch đúng theo
   `evaluation.decision()`.
+- Chỉ decision `STEP_UP_MFA` do một response hợp lệ mới đặt
+  `trust-device-eligible=true`.
 - `handleUnavailable(context, failureMode, failureType)` xử lý lúc không lấy được
   quyết định: `STEP_UP_MFA` thì đặt note và cho execution đi tiếp; `DENY` thì
-  chặn.
+  chặn. Fallback MFA không đặt quyền ghi trust.
 - `requireStepUp(session)` đặt note `step-up-required=true`.
 - `deny(context)` tạo error page HTTP 403 và gọi
   `context.failure(ACCESS_DENIED, ...)`.
@@ -468,8 +588,12 @@ require HTTPS.
 - `riskJwtDecoder()` dựng `NimbusJwtDecoder` từ JWKS; kiểm tra signature, issuer,
   thời gian, sự hiện diện của `exp` và audience `zerotrust-risk-api`.
 - `riskSecurityFilterChain()` cấu hình stateless, tắt CSRF/CORS/request cache;
-  chỉ public `GET /actuator/health`; POST evaluation cần đúng `azp` và authority
-  `risk:evaluate`; mọi path/method khác bị từ chối.
+  chỉ public `GET /actuator/health`; POST evaluation cần authority
+  `risk:evaluate`, POST trusted-device cần `risk:device:write`, còn hai POST
+  authentication-event cần `risk:events:write`; cả bốn đều cần đúng `azp`; mọi
+  path/method khác bị từ chối.
+- `isAuthorizedServiceToken()` dùng chung phép kiểm tra `azp` và authority bắt
+  buộc cho từng endpoint.
 - Anonymous `doFilterInternal()` trả 403 `HTTPS_REQUIRED` nếu production yêu cầu
   TLS mà request đến bằng HTTP.
 - `writeError()` trả JSON lỗi thống nhất.
@@ -488,6 +612,12 @@ Engine quyết định DENY                             -> HTTP 200 + decision=D
 - `convert(jwt)` chỉ đọc role dưới
   `resource_access.zerotrust-risk-api.roles`. Realm role hoặc role của client
   khác không cấp authority cho Risk API.
+- Chỉ ba role được hỗ trợ được chuyển thành authority: `risk:evaluate`,
+  `risk:device:write` và `risk:events:write`.
+- Cấu hình local ngày 2026-09-16 đã gán cả ba role vào service account và
+  dedicated role scope của `zerotrust-risk-caller`; `Full scope allowed` vẫn tắt.
+- Token Client Credentials mới đã được giải mã cục bộ và xác nhận có đủ
+  `risk:evaluate`, `risk:device:write`, `risk:events:write`.
 
 ### 5.2. HTTP API, DTO và validation
 
@@ -507,6 +637,32 @@ Engine quyết định DENY                             -> HTTP 200 + decision=D
 `clientId` trong body là `zerotrust-spa`, tức client người dùng đang login. Claim
 `azp` của service token là `zerotrust-risk-caller`; hai khái niệm khác nhau.
 
+#### `TrustedDeviceController` và `TrustedDeviceRegistrationRequest`
+
+- `POST /internal/v1/trusted-devices` nhận `subjectId` và `deviceId` đã validate.
+- `register()` chỉ điều phối sang `TrustedDeviceRegistrationService` và trả
+  `204 No Content`; controller không hash hoặc truy vấn database.
+- Endpoint chỉ được Security Filter Chain mở cho service token có
+  `risk:device:write`.
+
+#### `AuthenticationFailureController` và `AuthenticationFailureRequest`
+
+- `POST /internal/v1/authentication-failures` nhận `eventId`, `sourceIp` và
+  `subjectId` tùy chọn vì một số lần sai username không xác định được user.
+- `eventId` là khóa idempotency; cùng một Keycloak event không được tăng counter
+  lần thứ hai khi HTTP client retry.
+- `sourceIp` dùng cùng `ValidIpAddress`; các field đều có giới hạn độ dài.
+- Controller chỉ chuyển request sang `AuthenticationFailureService` rồi trả
+  `204 No Content`.
+
+#### `AuthenticationSuccessController` và `AuthenticationSuccessRequest`
+
+- `POST /internal/v1/authentication-successes` nhận `eventId`, `subjectId`,
+  `clientId` và `authenticatedAt`; bốn trường đều bắt buộc và có giới hạn phù hợp.
+- Controller chỉ điều phối sang `AuthenticationSuccessService` rồi luôn trả `204`
+  để caller có thể retry mà không phải phân biệt event mới hay đã tồn tại.
+- Endpoint chỉ mở cho caller đúng `azp` có `risk:events:write`.
+
 #### `ValidIpAddress` và `IpAddressValidator`
 
 - Annotation `ValidIpAddress` trỏ tới validator.
@@ -514,10 +670,12 @@ Engine quyết định DENY                             -> HTTP 200 + decision=D
 - `isIpv4()` yêu cầu đúng bốn phần chữ số, mỗi phần 0-255.
 - `isIpv6()` lọc ký tự rồi dùng `InetAddress`, đồng thời bắt kết quả là IPv6.
 
-#### `GlobalExceptionHandler` và `ValidationErrorResponse`
+#### `GlobalExceptionHandler`, `ValidationErrorResponse` và `ApiErrorResponse`
 
 - `handleValidation()` bắt `MethodArgumentNotValidException`, chọn lỗi đầu cho
   từng field và trả HTTP 400.
+- `handleDeviceTrustRejected()` biến việc cố trust fingerprint đã revoke thành
+  HTTP 409 với mã `DEVICE_TRUST_REJECTED`.
 - `ValidationErrorResponse` mang timestamp/status/message/path/field-errors;
   compact constructor copy map thành immutable.
 
@@ -566,12 +724,16 @@ Interface có `extract(context)` trả `RiskFeatureExtraction`.
 1. gọi `DeviceRecognitionService.recognize()`;
 2. map `MISSING/NEW/PENDING/TRUSTED/REVOKED` thành device score/reason;
 3. revoked device tạo priority violation;
-4. luôn thêm ba reason network, temporal và authentication history unavailable;
-5. đặt ba factor đó bằng 0;
-6. luôn trả `RiskDataStatus.INCOMPLETE`.
+4. gọi `AuthenticationHistoryRiskCalculator.calculate()` để đọc counter Redis và
+   ánh xạ authentication-history score;
+5. thêm `AUTHENTICATION_HISTORY_RISK` khi score dương, hoặc
+   `AUTHENTICATION_HISTORY_UNAVAILABLE` khi Redis không đọc được;
+6. thêm hai reason network và temporal unavailable, đặt hai factor này bằng 0;
+7. hiện vẫn trả `RiskDataStatus.INCOMPLETE` vì network chưa có nguồn và successful
+   login history chưa được chuyển thành Temporal Risk factor.
 
-Ba số 0 không được dùng để tạo score thấp giả, vì orchestrator không gọi weighted
-scoring khi data status là `INCOMPLETE`.
+Hai số 0 của nguồn chưa triển khai không được dùng để tạo score thấp giả, vì
+orchestrator không gọi weighted scoring khi data status là `INCOMPLETE`.
 
 ### 5.4. Nhận diện và lưu thiết bị
 
@@ -594,13 +756,28 @@ Service này hiện **chỉ đọc**: không insert, không update last-seen, kh
 
 - Constructor public tạo device `PENDING`, đặt first/last seen bằng thời điểm đầu.
 - `markSeen()` chỉ đẩy last-seen tiến lên.
-- `trust()` đặt `TRUSTED`, ghi trusted-at, xóa revoked-at và mark seen.
-- `revoke()` đặt `REVOKED`, ghi revoked-at và mark seen.
+- `trust()` chuyển `PENDING` sang `TRUSTED`; lời gọi lặp chỉ cập nhật last-seen và
+  giữ nguyên trusted-at đầu tiên. Thiết bị `REVOKED` không được tự trust lại.
+- `revoke()` đặt `REVOKED`; lời gọi lặp giữ nguyên revoked-at đầu tiên và chỉ cập
+  nhật last-seen.
+- Thời điểm trust/revoke trước first-seen bị từ chối để giữ thứ tự lifecycle.
 - `requireText()` và `requireSha256Hex()` giữ invariant.
 - Field `version` dùng optimistic locking.
 
-Các method lifecycle đã có nhưng **không method production nào hiện gọi chúng**
-trong login flow.
+Các method lifecycle được gọi qua `TrustedDeviceRegistrationService` sau khi OTP
+thành công; recognition path chỉ đọc và không tự thay đổi trust.
+
+#### `TrustedDeviceRegistrationService`
+
+- `trustAfterMfa(subjectId, deviceId)` là use case transaction dành cho caller đã
+  xác nhận MFA; raw device ID chỉ tồn tại để tính HMAC và không được persist.
+- Dùng `Clock` do Spring inject để lấy thời gian UTC phía server, giúp test không
+  phụ thuộc đồng hồ thật.
+- Nếu fingerprint chưa có, service tạo entity rồi chuyển ngay sang `TRUSTED`.
+- Nếu đã `PENDING` hoặc `TRUSTED`, domain lifecycle xử lý chuyển trạng thái hoặc
+  lời gọi lặp; fingerprint `REVOKED` bị từ chối.
+- Service được expose qua internal API có role riêng; extension post-MFA hiện đã
+  gọi use case này và chỉ phát cookie sau khi API trả `204`.
 
 #### `KnownDeviceRepository`
 
@@ -618,7 +795,100 @@ Migration `V1__create_known_devices.sql` tạo bảng, unique
 `(subject_id, device_fingerprint_hash)`, check status, index subject/status và
 last-seen.
 
-### 5.5. Tính điểm và quyết định
+### 5.5. Authentication History và Redis
+
+#### `AuthenticationHistoryProperties`
+
+- Bind pepper HMAC, prefix key, failure window và event deduplication TTL.
+- Failure window mặc định 15 phút; deduplication TTL mặc định 1 giờ và bắt buộc
+  không ngắn hơn failure window.
+- Pepper tối thiểu 32 ký tự và phải tách biệt với device fingerprint pepper.
+
+#### `AuthenticationHistoryKeyHasher`
+
+- HMAC-SHA-256 theo `scope + NUL + value`, trả 64 hex lowercase.
+- Scope `event`, `subject`, `ip` ngăn cùng một chuỗi đầu vào tạo cùng hash ở các
+  loại key khác nhau.
+- Subject ID, IP và event ID thô không xuất hiện trong Redis key.
+
+#### `AuthenticationFailureStore` và `RedisAuthenticationFailureStore`
+
+- Interface tách use case khỏi Redis và cung cấp thao tác ghi, đọc counter theo
+  subject hoặc IP.
+- Implementation dùng một Lua script nguyên tử: `SET NX EX` marker theo event,
+  rồi `INCR` các counter và chỉ đặt TTL khi counter vừa được tạo.
+- Event trùng trả `false` và không tăng bất kỳ counter nào.
+- Subject có thể null; khi đó vẫn tăng counter IP để ghi nhận dò username hoặc
+  login vào tài khoản không tồn tại.
+- Counter hết hạn tự động, không tạo lịch sử đăng nhập lâu dài trong Redis.
+
+#### `AuthenticationFailureService`
+
+- Trim/validate dữ liệu trước khi gọi store.
+- `recordFailure()` trả trạng thái sự kiện mới hay trùng; HTTP endpoint hiện luôn
+  trả 204 để caller có thể retry an toàn.
+- Hai method đọc counter phục vụ `AuthenticationHistoryRiskCalculator`.
+
+#### `AuthenticationHistoryRiskProperties`
+
+- Bind ngưỡng medium/high riêng cho subject và source IP, cùng score tương ứng.
+- Validation buộc mọi ngưỡng dương, medium thấp hơn high, các score thuộc
+  `(0,100]` và medium score không vượt high score.
+- Baseline development hiện là subject `3/5`, IP `10/20`, score `50/100`.
+  Subject có ngưỡng thấp hơn vì IP dùng chung/NAT là tín hiệu danh tính yếu hơn.
+
+#### `AuthenticationHistoryRiskCalculator`
+
+- Đọc counter theo subject và source IP từ `AuthenticationFailureStore`.
+- Mỗi counter được map vào một trong ba dải `0`, medium hoặc high.
+- Lấy `max(subjectRisk, sourceIpRisk)` thay vì cộng, vì một lần thất bại bình
+  thường đã tăng cả hai counter; cách này tránh tính hai lần cùng một sự kiện.
+- Nếu Redis ném `DataAccessException`, calculator chỉ log loại lỗi và trả
+  `Optional.empty()`. Extractor đánh dấu dữ liệu không khả dụng và tiếp tục yêu
+  cầu MFA thay vì tạo điểm thấp giả.
+
+Redis 7.4.7 local dùng password, AOF, named volume và chỉ bind loopback. Runtime
+health đã trả `UP`; phép thử trực tiếp xác nhận lần ghi đầu trả 1, ghi lại cùng
+event trả 0 và counter không tăng lần hai.
+
+Ngày 2026-09-16, Event Listener runtime được thử bằng một lần sai mật khẩu qua
+luồng Authorization Code của `zerotrust-spa`. Trước thử nghiệm không có key lịch
+sử; sau thử nghiệm có đúng một event marker, một counter subject và một counter
+IP, đều có value 1. TTL quan sát phù hợp cấu hình: gần 1 giờ cho dedup marker và
+gần 15 phút cho counter.
+
+### 5.6. Successful-login history trong MySQL
+
+#### `AuthenticationSuccessEventEntity`
+
+- Ánh xạ `authentication_success_events`: event ID, subject, client,
+  `authenticatedAt` từ Keycloak và `recordedAt` từ Risk Service.
+- Bảng chỉ giữ dữ liệu cần cho Temporal Profile; IP/User-Agent không được lưu tại
+  đây để tránh mở rộng dữ liệu nhạy cảm khi chưa có use case.
+
+#### `AuthenticationSuccessEventRepository`
+
+- Kế thừa `JpaRepository` để chuẩn bị cho truy vấn profile tiếp theo.
+- `insertIfAbsent()` dùng native `INSERT IGNORE` trên unique `event_id`; đây là một
+  thao tác nguyên tử, tránh race của mô hình `exists` rồi `insert`.
+
+#### `AuthenticationSuccessService`
+
+- Trim/validate ID, lấy `recordedAt` từ `Clock` do Spring quản lý rồi gọi atomic
+  insert trong transaction.
+- Trả `true` nếu tạo dòng mới, `false` nếu event là replay; HTTP contract ở cả hai
+  trường hợp vẫn là `204 No Content`.
+
+Migration `V2__create_authentication_success_events.sql` tạo unique event ID,
+index `(subject_id, authenticated_at)` cho truy vấn lịch sử theo user/thời gian và
+index `recorded_at` cho vận hành/retention sau này. Milestone này mới thu dữ liệu
+thật; chưa dựng baseline, cold-start rule hoặc Temporal Risk factor.
+
+Runtime ngày 2026-09-17 đã xác nhận một login password + OTP tạo đúng một row cho
+`zerotrust-spa`; event ID và subject là UUID 36 ký tự, cả hai timestamp đều có giá
+trị. Gửi cùng một smoke-test event hai lần chỉ tạo một row và row test đã được dọn.
+
+### 5.7. Tính điểm và quyết định
 
 #### `RiskScoringService`
 
@@ -646,7 +916,7 @@ device * deviceWeight
 Với extractor hiện tại, nhánh `evaluate(factors)` chưa xảy ra trong runtime vì
 data luôn `INCOMPLETE`.
 
-### 5.6. Các domain type
+### 5.8. Các domain type
 
 - `LoginContext`: subject, auth session, client, IP, User-Agent, device ID,
   received-at; compact constructor bắt buộc các trường cốt lõi.
@@ -667,8 +937,9 @@ data luôn `INCOMPLETE`.
   - `PRIORITY_SECURITY_RULE`, `BLOCKED_IP_ADDRESS`: luật chặn ưu tiên;
   - `DEVICE_IDENTIFIER_MISSING`, `NEW_DEVICE`, `PENDING_DEVICE`,
     `REVOKED_DEVICE`: trạng thái nhận diện thiết bị;
-  - `NETWORK_INTELLIGENCE_UNAVAILABLE`, `TEMPORAL_PROFILE_UNAVAILABLE`,
-    `AUTHENTICATION_HISTORY_UNAVAILABLE`: nguồn dữ liệu chưa triển khai;
+  - `NETWORK_INTELLIGENCE_UNAVAILABLE`, `TEMPORAL_PROFILE_UNAVAILABLE`: nguồn dữ
+    liệu chưa triển khai;
+  - `AUTHENTICATION_HISTORY_UNAVAILABLE`: Redis/counter tạm thời không đọc được;
   - `DEVICE_RISK`, `NETWORK_RISK`, `TEMPORAL_RISK`,
     `AUTHENTICATION_HISTORY_RISK`: factor tương ứng lớn hơn 0 trong nhánh tính
     điểm đầy đủ.
@@ -676,7 +947,7 @@ data luôn `INCOMPLETE`.
 Java record tự sinh accessor như `decision()`, `riskScore()`, `subjectId()`, cùng
 `equals()`, `hashCode()` và `toString()`.
 
-### 5.7. Các properties class
+### 5.9. Các properties class
 
 #### `DeviceFingerprintProperties`
 
@@ -818,31 +1089,35 @@ Interface công bố `getCurrentStudentScores()` và
 | Không có `ZT_DEVICE_ID` | `MEDIUM / STEP_UP_MFA / INCOMPLETE`, score null |
 | Device mới hoặc pending | `MEDIUM / STEP_UP_MFA / INCOMPLETE`, score null |
 | Device đã trusted | Vẫn `MEDIUM / STEP_UP_MFA / INCOMPLETE`, score null |
+| Subject có 3 lần thất bại trong 15 phút | Thêm `AUTHENTICATION_HISTORY_RISK`; vẫn `MEDIUM / STEP_UP_MFA / INCOMPLETE`, score null |
 | Dữ liệu `COMPLETE` | Chưa xảy ra với extractor hiện tại |
 
-Nguyên nhân là feature extractor mới có nhận diện thiết bị thật từ DB. Network,
-temporal và authentication-history chưa có nguồn dữ liệu; chúng được đánh dấu
-`UNAVAILABLE` và toàn bộ evaluation là `INCOMPLETE`. Vì vậy runtime không dùng ba
-giá trị 0 để tính score; nó trả `riskScore=null` và yêu cầu MFA.
+Feature extractor có nhận diện thiết bị thật từ DB và authentication history thật
+từ Redis. Successful-login history đã được thu vào DB, nhưng Temporal Profile chưa
+được tính; Network Intelligence cũng chưa có. Vì vậy toàn bộ evaluation vẫn là
+`INCOMPLETE` và runtime chưa dùng các factor để tính weighted score; nó trả
+`riskScore=null` và yêu cầu MFA. Reason authentication history chỉ xuất hiện khi
+counter đạt ngưỡng; `AUTHENTICATION_HISTORY_UNAVAILABLE` chỉ xuất hiện khi Redis
+không đọc được.
 
 ## 9. Vì sao logout rồi đăng nhập lại vẫn hỏi OTP
 
 ```text
 OTP thành công
--> chỉ hoàn tất authentication session hiện tại
--> Keycloak phát token
--> không có callback đăng ký/trust thiết bị
+-> execution post-MFA đăng ký device và phát cookie nếu API trả 204
 -> logout kết thúc SSO session
 -> lần login sau tạo authentication session mới
--> auth-note cũ không còn
+-> cookie device vẫn được gửi lại cho Keycloak
 -> Risk Service lại thấy dữ liệu INCOMPLETE
 -> STEP_UP_MFA
 -> OTP Form lại chạy
 ```
 
 Credential OTP vẫn được lưu ở Keycloak nên user chỉ nhập mã mới, không phải quét
-QR lại. Nhưng code chưa có “remember/trust this device”. Thậm chí nếu tự chèn một
-row `TRUSTED`, ba nguồn dữ liệu còn thiếu vẫn khiến kết quả là step-up.
+QR lại. Code hiện đã có “remember/trust this device”, authentication-history và
+dữ liệu successful-login; network cùng phép tính temporal vẫn `UNAVAILABLE`. Vì policy không tính điểm
+trên dữ liệu thiếu, ngay cả row `TRUSTED` vẫn cho kết quả step-up. Milestone cookie
+hoàn thiện vòng đời device và khả năng revoke; nó chưa phải policy bỏ qua MFA.
 
 Nếu tab vẫn còn token hợp lệ thì frontend có thể vào trang mà không tạo login
 attempt mới. Reload làm mất token memory; `check-sso` sẽ thử khôi phục phiên từ
@@ -858,9 +1133,10 @@ Keycloak. Logout thành công thì phiên SSO bị kết thúc và flow phải c
 - `KeycloakAdminConfig`, `KeycloakIdentityProviderGateway`, `KeycloakUserClient`,
   `KeycloakRoleClient` cùng service account `zerotrust-provisioner` dùng để tạo và
   quản lý identity, không xác thực browser.
-- Redis, Keycloak Event Listener, network/geolocation intelligence, temporal
-  profile, failed-attempt history và audit persistence có trong kiến trúc đích
-  nhưng chưa có implementation runtime tương ứng trong code hiện tại.
+- Redis failure store, protected ingestion endpoint, Keycloak Event Listener và
+  mapping counter thành authentication-history score đã có implementation runtime.
+  Successful-login collection đã có; network/geolocation intelligence, phép tính
+  temporal profile và audit persistence vẫn chưa được triển khai.
 
 ## 11. Thứ tự đọc code dễ hiểu nhất
 
@@ -877,7 +1153,9 @@ Keycloak. Logout thành công thì phiên SSO bị kết thúc và flow phải c
 9. `RiskEvaluationService.evaluate()`.
 10. `DatabaseBackedRiskFeatureExtractor.extract()`.
 11. `DeviceRecognitionService.recognize()`.
-12. `RiskScoringService` với ba method tạo kết quả.
+12. `AuthenticationHistoryRiskCalculator.calculate()` và
+    `AuthenticationFailureStore`.
+13. `RiskScoringService` với ba method tạo kết quả.
 13. `RiskDecisionHandler.handle()`.
 14. `RiskStepUpCondition.matchCondition()` rồi built-in OTP Form trong Admin
     Console.

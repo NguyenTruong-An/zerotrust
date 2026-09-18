@@ -1,5 +1,6 @@
 package com.zerotrust.risk.exception;
 
+import com.zerotrust.risk.dto.response.ApiErrorResponse;
 import com.zerotrust.risk.dto.response.ValidationErrorResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
@@ -15,6 +16,20 @@ import java.util.Map;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    @ExceptionHandler(DeviceTrustRejectedException.class)
+    public ResponseEntity<ApiErrorResponse> handleDeviceTrustRejected(
+            DeviceTrustRejectedException exception,
+            HttpServletRequest request
+    ) {
+        ApiErrorResponse body = new ApiErrorResponse(
+                Instant.now(),
+                HttpStatus.CONFLICT.value(),
+                "DEVICE_TRUST_REJECTED",
+                request.getRequestURI()
+        );
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
+    }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ValidationErrorResponse> handleValidation(

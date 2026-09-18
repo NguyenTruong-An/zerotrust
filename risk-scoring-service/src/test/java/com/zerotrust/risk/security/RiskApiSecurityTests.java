@@ -11,9 +11,15 @@ import com.nimbusds.jwt.SignedJWT;
 import com.sun.net.httpserver.HttpServer;
 import com.zerotrust.risk.config.RiskApiSecurityConfig;
 import com.zerotrust.risk.config.RiskApiSecurityProperties;
+import com.zerotrust.risk.controller.AuthenticationFailureController;
+import com.zerotrust.risk.controller.AuthenticationSuccessController;
 import com.zerotrust.risk.controller.RiskEvaluationController;
+import com.zerotrust.risk.controller.TrustedDeviceController;
 import com.zerotrust.risk.domain.*;
+import com.zerotrust.risk.service.AuthenticationFailureService;
+import com.zerotrust.risk.service.AuthenticationSuccessService;
 import com.zerotrust.risk.service.RiskEvaluationService;
+import com.zerotrust.risk.service.TrustedDeviceRegistrationService;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -41,15 +47,35 @@ import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@WebMvcTest(RiskEvaluationController.class)
+@WebMvcTest({
+        RiskEvaluationController.class,
+        TrustedDeviceController.class,
+        AuthenticationFailureController.class,
+        AuthenticationSuccessController.class
+})
 @Import(RiskApiSecurityConfig.class)
 @EnableConfigurationProperties(RiskApiSecurityProperties.class)
 class RiskApiSecurityTests {
-    private static final String PATH = "/internal/v1/risk/evaluations";
+    private static final String EVALUATION_PATH = "/internal/v1/risk/evaluations";
+    private static final String TRUSTED_DEVICE_PATH = "/internal/v1/trusted-devices";
+    private static final String AUTHENTICATION_FAILURE_PATH =
+            "/internal/v1/authentication-failures";
+    private static final String AUTHENTICATION_SUCCESS_PATH =
+            "/internal/v1/authentication-successes";
     private static final String ISSUER = "https://issuer.example/realms/test";
     private static final String BODY = """
             {"subjectId":"student-1","authenticationSessionId":"session-1",
              "clientId":"zerotrust-spa","ipAddress":"203.0.113.10"}
+            """;
+    private static final String TRUSTED_DEVICE_BODY = """
+            {"subjectId":"student-1","deviceId":"device-1"}
+            """;
+    private static final String AUTHENTICATION_FAILURE_BODY = """
+            {"eventId":"event-1","subjectId":"student-1","sourceIp":"203.0.113.10"}
+            """;
+    private static final String AUTHENTICATION_SUCCESS_BODY = """
+            {"eventId":"event-2","subjectId":"student-1","clientId":"zerotrust-spa",
+             "authenticatedAt":"2026-09-17T03:00:00Z"}
             """;
     private static final RSAKey KEY;
     private static final HttpServer JWKS;
@@ -80,6 +106,9 @@ class RiskApiSecurityTests {
     @AfterAll static void stop() { JWKS.stop(0); }
     @Autowired MockMvc mvc;
     @MockitoBean RiskEvaluationService service;
+    @MockitoBean TrustedDeviceRegistrationService registrationService;
+    @MockitoBean AuthenticationFailureService authenticationFailureService;
+    @MockitoBean AuthenticationSuccessService authenticationSuccessService;
 
     @BeforeEach void evaluation() {
         when(service.evaluate(any())).thenReturn(new RiskEvaluation(UUID.randomUUID(), null,
@@ -88,10 +117,22 @@ class RiskApiSecurityTests {
     }
 
     @Test void missingAndMalformedTokensAre401AndDoNotReachService() throws Exception {
-        mvc.perform(post(PATH).contentType(MediaType.APPLICATION_JSON).content(BODY))
+        mvc.perform(post(EVALUATION_PATH).contentType(MediaType.APPLICATION_JSON).content(BODY))
                 .andExpect(status().isUnauthorized()).andExpect(jsonPath("$.error").value("UNAUTHORIZED"));
+        mvc.perform(post(TRUSTED_DEVICE_PATH).contentType(MediaType.APPLICATION_JSON)
+                        .content(TRUSTED_DEVICE_BODY))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(post(AUTHENTICATION_FAILURE_PATH).contentType(MediaType.APPLICATION_JSON)
+                        .content(AUTHENTICATION_FAILURE_BODY))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(post(AUTHENTICATION_SUCCESS_PATH).contentType(MediaType.APPLICATION_JSON)
+                        .content(AUTHENTICATION_SUCCESS_BODY))
+                .andExpect(status().isUnauthorized());
         call("not-a-jwt").andExpect(status().isUnauthorized());
         verify(service, never()).evaluate(any());
+        verifyNoInteractions(registrationService);
+        verifyNoInteractions(authenticationFailureService);
+        verifyNoInteractions(authenticationSuccessService);
     }
 
     @Test void signedServiceTokenReachesEvaluationAndDenyIsStillHttp200() throws Exception {
@@ -137,31 +178,135 @@ class RiskApiSecurityTests {
     }
 
     @Test void authorizedInvalidBodyIs400() throws Exception {
-        mvc.perform(post(PATH).header("Authorization", "Bearer " + sign(claims(), KEY))
+        mvc.perform(post(EVALUATION_PATH).header("Authorization", "Bearer " + sign(claims(), KEY))
                 .contentType(MediaType.APPLICATION_JSON).content("{}"))
                 .andExpect(status().isBadRequest());
         verify(service, never()).evaluate(any());
     }
 
+    @Test void eachWriteEndpointRequiresItsDedicatedClientRole() throws Exception {
+        String evaluationToken = sign(claims(), KEY);
+        String deviceWriteToken = sign(claimsWithRoles(
+                RiskJwtAuthenticationConverter.DEVICE_WRITE_AUTHORITY
+        ), KEY);
+        String eventsWriteToken = sign(claimsWithRoles(
+                RiskJwtAuthenticationConverter.EVENTS_WRITE_AUTHORITY
+        ), KEY);
+
+        callTrustedDevice(evaluationToken).andExpect(status().isForbidden());
+        call(deviceWriteToken).andExpect(status().isForbidden());
+        callAuthenticationFailure(evaluationToken).andExpect(status().isForbidden());
+        callAuthenticationFailure(deviceWriteToken).andExpect(status().isForbidden());
+        callAuthenticationSuccess(evaluationToken).andExpect(status().isForbidden());
+        callAuthenticationSuccess(deviceWriteToken).andExpect(status().isForbidden());
+        callTrustedDevice(deviceWriteToken)
+                .andExpect(status().isNoContent())
+                .andExpect(header().doesNotExist("Set-Cookie"));
+        callAuthenticationFailure(eventsWriteToken)
+                .andExpect(status().isNoContent())
+                .andExpect(header().doesNotExist("Set-Cookie"));
+        callAuthenticationSuccess(eventsWriteToken)
+                .andExpect(status().isNoContent())
+                .andExpect(header().doesNotExist("Set-Cookie"));
+        call(eventsWriteToken).andExpect(status().isForbidden());
+        callTrustedDevice(eventsWriteToken).andExpect(status().isForbidden());
+
+        verify(registrationService).trustAfterMfa("student-1", "device-1");
+        verify(authenticationFailureService).recordFailure(
+                "event-1",
+                "student-1",
+                "203.0.113.10"
+        );
+        verify(authenticationSuccessService).recordSuccess(
+                "event-2",
+                "student-1",
+                "zerotrust-spa",
+                Instant.parse("2026-09-17T03:00:00Z")
+        );
+        verify(service, never()).evaluate(any());
+    }
+
+    @Test void authenticationFailureEndpointValidatesEventAndIp() throws Exception {
+        String eventsWriteToken = sign(claimsWithRoles(
+                RiskJwtAuthenticationConverter.EVENTS_WRITE_AUTHORITY
+        ), KEY);
+
+        mvc.perform(post(AUTHENTICATION_FAILURE_PATH)
+                        .header("Authorization", "Bearer " + eventsWriteToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"eventId":"", "sourceIp":"not-an-ip"}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors.eventId").exists())
+                .andExpect(jsonPath("$.fieldErrors.sourceIp").exists());
+
+        verifyNoInteractions(authenticationFailureService);
+    }
+
+    @Test void authenticationSuccessEndpointValidatesRequiredTemporalFields() throws Exception {
+        String eventsWriteToken = sign(claimsWithRoles(
+                RiskJwtAuthenticationConverter.EVENTS_WRITE_AUTHORITY
+        ), KEY);
+
+        mvc.perform(post(AUTHENTICATION_SUCCESS_PATH)
+                        .header("Authorization", "Bearer " + eventsWriteToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"eventId":"", "subjectId":"", "clientId":""}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors.eventId").exists())
+                .andExpect(jsonPath("$.fieldErrors.subjectId").exists())
+                .andExpect(jsonPath("$.fieldErrors.clientId").exists())
+                .andExpect(jsonPath("$.fieldErrors.authenticatedAt").exists());
+
+        verifyNoInteractions(authenticationSuccessService);
+    }
+
     @Test void otherPathsAndMethodsAreDeniedAndCorsIsNotEnabled() throws Exception {
         String token = sign(claims(), KEY);
-        mvc.perform(get(PATH).header("Authorization", "Bearer " + token)).andExpect(status().isForbidden());
+        mvc.perform(get(EVALUATION_PATH).header("Authorization", "Bearer " + token)).andExpect(status().isForbidden());
         mvc.perform(get("/actuator/info").header("Authorization", "Bearer " + token)).andExpect(status().isForbidden());
-        mvc.perform(options(PATH).header("Origin", "https://untrusted.example")
+        mvc.perform(options(EVALUATION_PATH).header("Origin", "https://untrusted.example")
                         .header("Access-Control-Request-Method", "POST"))
                 .andExpect(status().isUnauthorized()).andExpect(header().doesNotExist("Access-Control-Allow-Origin"));
     }
 
     private ResultActions call(String token) throws Exception {
-        return mvc.perform(post(PATH).header("Authorization", "Bearer " + token)
+        return mvc.perform(post(EVALUATION_PATH).header("Authorization", "Bearer " + token)
                 .contentType(MediaType.APPLICATION_JSON).content(BODY));
     }
+
+    private ResultActions callTrustedDevice(String token) throws Exception {
+        return mvc.perform(post(TRUSTED_DEVICE_PATH).header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON).content(TRUSTED_DEVICE_BODY));
+    }
+
+    private ResultActions callAuthenticationFailure(String token) throws Exception {
+        return mvc.perform(post(AUTHENTICATION_FAILURE_PATH)
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(AUTHENTICATION_FAILURE_BODY));
+    }
+
+    private ResultActions callAuthenticationSuccess(String token) throws Exception {
+        return mvc.perform(post(AUTHENTICATION_SUCCESS_PATH)
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(AUTHENTICATION_SUCCESS_BODY));
+    }
+
     private static JWTClaimsSet.Builder claims() {
+        return claimsWithRoles(RiskJwtAuthenticationConverter.EVALUATE_AUTHORITY);
+    }
+
+    private static JWTClaimsSet.Builder claimsWithRoles(String... roles) {
         return new JWTClaimsSet.Builder().issuer(ISSUER).subject("service-account-id")
                 .audience("zerotrust-risk-api").issueTime(new Date())
                 .expirationTime(Date.from(Instant.now().plusSeconds(300)))
                 .claim("azp", "zerotrust-risk-caller")
-                .claim("resource_access", Map.of("zerotrust-risk-api", Map.of("roles", List.of("risk:evaluate"))));
+                .claim("resource_access", Map.of("zerotrust-risk-api", Map.of("roles", List.of(roles))));
     }
     private static String sign(JWTClaimsSet.Builder claims, RSAKey key) throws Exception {
         SignedJWT token = new SignedJWT(new JWSHeader.Builder(JWSAlgorithm.RS256).keyID(key.getKeyID()).build(), claims.build());

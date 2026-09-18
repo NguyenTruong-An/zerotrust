@@ -19,5 +19,27 @@ services:
       retries: 20
       start_period: 20s
 
+  risk-redis:
+    image: redis:7.4.7-alpine
+    container_name: zerotrust-risk-redis
+    restart: unless-stopped
+    environment:
+      RISK_REDIS_PASSWORD: ${RISK_REDIS_PASSWORD:?Set RISK_REDIS_PASSWORD in .env}
+    command:
+      - sh
+      - -c
+      - exec redis-server --appendonly yes --requirepass "$${RISK_REDIS_PASSWORD}"
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - risk-redis-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$$RISK_REDIS_PASSWORD\" ping | grep -q PONG"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+
 volumes:
   risk-db-data:
+  risk-redis-data:

@@ -3,9 +3,12 @@ package com.zerotrust.keycloak.risk.client;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import com.zerotrust.keycloak.risk.config.RiskScoringClientConfig;
+import com.zerotrust.keycloak.risk.dto.AuthenticationFailureRequest;
+import com.zerotrust.keycloak.risk.dto.AuthenticationSuccessRequest;
 import com.zerotrust.keycloak.risk.dto.RiskDecision;
 import com.zerotrust.keycloak.risk.dto.RiskEvaluationRequest;
 import com.zerotrust.keycloak.risk.dto.RiskEvaluationResponse;
+import com.zerotrust.keycloak.risk.dto.TrustedDeviceRegistrationRequest;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.junit.jupiter.api.AfterEach;
@@ -20,6 +23,7 @@ import java.net.ServerSocket;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -30,6 +34,11 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 class HttpRiskScoringClientTest {
 
     private static final String EVALUATION_PATH = "/internal/v1/risk/evaluations";
+    private static final String TRUSTED_DEVICES_PATH = "/internal/v1/trusted-devices";
+    private static final String AUTHENTICATION_FAILURES_PATH =
+            "/internal/v1/authentication-failures";
+    private static final String AUTHENTICATION_SUCCESSES_PATH =
+            "/internal/v1/authentication-successes";
 
     private HttpServer server;
     private CloseableHttpClient httpClient;
@@ -298,6 +307,139 @@ class HttpRiskScoringClientTest {
         assertEquals(2, calls.get());
     }
 
+    @Test
+    void registersTrustedDeviceWithServiceToken() {
+        AtomicReference<String> method = new AtomicReference<>();
+        AtomicReference<String> body = new AtomicReference<>();
+        AtomicReference<String> authorization = new AtomicReference<>();
+        server.createContext(TRUSTED_DEVICES_PATH, exchange -> {
+            method.set(exchange.getRequestMethod());
+            body.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+            authorization.set(exchange.getRequestHeaders().getFirst("Authorization"));
+            respondNoContent(exchange);
+        });
+
+        client().register(new TrustedDeviceRegistrationRequest("user-1", "device-123"));
+
+        assertEquals("POST", method.get());
+        assertEquals("Bearer service-token", authorization.get());
+        @SuppressWarnings("unchecked")
+        Map<String, Object> requestJson = JsonSerialization.valueFromString(body.get(), Map.class);
+        assertEquals("user-1", requestJson.get("subjectId"));
+        assertEquals("device-123", requestJson.get("deviceId"));
+    }
+
+    @Test
+    void refreshesRejectedTokenWhenRegisteringTrustedDevice() {
+        AtomicInteger calls = new AtomicInteger();
+        AtomicReference<String> secondAuthorization = new AtomicReference<>();
+        server.createContext(TRUSTED_DEVICES_PATH, exchange -> {
+            if (calls.incrementAndGet() == 1) {
+                respond(exchange, 401, "{\"error\":\"unauthorized\"}");
+                return;
+            }
+            secondAuthorization.set(exchange.getRequestHeaders().getFirst("Authorization"));
+            respondNoContent(exchange);
+        });
+        AtomicInteger tokenReads = new AtomicInteger();
+        AtomicReference<String> invalidated = new AtomicReference<>();
+        ServiceTokenProvider tokenProvider = new ServiceTokenProvider() {
+            @Override
+            public String accessToken() {
+                return tokenReads.incrementAndGet() == 1 ? "rejected-token" : "fresh-token";
+            }
+
+            @Override
+            public void invalidate(String rejectedToken) {
+                invalidated.set(rejectedToken);
+            }
+        };
+
+        client(RiskScoringClientConfig.defaults(serviceUri()), tokenProvider).register(
+                new TrustedDeviceRegistrationRequest("user-1", "device-123")
+        );
+
+        assertEquals(2, calls.get());
+        assertEquals("rejected-token", invalidated.get());
+        assertEquals("Bearer fresh-token", secondAuthorization.get());
+    }
+
+    @Test
+    void exposesConflictWhenTrustedDeviceWasRevoked() {
+        server.createContext(TRUSTED_DEVICES_PATH, exchange -> respond(
+                exchange,
+                409,
+                "{\"code\":\"DEVICE_TRUST_REJECTED\"}"
+        ));
+
+        RiskScoringClientException exception = assertThrows(
+                RiskScoringClientException.class,
+                () -> client().register(new TrustedDeviceRegistrationRequest(
+                        "user-1",
+                        "revoked-device"
+                ))
+        );
+
+        assertEquals(RiskScoringClientException.FailureType.HTTP_ERROR, exception.failureType());
+        assertEquals(409, exception.statusCode());
+    }
+
+    @Test
+    void recordsAuthenticationFailureWithServiceToken() {
+        AtomicReference<String> method = new AtomicReference<>();
+        AtomicReference<String> body = new AtomicReference<>();
+        AtomicReference<String> authorization = new AtomicReference<>();
+        server.createContext(AUTHENTICATION_FAILURES_PATH, exchange -> {
+            method.set(exchange.getRequestMethod());
+            body.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+            authorization.set(exchange.getRequestHeaders().getFirst("Authorization"));
+            respondNoContent(exchange);
+        });
+
+        client().recordFailure(new AuthenticationFailureRequest(
+                "event-1",
+                null,
+                "203.0.113.10"
+        ));
+
+        assertEquals("POST", method.get());
+        assertEquals("Bearer service-token", authorization.get());
+        @SuppressWarnings("unchecked")
+        Map<String, Object> requestJson = JsonSerialization.valueFromString(body.get(), Map.class);
+        assertEquals("event-1", requestJson.get("eventId"));
+        assertEquals(null, requestJson.get("subjectId"));
+        assertEquals("203.0.113.10", requestJson.get("sourceIp"));
+    }
+
+    @Test
+    void recordsAuthenticationSuccessWithServiceToken() {
+        AtomicReference<String> method = new AtomicReference<>();
+        AtomicReference<String> body = new AtomicReference<>();
+        AtomicReference<String> authorization = new AtomicReference<>();
+        server.createContext(AUTHENTICATION_SUCCESSES_PATH, exchange -> {
+            method.set(exchange.getRequestMethod());
+            body.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+            authorization.set(exchange.getRequestHeaders().getFirst("Authorization"));
+            respondNoContent(exchange);
+        });
+
+        client().recordSuccess(new AuthenticationSuccessRequest(
+                "event-2",
+                "user-1",
+                "zerotrust-spa",
+                Instant.parse("2026-09-17T03:00:00Z")
+        ));
+
+        assertEquals("POST", method.get());
+        assertEquals("Bearer service-token", authorization.get());
+        @SuppressWarnings("unchecked")
+        Map<String, Object> requestJson = JsonSerialization.valueFromString(body.get(), Map.class);
+        assertEquals("event-2", requestJson.get("eventId"));
+        assertEquals("user-1", requestJson.get("subjectId"));
+        assertEquals("zerotrust-spa", requestJson.get("clientId"));
+        assertEquals("2026-09-17T03:00:00Z", requestJson.get("authenticatedAt"));
+    }
+
     private HttpRiskScoringClient client() {
         return client(RiskScoringClientConfig.defaults(serviceUri()));
     }
@@ -374,6 +516,11 @@ class HttpRiskScoringClientTest {
         exchange.getResponseHeaders().set("Content-Type", contentType);
         exchange.sendResponseHeaders(statusCode, responseBytes.length);
         exchange.getResponseBody().write(responseBytes);
+        exchange.close();
+    }
+
+    private static void respondNoContent(HttpExchange exchange) throws IOException {
+        exchange.sendResponseHeaders(204, -1);
         exchange.close();
     }
 }

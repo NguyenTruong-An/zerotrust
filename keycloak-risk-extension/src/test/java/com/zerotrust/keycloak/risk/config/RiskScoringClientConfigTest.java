@@ -20,6 +20,18 @@ class RiskScoringClientConfigTest {
                 URI.create("http://localhost:8081/internal/v1/risk/evaluations"),
                 config.evaluationUri()
         );
+        assertEquals(
+                URI.create("http://localhost:8081/internal/v1/trusted-devices"),
+                config.trustedDevicesUri()
+        );
+        assertEquals(
+                URI.create("http://localhost:8081/internal/v1/authentication-failures"),
+                config.authenticationFailuresUri()
+        );
+        assertEquals(
+                URI.create("http://localhost:8081/internal/v1/authentication-successes"),
+                config.authenticationSuccessesUri()
+        );
     }
 
     @Test

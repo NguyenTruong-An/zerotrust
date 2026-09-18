@@ -18,6 +18,11 @@ public record RiskScoringClientConfig(
     public static final int MAX_ALLOWED_RESPONSE_BYTES = 1024 * 1024;
 
     private static final String EVALUATION_PATH = "/internal/v1/risk/evaluations";
+    private static final String TRUSTED_DEVICES_PATH = "/internal/v1/trusted-devices";
+    private static final String AUTHENTICATION_FAILURES_PATH =
+            "/internal/v1/authentication-failures";
+    private static final String AUTHENTICATION_SUCCESSES_PATH =
+            "/internal/v1/authentication-successes";
 
     public RiskScoringClientConfig {
         Objects.requireNonNull(serviceBaseUri, "serviceBaseUri must not be null");
@@ -55,11 +60,27 @@ public record RiskScoringClientConfig(
     }
 
     public URI evaluationUri() {
+        return endpointUri(EVALUATION_PATH);
+    }
+
+    public URI trustedDevicesUri() {
+        return endpointUri(TRUSTED_DEVICES_PATH);
+    }
+
+    public URI authenticationFailuresUri() {
+        return endpointUri(AUTHENTICATION_FAILURES_PATH);
+    }
+
+    public URI authenticationSuccessesUri() {
+        return endpointUri(AUTHENTICATION_SUCCESSES_PATH);
+    }
+
+    private URI endpointUri(String path) {
         String base = serviceBaseUri.toString();
         while (base.endsWith("/")) {
             base = base.substring(0, base.length() - 1);
         }
-        return URI.create(base + EVALUATION_PATH);
+        return URI.create(base + path);
     }
 
     private static void requirePositive(Duration duration, String fieldName) {

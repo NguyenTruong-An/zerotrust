@@ -7,6 +7,7 @@ import com.zerotrust.risk.domain.RiskDataStatus;
 import com.zerotrust.risk.domain.RiskFactors;
 import com.zerotrust.risk.domain.RiskFeatureExtraction;
 import com.zerotrust.risk.domain.RiskReason;
+import com.zerotrust.risk.service.AuthenticationHistoryRiskCalculator;
 import com.zerotrust.risk.service.DeviceRecognitionService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -22,6 +23,7 @@ public class DatabaseBackedRiskFeatureExtractor implements RiskFeatureExtractor 
 
     private final DeviceRecognitionService deviceRecognitionService;
     private final DeviceRiskProperties deviceRiskProperties;
+    private final AuthenticationHistoryRiskCalculator authenticationHistoryRiskCalculator;
 
     @Override
     public RiskFeatureExtraction extract(LoginContext context) {
@@ -52,16 +54,23 @@ public class DatabaseBackedRiskFeatureExtractor implements RiskFeatureExtractor 
             default -> throw new IllegalStateException("Unsupported device recognition status");
         }
 
+        Optional<BigDecimal> authenticationHistoryRisk =
+                authenticationHistoryRiskCalculator.calculate(context);
+        if (authenticationHistoryRisk.isEmpty()) {
+            reasons.add(RiskReason.AUTHENTICATION_HISTORY_UNAVAILABLE);
+        } else if (authenticationHistoryRisk.orElseThrow().compareTo(BigDecimal.ZERO) > 0) {
+            reasons.add(RiskReason.AUTHENTICATION_HISTORY_RISK);
+        }
+
         reasons.add(RiskReason.NETWORK_INTELLIGENCE_UNAVAILABLE);
         reasons.add(RiskReason.TEMPORAL_PROFILE_UNAVAILABLE);
-        reasons.add(RiskReason.AUTHENTICATION_HISTORY_UNAVAILABLE);
 
         return new RiskFeatureExtraction(
                 new RiskFactors(
                         deviceRisk,
                         BigDecimal.ZERO,
                         BigDecimal.ZERO,
-                        BigDecimal.ZERO
+                        authenticationHistoryRisk.orElse(BigDecimal.ZERO)
                 ),
                 RiskDataStatus.INCOMPLETE,
                 reasons,

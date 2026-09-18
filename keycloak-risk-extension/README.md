@@ -60,13 +60,16 @@ công khi lệnh trả exit code 0.
 ```powershell
 Get-Item .\keycloak-risk-extension\target\keycloak-risk-extension.jar
 jar tf .\keycloak-risk-extension\target\keycloak-risk-extension.jar |
-    Select-String "META-INF/services|RiskAuthenticatorFactory|RiskStepUpConditionFactory"
+    Select-String "META-INF/services|RiskAuthenticatorFactory|RiskStepUpConditionFactory|TrustedDeviceRegistrationAuthenticatorFactory|RiskEventListenerFactory"
 Get-FileHash .\keycloak-risk-extension\target\keycloak-risk-extension.jar -Algorithm SHA256
 ```
 
 JAR hợp lệ phải có file ServiceLoader
 `META-INF/services/org.keycloak.authentication.AuthenticatorFactory` và class
-của cả hai factory. Đây là regular provider JAR; không chạy bằng `java -jar`.
+của cả ba authenticator factory. JAR cũng phải có
+`META-INF/services/org.keycloak.events.EventListenerProviderFactory` và
+`RiskEventListenerFactory`. Đây là regular provider JAR; không chạy bằng
+`java -jar`.
 
 ### 4. Xác định chế độ khởi động container
 
@@ -106,9 +109,10 @@ rộng màn hình. Khi mở danh sách authenticator, phải có:
 ```text
 ZeroTrust Risk Evaluation
 Condition - ZeroTrust step-up required
+ZeroTrust Remember Device after MFA
 ```
 
-Hai tên này đến từ `getDisplayType()` của hai factory. Nếu không xuất hiện, kiểm
+Ba tên này đến từ `getDisplayType()` của ba factory. Nếu không xuất hiện, kiểm
 tra lại JAR, file ServiceLoader, phiên bản Keycloak và log khởi động.
 
 ### 7. Tạo hoặc kiểm tra Authentication Flow
@@ -121,6 +125,7 @@ ZeroTrust Risk Evaluation                     REQUIRED
 Risk step-up MFA                              CONDITIONAL
   Condition - ZeroTrust step-up required      REQUIRED
   OTP Form                                    REQUIRED
+ZeroTrust Remember Device after MFA           REQUIRED
 ```
 
 Để thêm execution ở top level, dùng `Add step` của trang chi tiết flow. Để thêm
@@ -142,6 +147,8 @@ Token refresh skew:
   30000 ms
 Failure mode:
   DENY
+Monitored login client ID:
+  zerotrust-spa
 ```
 
 Sau đó bind `zerotrust-browser` làm Browser Flow của realm `DoAn`. Cấu hình flow
@@ -151,14 +158,15 @@ provider ID và các config key không đổi.
 ### 8. Chạy các service phụ thuộc và thử end-to-end
 
 ```powershell
-docker compose up -d risk-db
+docker compose up -d risk-db risk-redis
 .\run-risk-local.ps1
 ```
 
 Logout khỏi SPA và Keycloak hoặc mở cửa sổ riêng tư, rồi login lại. Với extractor
 hiện tại, kết quả bình thường là `STEP_UP_MFA`, nên OTP Form phải xuất hiện. OTP
-đúng thì Keycloak phát token; `DENY` hoặc lỗi Risk Service với
-`failureMode=DENY` phải chặn login.
+đúng thì execution sau MFA gọi endpoint trusted-device; chỉ khi API trả `204`,
+Keycloak mới phát cookie `ZT_DEVICE_ID`. `DENY` hoặc lỗi Risk Service ở bước đánh
+giá với `failureMode=DENY` phải chặn login.
 
 ## Đóng gói Keycloak image bền vững
 
@@ -187,7 +195,7 @@ Build image sau khi Maven đã tạo JAR:
 docker build -t zerotrust-keycloak:26.7.0-with-risk -f .\Dockerfile.keycloak .
 ```
 
-`compose.yaml` hiện chỉ khai báo Risk DB, chưa khai báo Keycloak. Vì vậy build
+`compose.yaml` hiện khai báo Risk DB và Redis, chưa khai báo Keycloak. Vì vậy build
 image mới chưa tự thay container `keycloak-26.7.0`. Trước khi chuyển container
 hiện tại sang image này, cần đưa đầy đủ database/volume, port, hostname và biến
 môi trường Keycloak vào Compose; không xóa container đang giữ dữ liệu realm khi
@@ -209,6 +217,9 @@ Module hiện đã có HTTP client độc lập để gọi:
 
 ```text
 POST {risk-service-base-url}/internal/v1/risk/evaluations
+POST {risk-service-base-url}/internal/v1/trusted-devices
+POST {risk-service-base-url}/internal/v1/authentication-failures
+POST {risk-service-base-url}/internal/v1/authentication-successes
 ```
 
 `RiskEvaluationRequest` chỉ chứa login context thô. Client kiểm tra status HTTP,
@@ -278,30 +289,96 @@ DENY        -> dừng flow bằng ACCESS_DENIED
 `RiskStepUpCondition` đọc auth-note để quyết định có chạy conditional subflow OTP
 hay không. Risk Authenticator không tự gọi hoặc tự xác minh OTP.
 
+Khi Risk API thật sự trả `STEP_UP_MFA`, evaluator ghi thêm auth-note cho phép nhớ
+thiết bị và ID của chính cấu hình execution evaluator. Sau OTP, execution
+`ZeroTrust Remember Device after MFA` dùng ID này để đọc lại URL/client secret,
+vì vậy không cần lưu thêm một bản secret trong flow. Nếu chưa có cookie hợp lệ,
+extension sinh device ID ngẫu nhiên 256 bit. Nó gọi
+`POST /internal/v1/trusted-devices` bằng cùng service token rồi chỉ phát cookie
+khi API trả `204`.
+
 Khi Risk Service lỗi, mặc định `failureMode=DENY` để fail-closed. Có thể cấu hình
 `STEP_UP_MFA` cho môi trường chấp nhận fallback sang MFA.
 
-Cookie `ZT_DEVICE_ID` chỉ là tín hiệu nhận diện, không phải bằng chứng xác thực và
-không được dùng thay password/MFA. Milestone hiện tại mới đọc cookie; cơ chế cấp
-cookie và đăng ký thiết bị tin cậy sau khi MFA thành công chưa được triển khai.
+Cookie `ZT_DEVICE_ID` có thời hạn 30 ngày, scope theo realm, `HttpOnly`,
+`SameSite=Lax` và dùng cờ `Secure` khi Keycloak nhận diện secure context. Cookie
+chỉ là định danh ngẫu nhiên; Risk Service lưu HMAC của `subjectId + deviceId`,
+không lưu raw device ID. Nó không phải bằng chứng xác thực và không được dùng thay
+password/MFA.
+
+Nếu thao tác ghi trusted device lỗi sau khi OTP đã đúng, login hiện tại vẫn được
+phép nhưng cookie mới không được phát; lần sau user phải MFA lại. Đây là failure
+mode an toàn cho một chức năng ghi nhớ thiết bị: không hạ mức xác thực và không
+làm Risk Service trở thành single point of failure sau khi MFA đã hoàn tất. Nếu
+API trả `409` vì device đã revoke, extension phát cookie hết hạn để browser bỏ ID
+bị từ chối.
+
+## Authentication Event Listener
+
+`RiskEventListenerFactory` đăng ký provider ID `zerotrust-risk-events` qua
+`META-INF/services/org.keycloak.events.EventListenerProviderFactory`. Sau khi JAR
+được nạp, thêm provider này vào **Realm settings -> Events -> Event listeners**
+và giữ lại các listener đã có, ví dụ `jboss-logging`.
+
+Listener chỉ xử lý `LOGIN_ERROR` và `LOGIN` của client cấu hình trong execution `ZeroTrust
+Risk Evaluation`; mặc định là `zerotrust-spa`. `BrowserFlowRiskConfigLocator` đi
+qua Browser Flow và các subflow để đọc lại chính URL, client ID/secret, timeout
+của evaluator, vì vậy không có bản secret thứ hai trong cấu hình realm. Sự kiện
+của Admin Console và client khác bị bỏ qua.
+
+Mỗi event hợp lệ gửi `eventId`, `subjectId` nếu Keycloak đã nhận diện được user và
+`sourceIp` tới `POST /internal/v1/authentication-failures`. HTTP client dùng cùng
+service-token cache và cơ chế refresh/retry 401 với các endpoint còn lại. Risk API
+chỉ chấp nhận token có `risk:events:write`.
+
+Với `LOGIN`, listener gửi `eventId`, `subjectId`, `clientId` và thời điểm event do
+Keycloak phát tới `POST /internal/v1/authentication-successes`. `Instant` được khóa
+thành chuỗi ISO-8601 trong JSON để không phụ thuộc cấu hình serializer của
+Keycloak. Event thiếu subject hoặc thời gian hợp lệ bị bỏ qua.
+
+Đây là telemetry sau kết quả xác thực, nên lỗi cấu hình, token, network hoặc Risk
+Service chỉ được log bằng loại lỗi/status an toàn và không thay đổi kết quả login.
+Failure counter được cập nhật trong Redis bằng Lua/idempotency; success event được
+ghi idempotent trong MySQL; listener không kết nối trực tiếp tới hai data store.
 
 ## Trạng thái tích hợp
 
-JAR chứa hai factory trong
-`META-INF/services/org.keycloak.authentication.AuthenticatorFactory` và đã được
+JAR chứa ba authenticator factory trong
+`META-INF/services/org.keycloak.authentication.AuthenticatorFactory` và một event
+  listener factory trong file ServiceLoader riêng. Bản build 66/66 test đã được
 chép vào `/opt/keycloak/providers/` của container local `keycloak-26.7.0` ngày
-2026-09-09. Log khởi động xác nhận Keycloak đã nạp cả hai provider. Flow riêng
-`zerotrust-browser` đã được tạo, cấu hình Risk Evaluation và conditional OTP đầy
-đủ và đã được bind làm Browser Flow của realm `DoAn` ngày 2026-09-11.
+  2026-09-17. Checksum JAR local và trong container trùng nhau; log khởi động xác
+  nhận Keycloak đã nạp cả bốn provider. Flow riêng
+`zerotrust-browser` đã được bổ sung execution post-MFA ở đúng cấp sau conditional
+OTP và đặt `REQUIRED`; flow vẫn được bind làm Browser Flow của realm `DoAn`.
 
 Phép thử từ container Keycloak đã lấy token Client Credentials và gọi thành công
-Risk API chạy trên host với Risk DB MySQL 8.0.46: token endpoint trả `200`, evaluation
-trả `200` với `STEP_UP_MFA / MEDIUM`; request thiếu token bị chặn bằng `401`. Đây
-là phép thử kết nối service-to-service. Cần chạy login qua flow mới để xác nhận
-toàn bộ nhánh Authenticator và OTP. Phải logout phiên SPA/Keycloak cũ hoặc dùng
-cửa sổ riêng tư để tạo authentication request mới; `check-sso` có thể tiếp tục
-dùng token hiện hữu mà không chạy lại flow.
+Risk API chạy trên host với Risk DB MySQL 8.0.46: token endpoint trả `200`,
+evaluation trả `200` với `STEP_UP_MFA / MEDIUM`; request thiếu token bị chặn bằng
+`401`.
 
-Phần bảo vệ service-to-service đã hoàn tất trong code. Chưa triển khai production
-cho đến khi luồng đăng nhập end-to-end được kiểm tra, endpoint dùng TLS/mạng nội
-bộ và cơ chế đăng ký thiết bị sau MFA được hoàn thành.
+Luồng đăng nhập end-to-end được xác nhận ngày 2026-09-16: Portal chuyển tới
+Keycloak, risk evaluation yêu cầu OTP, OTP thành công, post-MFA registration trả
+thành công và Portal mở trang `/admin`. Lần đăng nhập thứ hai trên cùng browser
+vẫn chỉ có một row `TRUSTED` trong `known_devices`; `last_seen_at` tiến lên và
+`version` tăng từ 1 lên 2. Điều này xác nhận browser gửi lại cùng
+`ZT_DEVICE_ID` và thao tác đăng ký là idempotent.
+
+Phần bảo vệ service-to-service và cơ chế đăng ký/cookie sau MFA đã hoàn tất trong
+code, flow local và phép thử end-to-end. Realm hiện bật đồng thời
+`jboss-logging` và `zerotrust-risk-events`; token caller chứa đủ ba role Risk API.
+Một lần sai mật khẩu thật đã tạo đúng một event marker, một counter subject và một
+counter IP trong Redis. Risk Service hiện đã đọc hai counter, ánh xạ chúng thành
+`Authentication History Risk` và lấy mức cao hơn để tránh tính hai lần cùng một
+failure event. Phép thử với ba lần sai mật khẩu đã tạo reason
+`AUTHENTICATION_HISTORY_RISK`. Listener hiện cũng thu `LOGIN` thành công làm dữ
+liệu nguồn cho Temporal Profile. Thiết bị `TRUSTED` vẫn phải OTP vì network và
+phép tính temporal chưa hoàn thiện, làm evaluation còn `INCOMPLETE`. Chưa triển khai
+production cho đến khi endpoint dùng TLS/mạng nội bộ, Keycloak có canonical
+hostname/issuer và các nhánh failure/deny được kiểm thử đầy đủ.
+
+Phép thử runtime ngày 2026-09-17 đăng nhập thật qua Authorization Code + PKCE,
+password và OTP, sau đó Portal mở `/admin`. Event Listener đã tạo đúng một row cho
+client `zerotrust-spa` trong `authentication_success_events`; `event_id` và subject
+đều là UUID 36 ký tự, hai timestamp đều có giá trị và không có lỗi telemetry trong
+log Keycloak.

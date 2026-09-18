@@ -1,8 +1,11 @@
 package com.zerotrust.keycloak.risk.client;
 
 import com.zerotrust.keycloak.risk.config.RiskScoringClientConfig;
+import com.zerotrust.keycloak.risk.dto.AuthenticationFailureRequest;
+import com.zerotrust.keycloak.risk.dto.AuthenticationSuccessRequest;
 import com.zerotrust.keycloak.risk.dto.RiskEvaluationRequest;
 import com.zerotrust.keycloak.risk.dto.RiskEvaluationResponse;
+import com.zerotrust.keycloak.risk.dto.TrustedDeviceRegistrationRequest;
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.client.config.RequestConfig;
@@ -23,7 +26,10 @@ import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 import java.util.Objects;
 
-public final class HttpRiskScoringClient implements RiskScoringClient {
+public final class HttpRiskScoringClient implements
+        RiskScoringClient,
+        TrustedDeviceClient,
+        AuthenticationEventClient {
 
     private static final int BUFFER_SIZE = 8 * 1024;
     private static final ContentType JSON_UTF_8 = ContentType.create(
@@ -33,6 +39,9 @@ public final class HttpRiskScoringClient implements RiskScoringClient {
 
     private final CloseableHttpClient httpClient;
     private final URI evaluationUri;
+    private final URI trustedDevicesUri;
+    private final URI authenticationFailuresUri;
+    private final URI authenticationSuccessesUri;
     private final RequestConfig requestConfig;
     private final int maxResponseBytes;
     private final ServiceTokenProvider tokenProvider;
@@ -62,6 +71,9 @@ public final class HttpRiskScoringClient implements RiskScoringClient {
                 "tokenProvider must not be null"
         );
         this.evaluationUri = config.evaluationUri();
+        this.trustedDevicesUri = config.trustedDevicesUri();
+        this.authenticationFailuresUri = config.authenticationFailuresUri();
+        this.authenticationSuccessesUri = config.authenticationSuccessesUri();
         this.requestConfig = RequestConfig.custom()
                 .setConnectionRequestTimeout(RiskScoringClientConfig.timeoutMillis(
                         config.connectionRequestTimeout()))
@@ -81,8 +93,7 @@ public final class HttpRiskScoringClient implements RiskScoringClient {
         try {
             return execute(request, requestBody, accessToken);
         } catch (RiskScoringClientException exception) {
-            if (exception.failureType() != RiskScoringClientException.FailureType.HTTP_ERROR
-                    || exception.statusCode() != 401) {
+            if (!isUnauthorized(exception)) {
                 throw exception;
             }
             tokenProvider.invalidate(accessToken);
@@ -90,19 +101,30 @@ public final class HttpRiskScoringClient implements RiskScoringClient {
         }
     }
 
+    @Override
+    public void register(TrustedDeviceRegistrationRequest request) {
+        Objects.requireNonNull(request, "request must not be null");
+        postNoContentWithTokenRetry(trustedDevicesUri, serialize(request));
+    }
+
+    @Override
+    public void recordFailure(AuthenticationFailureRequest request) {
+        Objects.requireNonNull(request, "request must not be null");
+        postNoContentWithTokenRetry(authenticationFailuresUri, serialize(request));
+    }
+
+    @Override
+    public void recordSuccess(AuthenticationSuccessRequest request) {
+        Objects.requireNonNull(request, "request must not be null");
+        postNoContentWithTokenRetry(authenticationSuccessesUri, serialize(request));
+    }
+
     private RiskEvaluationResponse execute(
             RiskEvaluationRequest request,
             String requestBody,
             String accessToken
     ) {
-        HttpPost httpRequest = new HttpPost(evaluationUri);
-        httpRequest.setConfig(requestConfig);
-        httpRequest.setHeader("Accept", "application/json");
-        httpRequest.setHeader("Authorization", "Bearer " + requireAccessToken(accessToken));
-        httpRequest.setEntity(new StringEntity(
-                requestBody,
-                JSON_UTF_8
-        ));
+        HttpPost httpRequest = authorizedJsonPost(evaluationUri, requestBody, accessToken);
 
         try (CloseableHttpResponse httpResponse = httpClient.execute(httpRequest)) {
             int statusCode = httpResponse.getStatusLine().getStatusCode();
@@ -134,6 +156,53 @@ public final class HttpRiskScoringClient implements RiskScoringClient {
         }
     }
 
+    private void postNoContentWithTokenRetry(URI uri, String requestBody) {
+        String accessToken = tokenProvider.accessToken();
+        try {
+            executeNoContentPost(uri, requestBody, accessToken);
+        } catch (RiskScoringClientException exception) {
+            if (!isUnauthorized(exception)) {
+                throw exception;
+            }
+            tokenProvider.invalidate(accessToken);
+            executeNoContentPost(uri, requestBody, tokenProvider.accessToken());
+        }
+    }
+
+    private void executeNoContentPost(URI uri, String requestBody, String accessToken) {
+        HttpPost httpRequest = authorizedJsonPost(uri, requestBody, accessToken);
+
+        try (CloseableHttpResponse httpResponse = httpClient.execute(httpRequest)) {
+            int statusCode = httpResponse.getStatusLine().getStatusCode();
+            if (statusCode != 204) {
+                throw RiskScoringClientException.httpStatus(statusCode);
+            }
+        } catch (RiskScoringClientException exception) {
+            throw exception;
+        } catch (InterruptedIOException exception) {
+            if (Thread.currentThread().isInterrupted()) {
+                throw RiskScoringClientException.interrupted(exception);
+            }
+            throw RiskScoringClientException.timeout(exception);
+        } catch (IOException exception) {
+            throw RiskScoringClientException.connection(exception);
+        }
+    }
+
+    private HttpPost authorizedJsonPost(URI uri, String requestBody, String accessToken) {
+        HttpPost httpRequest = new HttpPost(uri);
+        httpRequest.setConfig(requestConfig);
+        httpRequest.setHeader("Accept", "application/json");
+        httpRequest.setHeader("Authorization", "Bearer " + requireAccessToken(accessToken));
+        httpRequest.setEntity(new StringEntity(requestBody, JSON_UTF_8));
+        return httpRequest;
+    }
+
+    private static boolean isUnauthorized(RiskScoringClientException exception) {
+        return exception.failureType() == RiskScoringClientException.FailureType.HTTP_ERROR
+                && exception.statusCode() == 401;
+    }
+
     private static String requireAccessToken(String accessToken) {
         if (accessToken == null || accessToken.isBlank()) {
             throw RiskScoringClientException.invalidResponse(
@@ -153,7 +222,7 @@ public final class HttpRiskScoringClient implements RiskScoringClient {
         return accessToken;
     }
 
-    private static String serialize(RiskEvaluationRequest request) {
+    private static String serialize(Object request) {
         try {
             return JsonSerialization.writeValueAsString(request);
         } catch (IOException | RuntimeException exception) {

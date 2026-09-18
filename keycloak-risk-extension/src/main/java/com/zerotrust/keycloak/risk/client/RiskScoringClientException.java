@@ -19,7 +19,7 @@ public final class RiskScoringClientException extends RuntimeException {
     static RiskScoringClientException serialization(Throwable cause) {
         return new RiskScoringClientException(
                 FailureType.SERIALIZATION_FAILURE,
-                "Could not serialize the risk evaluation request",
+                "Could not serialize the Risk Service request",
                 -1,
                 cause
         );

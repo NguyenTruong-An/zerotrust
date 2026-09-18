@@ -7,6 +7,7 @@ import com.zerotrust.risk.domain.LoginContext;
 import com.zerotrust.risk.domain.RiskDataStatus;
 import com.zerotrust.risk.domain.RiskFeatureExtraction;
 import com.zerotrust.risk.domain.RiskReason;
+import com.zerotrust.risk.service.AuthenticationHistoryRiskCalculator;
 import com.zerotrust.risk.service.DeviceRecognitionService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -16,6 +17,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
@@ -27,6 +29,9 @@ class DatabaseBackedRiskFeatureExtractorTests {
 
     @Mock
     private DeviceRecognitionService deviceRecognitionService;
+
+    @Mock
+    private AuthenticationHistoryRiskCalculator authenticationHistoryRiskCalculator;
 
     private DatabaseBackedRiskFeatureExtractor extractor;
     private LoginContext context;
@@ -42,7 +47,8 @@ class DatabaseBackedRiskFeatureExtractorTests {
 
         extractor = new DatabaseBackedRiskFeatureExtractor(
                 deviceRecognitionService,
-                properties
+                properties,
+                authenticationHistoryRiskCalculator
         );
         context = new LoginContext(
                 "subject-1",
@@ -57,6 +63,7 @@ class DatabaseBackedRiskFeatureExtractorTests {
 
     @Test
     void extractsNewDeviceRiskFromDatabaseLookup() {
+        historyRisk("0");
         when(deviceRecognitionService.recognize(context))
                 .thenReturn(new DeviceRecognition(DeviceRecognitionStatus.NEW, HASH));
 
@@ -70,6 +77,7 @@ class DatabaseBackedRiskFeatureExtractorTests {
 
     @Test
     void trustedDeviceHasNoDeviceRiskReason() {
+        historyRisk("0");
         when(deviceRecognitionService.recognize(context))
                 .thenReturn(new DeviceRecognition(DeviceRecognitionStatus.TRUSTED, HASH));
 
@@ -86,6 +94,7 @@ class DatabaseBackedRiskFeatureExtractorTests {
 
     @Test
     void revokedDeviceCreatesPriorityViolation() {
+        historyRisk("0");
         when(deviceRecognitionService.recognize(context))
                 .thenReturn(new DeviceRecognition(DeviceRecognitionStatus.REVOKED, HASH));
 
@@ -93,5 +102,38 @@ class DatabaseBackedRiskFeatureExtractorTests {
 
         assertThat(result.factors().deviceRisk()).isEqualByComparingTo("100");
         assertThat(result.priorityViolation()).contains(RiskReason.REVOKED_DEVICE);
+    }
+
+    @Test
+    void includesAvailableAuthenticationHistoryRisk() {
+        historyRisk("100");
+        when(deviceRecognitionService.recognize(context))
+                .thenReturn(new DeviceRecognition(DeviceRecognitionStatus.TRUSTED, HASH));
+
+        RiskFeatureExtraction result = extractor.extract(context);
+
+        assertThat(result.factors().authenticationHistoryRisk()).isEqualByComparingTo("100");
+        assertThat(result.reasons()).contains(RiskReason.AUTHENTICATION_HISTORY_RISK);
+        assertThat(result.reasons()).doesNotContain(
+                RiskReason.AUTHENTICATION_HISTORY_UNAVAILABLE
+        );
+    }
+
+    @Test
+    void marksAuthenticationHistoryUnavailableWhenRedisCannotBeRead() {
+        when(authenticationHistoryRiskCalculator.calculate(context)).thenReturn(Optional.empty());
+        when(deviceRecognitionService.recognize(context))
+                .thenReturn(new DeviceRecognition(DeviceRecognitionStatus.TRUSTED, HASH));
+
+        RiskFeatureExtraction result = extractor.extract(context);
+
+        assertThat(result.factors().authenticationHistoryRisk())
+                .isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(result.reasons()).contains(RiskReason.AUTHENTICATION_HISTORY_UNAVAILABLE);
+    }
+
+    private void historyRisk(String score) {
+        when(authenticationHistoryRiskCalculator.calculate(context))
+                .thenReturn(Optional.of(new BigDecimal(score)));
     }
 }

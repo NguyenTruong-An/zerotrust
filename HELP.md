@@ -7,8 +7,8 @@
 3. Spring Boot API tại `http://localhost:8080` và frontend SPA tại `http://localhost:3000`.
 4. Risk Scoring Service tại `http://localhost:8081` với profile `dev` khi chạy local.
 
-File `compose.yaml` hiện dựng riêng Risk DB; Portal DB, Keycloak, backend và
-frontend vẫn được chạy độc lập.
+File `compose.yaml` hiện dựng Risk DB và Redis cho Risk Service; Portal DB,
+Keycloak, backend và frontend vẫn được chạy độc lập.
 
 ## 1. Chuẩn bị Keycloak
 
@@ -68,13 +68,14 @@ Windows, chuẩn bị lần đầu bằng:
 ```powershell
 Copy-Item .env.example .env
 # Thay mọi placeholder trong .env bằng secret ngẫu nhiên riêng cho máy local.
-docker compose up -d risk-db
+docker compose up -d risk-db risk-redis
 .\run-risk-local.ps1
 ```
 
 Máy đã được cấu hình trong phiên hiện tại có `.env` sinh ngẫu nhiên và bị Git bỏ
 qua, nên các lần sau chỉ cần hai lệnh cuối. Risk DB dùng user `risk_service`, lưu
-dữ liệu trong named volume và chỉ publish `127.0.0.1:3307`.
+dữ liệu trong named volume và chỉ publish `127.0.0.1:3307`. Redis dùng password,
+AOF, named volume và chỉ publish `127.0.0.1:6379`.
 
 Kiểm tra `GET http://localhost:8081/actuator/health`. Chi tiết vì sao issuer dùng
 cổng nội bộ `8080` nhưng JWKS dùng cổng host `8180` nằm trong
@@ -113,6 +114,10 @@ Risk Service và Keycloak extension:
 - Tạo sinh viên lỗi 503/502: kiểm tra client secret và service-account role của `zerotrust-provisioner`; đây là client backend riêng, không phải `zerotrust-spa`.
 - Risk Service không kết nối được Risk DB: chạy `docker compose up -d risk-db`,
   kiểm tra `.env` và xác nhận container `zerotrust-risk-db` healthy.
+- Risk Service không đọc được authentication history: chạy
+  `docker compose up -d risk-redis`, kiểm tra `RISK_REDIS_*` trong `.env` và xác
+  nhận container `zerotrust-risk-redis` healthy. Hệ thống sẽ giữ trạng thái
+  `INCOMPLETE` và yêu cầu MFA trong thời gian Redis lỗi.
 - Extension không gọi được `localhost:8081`: bên trong container, dùng
   `http://host.docker.internal:8081` và đặt `RISK_BIND_ADDRESS=0.0.0.0` cho môi
   trường local.

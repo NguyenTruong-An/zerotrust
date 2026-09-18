@@ -54,6 +54,29 @@ class RiskDecisionHandlerTest {
                 RiskAuthenticationNotes.STEP_UP_REQUIRED,
                 Boolean.TRUE.toString()
         );
+        verify(session).setAuthNote(
+                RiskAuthenticationNotes.TRUST_DEVICE_ELIGIBLE,
+                Boolean.TRUE.toString()
+        );
+        verify(context).success();
+    }
+
+    @Test
+    void fallbackMfaDoesNotMakeDeviceEligibleForTrust() {
+        AuthenticationFlowContext context = mock(AuthenticationFlowContext.class);
+        AuthenticationSessionModel session = mock(AuthenticationSessionModel.class);
+        when(context.getAuthenticationSession()).thenReturn(session);
+
+        handler.handleUnavailable(context, RiskFailureMode.STEP_UP_MFA, "TIMEOUT");
+
+        verify(session).setAuthNote(
+                RiskAuthenticationNotes.STEP_UP_REQUIRED,
+                Boolean.TRUE.toString()
+        );
+        verify(session, never()).setAuthNote(
+                RiskAuthenticationNotes.TRUST_DEVICE_ELIGIBLE,
+                Boolean.TRUE.toString()
+        );
         verify(context).success();
     }
 

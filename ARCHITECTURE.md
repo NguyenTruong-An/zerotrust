@@ -1,7 +1,7 @@
 # Kiến trúc chuẩn của đồ án Zero Trust
 
 **Trạng thái:** Đã chấp nhận (Accepted)  
-**Ngày cập nhật:** 2026-09-09
+**Ngày cập nhật:** 2026-09-17
 
 **Phạm vi:** Kiến trúc đích và nguyên tắc triển khai bắt buộc của toàn bộ đồ án
 
@@ -12,6 +12,9 @@
 Các thành phần, ranh giới dịch vụ, luồng xác thực và ba loại quyết định `ALLOW`, `STEP_UP_MFA`, `DENY` trong tài liệu này đã được chốt.
 
 Mô hình tính điểm chi tiết, trọng số của từng nhóm đặc trưng và ngưỡng số giữa các mức `LOW`, `MEDIUM`, `HIGH` **chưa được chốt**.
+
+Kết quả đối chiếu với NIST, OWASP, OAuth BCP và tài liệu Keycloak được ghi tại
+`SECURITY_REFERENCE_REVIEW.md`.
 
 ## 2. Sơ đồ kiến trúc hệ thống
 
@@ -33,7 +36,7 @@ flowchart TB
         SPA <-->|"OIDC + PKCE S256"| KC["Keycloak<br/>IAM · Realm · Clients · MFA"]
         KC --> PA["Primary Authentication<br/>Username + Password"]
         PA --> SPI["Custom Authenticator<br/>Keycloak SPI"]
-        KC --> EL["Keycloak Event Listener<br/>Ghi nhận đăng nhập thất bại"]
+        KC --> EL["Keycloak Event Listener<br/>Ghi nhận đăng nhập thành công/thất bại"]
     end
 
     subgraph RISK["Hệ thống đánh giá rủi ro"]
@@ -53,7 +56,7 @@ flowchart TB
     LOGIN["Login Attempt"] --> PRIMARY["Keycloak kiểm tra<br/>username + password"]
 
     PRIMARY -->|"Sai"| EVENT["Keycloak Event Listener"]
-    EVENT --> COUNTER["Cập nhật failure counter trong Redis<br/>và audit trong Risk DB"]
+    EVENT -->|"POST authentication-failures<br/>service token"| COUNTER["Risk Service cập nhật<br/>failure counter trong Redis"]
     COUNTER --> REJECT["Từ chối đăng nhập"]
 
     PRIMARY -->|"Đúng"| CONTEXT["Context Collection"]
@@ -85,6 +88,8 @@ flowchart TB
     MFA -->|"MFA thất bại"| DENY
 
     ALLOW --> TOKEN["Keycloak phát hành JWT"]
+    TOKEN --> SUCCESS_EVENT["Keycloak LOGIN event"]
+    SUCCESS_EVENT -->|"POST authentication-successes<br/>service token"| LOGIN_HISTORY[("Risk DB<br/>Successful login history")]
     HARD --> AUDIT["Lưu kết quả và Audit Log"]
     DENY --> AUDIT
     TOKEN --> AUDIT
@@ -165,12 +170,25 @@ Cho đến khi chủ đồ án phê duyệt, code không được hard-code tr�
 - Dùng confidential service client `zerotrust-risk-caller` để lấy access token
   bằng Client Credentials; không dùng danh tính của người dùng đang đăng nhập.
 - Chuyển quyết định thành allow, step-up MFA hoặc deny.
+- Sau một `STEP_UP_MFA` thật và OTP thành công, đăng ký trusted device bằng role
+  `risk:device:write`; chỉ phát cookie định danh thiết bị khi Risk API trả `204`.
+- Cookie device là ID ngẫu nhiên realm-scoped, `HttpOnly`, `SameSite=Lax`, không
+  phải credential và không thay password/MFA.
 - Không tự chứa công thức, trọng số hoặc ngưỡng chấm điểm.
 
 ### Keycloak Event Listener
 
-- Ghi nhận các sự kiện không đi tiếp qua Custom Authenticator, đặc biệt là login failure và MFA failure.
-- Cập nhật dữ liệu cần thiết cho Redis và Risk DB.
+- Provider `zerotrust-risk-events` ghi nhận `LOGIN_ERROR` và `LOGIN` của client được cấu
+  hình, mặc định là `zerotrust-spa`; sự kiện của Admin Console và client khác bị
+  bỏ qua.
+- Gửi sự kiện tới endpoint nội bộ của Risk Service bằng service token có role
+  `risk:events:write`; không kết nối trực tiếp từ Keycloak tới Redis.
+- Dùng lại URL, client credential và timeout của execution `ZeroTrust Risk
+  Evaluation` trong Browser Flow, tránh lưu thêm một bản client secret.
+- `LOGIN_ERROR` cập nhật counter ngắn hạn trong Redis; `LOGIN` lưu thời điểm xác
+  thực dài hạn trong Risk DB để làm dữ liệu nguồn cho Temporal Profile.
+- Lỗi telemetry chỉ được log ở mức an toàn và không thay đổi kết quả xác thực mà
+  Keycloak đã quyết định.
 
 ### Risk Scoring Service
 
@@ -182,17 +200,29 @@ Cho đến khi chủ đồ án phê duyệt, code không được hard-code tr�
 - Chỉ nhận evaluation request có JWT đúng issuer, audience
   `zerotrust-risk-api`, authorized party `zerotrust-risk-caller` và client role
   `risk:evaluate`.
+- Chỉ nhận request đăng ký trusted device từ cùng service caller khi token có
+  client role riêng `risk:device:write`.
+- Chỉ nhận authentication failure/success event khi token có client role riêng
+  `risk:events:write`. Role đã được gán cho service account và dedicated scope của
+  `zerotrust-risk-caller`; token runtime đã được xác minh có role này.
 - Chỉ expose endpoint nội bộ qua TLS và mạng riêng trong production.
 
 ### Redis
 
-- Lưu failure counter theo cửa sổ thời gian.
+- Lưu failure counter theo subject/IP trong cửa sổ thời gian 15 phút mặc định.
+- Dùng HMAC cho phần định danh trong key, TTL cho mọi counter và event marker,
+  cùng Lua script nguyên tử để chống một `eventId` làm tăng counter nhiều lần.
+- Event Listener đã cấp dữ liệu thật cho các counter này; feature extractor đọc
+  counter theo subject và source IP, ánh xạ theo các dải cấu hình rồi lấy mức cao
+  hơn để tránh tính hai lần cùng một failure event.
 - Lưu login velocity, rate limit và dữ liệu ngắn hạn.
 - Cache dữ liệu thiết bị, IP hoặc hồ sơ cần truy cập nhanh.
 
 ### Risk DB
 
 - Lưu thiết bị và hồ sơ hành vi rủi ro.
+- Lưu mỗi `LOGIN` thành công theo `event_id`, subject, client, thời điểm Keycloak
+  xác thực và thời điểm Risk Service ghi nhận; unique event ID chống ghi lặp.
 - Lưu authentication event, kết quả đánh giá, quyết định và lý do.
 - Lưu audit dài hạn.
 

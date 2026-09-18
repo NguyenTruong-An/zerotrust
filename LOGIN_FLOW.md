@@ -30,9 +30,13 @@ Phân chia trách nhiệm:
 - Redis không còn cần cho phiên Portal. Redis trong `ARCHITECTURE.md` chỉ phục vụ Risk Scoring Service.
 - Client `zerotrust-provisioner` vẫn là confidential service account riêng để backend tạo/quản lý tài khoản Keycloak. Nó không tham gia đăng nhập trình duyệt.
 - Custom Authenticator dùng confidential client `zerotrust-risk-caller` để gọi
-  resource `zerotrust-risk-api` bằng Client Credentials. Client này chỉ có role
-  `risk:evaluate` và tách biệt hoàn toàn với `zerotrust-provisioner`; chi tiết ở
-  `RISK_API_SECURITY.md`.
+  resource `zerotrust-risk-api` bằng Client Credentials. Role `risk:evaluate`
+  chỉ cho phép đánh giá; bước ghi trusted device sau MFA dùng role riêng
+  `risk:device:write`. Keycloak Event Listener dùng role `risk:events:write` để
+  ghi `LOGIN_ERROR` vào backend Redis qua Risk API. Cả ba role đã được gán theo
+  least privilege cho cùng service account và dedicated scope. Client này tách
+  biệt hoàn toàn với
+  `zerotrust-provisioner`; chi tiết ở `RISK_API_SECURITY.md`.
 
 ## 2. Vì sao không có `/auth/login`
 
@@ -113,6 +117,12 @@ Code flow:
 Reload tab sẽ mất token trong memory. `check-sso` dùng SSO session của Keycloak để khôi phục đăng nhập mà không yêu cầu nhập lại mật khẩu nếu Keycloak session còn hiệu lực.
 
 Đây là đánh đổi chính của SPA: tránh rủi ro token tồn tại lâu trong storage, nhưng XSS chạy trong tab vẫn có thể lợi dụng token hiện tại. Access token nên có TTL ngắn, ví dụ khoảng 5 phút; giới hạn cuối cùng phải được cấu hình tại Keycloak theo yêu cầu đồ án.
+
+Cookie `ZT_DEVICE_ID` mới thuộc origin Keycloak và chỉ nhận diện thiết bị cho Risk
+Evaluation. Nó được phát sau một lần MFA thành công, có `HttpOnly`, realm path,
+`SameSite=Lax`, thời hạn 30 ngày và `Secure` trong secure context. Cookie này
+không đăng nhập Portal API, không chứa access/refresh token và không thay đổi mô
+hình Resource Server stateless ở trên.
 
 ## 6. Refresh token nằm ở đoạn nào
 

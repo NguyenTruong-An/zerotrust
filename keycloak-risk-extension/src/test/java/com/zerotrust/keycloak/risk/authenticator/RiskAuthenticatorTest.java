@@ -10,11 +10,14 @@ import com.zerotrust.keycloak.risk.config.ServiceTokenConfig;
 import com.zerotrust.keycloak.risk.context.LoginContextExtractor;
 import com.zerotrust.keycloak.risk.dto.RiskEvaluationRequest;
 import com.zerotrust.keycloak.risk.dto.RiskEvaluationResponse;
+import com.zerotrust.keycloak.risk.dto.RiskDecision;
+import com.zerotrust.keycloak.risk.policy.RiskAuthenticationNotes;
 import com.zerotrust.keycloak.risk.policy.RiskDecisionHandler;
 import com.zerotrust.keycloak.risk.policy.RiskFailureMode;
 import org.junit.jupiter.api.Test;
 import org.keycloak.authentication.AuthenticationFlowContext;
 import org.keycloak.models.AuthenticatorConfigModel;
+import org.keycloak.sessions.AuthenticationSessionModel;
 
 import java.net.URI;
 import java.time.Duration;
@@ -30,12 +33,17 @@ class RiskAuthenticatorTest {
         Fixture fixture = new Fixture();
         RiskEvaluationResponse evaluation = mock(RiskEvaluationResponse.class);
         when(fixture.client.evaluate(fixture.request)).thenReturn(evaluation);
+        when(evaluation.decision()).thenReturn(RiskDecision.STEP_UP_MFA);
 
         fixture.authenticator.authenticate(fixture.context);
 
         verify(fixture.clientFactory).create(fixture.config);
         verify(fixture.client).evaluate(fixture.request);
         verify(fixture.decisionHandler).handle(fixture.context, evaluation);
+        verify(fixture.authenticationSession).setAuthNote(
+                RiskAuthenticationNotes.EVALUATOR_CONFIG_ID,
+                "risk-config-1"
+        );
     }
 
     @Test
@@ -58,6 +66,9 @@ class RiskAuthenticatorTest {
 
     private static final class Fixture {
         private final AuthenticationFlowContext context = mock(AuthenticationFlowContext.class);
+        private final AuthenticationSessionModel authenticationSession = mock(
+                AuthenticationSessionModel.class
+        );
         private final AuthenticatorConfigModel authenticatorConfig = mock(AuthenticatorConfigModel.class);
         private final LoginContextExtractor contextExtractor = mock(LoginContextExtractor.class);
         private final RiskAuthenticatorConfigResolver configResolver = mock(
@@ -93,6 +104,8 @@ class RiskAuthenticatorTest {
                     failureMode
             );
             when(context.getAuthenticatorConfig()).thenReturn(authenticatorConfig);
+            when(context.getAuthenticationSession()).thenReturn(authenticationSession);
+            when(authenticatorConfig.getId()).thenReturn("risk-config-1");
             when(configResolver.resolve(authenticatorConfig)).thenReturn(config);
             when(contextExtractor.extract(context)).thenReturn(request);
             when(clientFactory.create(config)).thenReturn(client);

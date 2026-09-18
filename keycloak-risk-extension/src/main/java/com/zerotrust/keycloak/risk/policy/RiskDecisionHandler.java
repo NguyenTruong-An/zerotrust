@@ -34,6 +34,10 @@ public final class RiskDecisionHandler {
             context.success();
         } else if (evaluation.decision() == RiskDecision.STEP_UP_MFA) {
             requireStepUp(session);
+            session.setAuthNote(
+                    RiskAuthenticationNotes.TRUST_DEVICE_ELIGIBLE,
+                    Boolean.TRUE.toString()
+            );
             context.success();
         } else {
             deny(context);
