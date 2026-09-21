@@ -8,6 +8,7 @@ import com.zerotrust.keycloak.risk.dto.AuthenticationSuccessRequest;
 import com.zerotrust.keycloak.risk.dto.RiskDecision;
 import com.zerotrust.keycloak.risk.dto.RiskEvaluationRequest;
 import com.zerotrust.keycloak.risk.dto.RiskEvaluationResponse;
+import com.zerotrust.keycloak.risk.dto.RiskReason;
 import com.zerotrust.keycloak.risk.dto.TrustedDeviceRegistrationRequest;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
@@ -77,7 +78,7 @@ class HttpRiskScoringClientTest {
                       "riskLevel": "MEDIUM",
                       "decision": "STEP_UP_MFA",
                       "dataStatus": "INCOMPLETE",
-                      "reasons": ["NEW_DEVICE", "NETWORK_INTELLIGENCE_UNAVAILABLE"],
+                      "reasons": ["NEW_DEVICE", "NETWORK_INTELLIGENCE_UNAVAILABLE", "TEMPORAL_PROFILE_COLD_START", "EXCESSIVE_AUTHENTICATION_FAILURES"],
                       "evaluatedAt": "2026-09-04T08:00:00Z"
                     }
                     """);
@@ -90,6 +91,10 @@ class HttpRiskScoringClientTest {
         assertEquals("Bearer service-token", authorization.get());
         assertEquals(RiskDecision.STEP_UP_MFA, response.decision());
         assertEquals("user-1", response.subjectId());
+        assertEquals(
+                RiskReason.EXCESSIVE_AUTHENTICATION_FAILURES,
+                response.reasons().get(3)
+        );
 
         @SuppressWarnings("unchecked")
         Map<String, Object> requestJson = JsonSerialization.valueFromString(body.get(), Map.class);

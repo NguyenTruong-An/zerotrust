@@ -1,6 +1,7 @@
 package com.zerotrust.risk.service;
 
 import com.zerotrust.risk.config.AuthenticationHistoryRiskProperties;
+import com.zerotrust.risk.domain.AuthenticationHistoryRiskAssessment;
 import com.zerotrust.risk.domain.LoginContext;
 import com.zerotrust.risk.repository.AuthenticationFailureStore;
 import org.junit.jupiter.api.BeforeEach;
@@ -44,36 +45,44 @@ class AuthenticationHistoryRiskCalculatorTests {
     void returnsZeroWhenBothCountersAreBelowMediumThresholds() {
         counters(2, 9);
 
-        Optional<BigDecimal> result = calculator.calculate(context);
+        Optional<AuthenticationHistoryRiskAssessment> result = calculator.calculate(context);
 
-        assertThat(result).contains(BigDecimal.ZERO);
+        assertThat(result).isPresent();
+        assertThat(result.orElseThrow().riskScore()).isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(result.orElseThrow().highRisk()).isFalse();
     }
 
     @Test
     void usesSubjectCounterAtTheMediumBand() {
         counters(3, 0);
 
-        Optional<BigDecimal> result = calculator.calculate(context);
+        Optional<AuthenticationHistoryRiskAssessment> result = calculator.calculate(context);
 
-        assertThat(result).contains(new BigDecimal("50"));
+        assertThat(result).isPresent();
+        assertThat(result.orElseThrow().riskScore()).isEqualByComparingTo("50");
+        assertThat(result.orElseThrow().highRisk()).isFalse();
     }
 
     @Test
     void usesSourceIpCounterAtTheHighBand() {
         counters(0, 20);
 
-        Optional<BigDecimal> result = calculator.calculate(context);
+        Optional<AuthenticationHistoryRiskAssessment> result = calculator.calculate(context);
 
-        assertThat(result).contains(new BigDecimal("100"));
+        assertThat(result).isPresent();
+        assertThat(result.orElseThrow().riskScore()).isEqualByComparingTo("100");
+        assertThat(result.orElseThrow().highRisk()).isTrue();
     }
 
     @Test
     void takesMaximumInsteadOfAddingTheSameFailureTwice() {
         counters(3, 10);
 
-        Optional<BigDecimal> result = calculator.calculate(context);
+        Optional<AuthenticationHistoryRiskAssessment> result = calculator.calculate(context);
 
-        assertThat(result).contains(new BigDecimal("50"));
+        assertThat(result).isPresent();
+        assertThat(result.orElseThrow().riskScore()).isEqualByComparingTo("50");
+        assertThat(result.orElseThrow().highRisk()).isFalse();
     }
 
     @Test
@@ -81,7 +90,7 @@ class AuthenticationHistoryRiskCalculatorTests {
         when(failureStore.countBySubject(context.subjectId()))
                 .thenThrow(new DataAccessResourceFailureException("Redis unavailable"));
 
-        Optional<BigDecimal> result = calculator.calculate(context);
+        Optional<AuthenticationHistoryRiskAssessment> result = calculator.calculate(context);
 
         assertThat(result).isEmpty();
     }

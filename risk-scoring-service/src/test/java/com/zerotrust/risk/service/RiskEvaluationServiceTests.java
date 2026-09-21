@@ -73,6 +73,33 @@ class RiskEvaluationServiceTests {
         assertThat(result.reasons()).containsExactly(RiskReason.REVOKED_DEVICE);
     }
 
+    @Test
+    void mandatoryStepUpGuardrailOverridesALowWeightedScore() {
+        RiskFeatureExtractor extractor = context -> new RiskFeatureExtraction(
+                new RiskFactors(
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        new BigDecimal("100")
+                ),
+                RiskDataStatus.COMPLETE,
+                List.of(
+                        RiskReason.AUTHENTICATION_HISTORY_RISK,
+                        RiskReason.EXCESSIVE_AUTHENTICATION_FAILURES
+                ),
+                Optional.empty(),
+                Optional.of(RiskReason.EXCESSIVE_AUTHENTICATION_FAILURES)
+        );
+        RiskEvaluationService service = evaluationService(List.of(), extractor);
+
+        RiskEvaluation result = service.evaluate(context());
+
+        assertThat(result.riskScore()).isEqualByComparingTo("25.00");
+        assertThat(result.dataStatus()).isEqualTo(RiskDataStatus.COMPLETE);
+        assertThat(result.decision()).isEqualTo(RiskDecision.STEP_UP_MFA);
+        assertThat(result.reasons()).contains(RiskReason.EXCESSIVE_AUTHENTICATION_FAILURES);
+    }
+
     private RiskEvaluationService evaluationService(
             List<PrioritySecurityRule> rules,
             RiskFeatureExtractor extractor

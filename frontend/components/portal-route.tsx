@@ -163,7 +163,12 @@ export function PortalRoute({ area }: { area: PortalArea }) {
     getKeycloak().clearToken();
     window.location.replace('/');
   }, []);
-  const login = useCallback(() => { void getKeycloak().login({ redirectUri: appRedirectUri() }); }, []);
+  const login = useCallback(() => {
+    void getKeycloak().login({
+      redirectUri: appRedirectUri(),
+      locale: 'vi',
+    });
+  }, []);
   const logout = useCallback(() => {
     setAccessState('checking');
     void getKeycloak().logout({ redirectUri: appRedirectUri() }).catch(() => {

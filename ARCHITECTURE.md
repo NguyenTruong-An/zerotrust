@@ -1,7 +1,7 @@
 # Kiến trúc chuẩn của đồ án Zero Trust
 
 **Trạng thái:** Đã chấp nhận (Accepted)  
-**Ngày cập nhật:** 2026-09-17
+**Ngày cập nhật:** 2026-09-18
 
 **Phạm vi:** Kiến trúc đích và nguyên tắc triển khai bắt buộc của toàn bộ đồ án
 
@@ -119,6 +119,13 @@ Các nhóm đặc trưng cấp cao đã xác định:
 
 Priority Security Rules chạy trước weighted scoring. Một vi phạm bắt buộc có thể dẫn đến `Hard Deny` mà không phụ thuộc vào điểm tổng hợp.
 
+Nguồn Network Risk của milestone hiện tại là policy CIDR IPv4/IPv6 do operator
+quản lý, chạy nội bộ trong Risk Service và không gửi IP cho bên thứ ba. Provider
+mặc định tắt; chỉ được bật khi reverse proxy/Keycloak đã cung cấp canonical client
+IP và policy cho shared NAT/VPN đã được duyệt. CIDR network chỉ là một tín hiệu,
+không thay thế identity hoặc device trust. External reputation/geolocation là một
+thay đổi provider riêng và cần review SLA, privacy, retention cùng data residency.
+
 ## 5. Những nội dung chưa chốt
 
 Các nội dung sau vẫn là quyết định thiết kế mở:
@@ -178,9 +185,9 @@ Cho đến khi chủ đồ án phê duyệt, code không được hard-code tr�
 
 ### Keycloak Event Listener
 
-- Provider `zerotrust-risk-events` ghi nhận `LOGIN_ERROR` và `LOGIN` của client được cấu
-  hình, mặc định là `zerotrust-spa`; sự kiện của Admin Console và client khác bị
-  bỏ qua.
+- Provider `zerotrust-risk-events` ghi nhận `LOGIN`, `invalid_user_credentials`
+  và `user_not_found` của client được cấu hình, mặc định là `zerotrust-spa`;
+  `expired_code`, lỗi do lockout, sự kiện Admin Console và client khác bị bỏ qua.
 - Gửi sự kiện tới endpoint nội bộ của Risk Service bằng service token có role
   `risk:events:write`; không kết nối trực tiếp từ Keycloak tới Redis.
 - Dùng lại URL, client credential và timeout của execution `ZeroTrust Risk
@@ -196,6 +203,12 @@ Cho đến khi chủ đồ án phê duyệt, code không được hard-code tr�
 - Trích xuất đặc trưng rủi ro.
 - Áp dụng Priority Security Rules.
 - Thực hiện Policy-based Weighted Risk Scoring sau khi mô hình được phê duyệt.
+- Dựng Temporal Profile theo subject/client từ lịch sử đăng nhập thành công,
+  baseline thứ trong tuần và giờ địa phương; cold-start hoặc lỗi dữ liệu không
+  được hiểu là rủi ro thấp.
+- Dải authentication-history high là guardrail bắt buộc MFA, không phụ thuộc việc
+  factor này chỉ chiếm một phần trong weighted score; Keycloak vẫn sở hữu khóa
+  brute-force tạm thời.
 - Trả về mức rủi ro, quyết định và lý do.
 - Chỉ nhận evaluation request có JWT đúng issuer, audience
   `zerotrust-risk-api`, authorized party `zerotrust-risk-caller` và client role
@@ -223,6 +236,8 @@ Cho đến khi chủ đồ án phê duyệt, code không được hard-code tr�
 - Lưu thiết bị và hồ sơ hành vi rủi ro.
 - Lưu mỗi `LOGIN` thành công theo `event_id`, subject, client, thời điểm Keycloak
   xác thực và thời điểm Risk Service ghi nhận; unique event ID chống ghi lặp.
+- Có index `(subject_id, client_id, authenticated_at)` để đọc cửa sổ lịch sử cho
+  Temporal Profile mà không quét toàn bảng.
 - Lưu authentication event, kết quả đánh giá, quyết định và lý do.
 - Lưu audit dài hạn.
 

@@ -320,8 +320,11 @@ bị từ chối.
 được nạp, thêm provider này vào **Realm settings -> Events -> Event listeners**
 và giữ lại các listener đã có, ví dụ `jboss-logging`.
 
-Listener chỉ xử lý `LOGIN_ERROR` và `LOGIN` của client cấu hình trong execution `ZeroTrust
-Risk Evaluation`; mặc định là `zerotrust-spa`. `BrowserFlowRiskConfigLocator` đi
+Listener chỉ xử lý `LOGIN` và các `LOGIN_ERROR` có nguyên nhân
+`invalid_user_credentials` hoặc `user_not_found` của client cấu hình trong execution
+`ZeroTrust Risk Evaluation`; mặc định là `zerotrust-spa`. Các lỗi kỹ thuật/trạng
+thái như `expired_code` và `user_temporarily_disabled` bị bỏ qua để không làm tăng
+counter brute-force lần thứ hai. `BrowserFlowRiskConfigLocator` đi
 qua Browser Flow và các subflow để đọc lại chính URL, client ID/secret, timeout
 của evaluator, vì vậy không có bản secret thứ hai trong cấu hình realm. Sự kiện
 của Admin Console và client khác bị bỏ qua.
@@ -345,7 +348,7 @@ ghi idempotent trong MySQL; listener không kết nối trực tiếp tới hai 
 
 JAR chứa ba authenticator factory trong
 `META-INF/services/org.keycloak.authentication.AuthenticatorFactory` và một event
-  listener factory trong file ServiceLoader riêng. Bản build 66/66 test đã được
+  listener factory trong file ServiceLoader riêng. Bản build 68/68 test đã được
 chép vào `/opt/keycloak/providers/` của container local `keycloak-26.7.0` ngày
   2026-09-17. Checksum JAR local và trong container trùng nhau; log khởi động xác
   nhận Keycloak đã nạp cả bốn provider. Flow riêng
@@ -367,13 +370,18 @@ vẫn chỉ có một row `TRUSTED` trong `known_devices`; `last_seen_at` tiến
 Phần bảo vệ service-to-service và cơ chế đăng ký/cookie sau MFA đã hoàn tất trong
 code, flow local và phép thử end-to-end. Realm hiện bật đồng thời
 `jboss-logging` và `zerotrust-risk-events`; token caller chứa đủ ba role Risk API.
-Một lần sai mật khẩu thật đã tạo đúng một event marker, một counter subject và một
-counter IP trong Redis. Risk Service hiện đã đọc hai counter, ánh xạ chúng thành
+Một lần sai mật khẩu thật tạo đúng một event marker, một counter subject và một
+counter IP trong Redis. `expired_code` và lỗi do tài khoản đã tạm khóa không còn
+được tính như một lần sai credential mới. Risk Service đọc hai counter, ánh xạ chúng thành
 `Authentication History Risk` và lấy mức cao hơn để tránh tính hai lần cùng một
 failure event. Phép thử với ba lần sai mật khẩu đã tạo reason
-`AUTHENTICATION_HISTORY_RISK`. Listener hiện cũng thu `LOGIN` thành công làm dữ
-liệu nguồn cho Temporal Profile. Thiết bị `TRUSTED` vẫn phải OTP vì network và
-phép tính temporal chưa hoàn thiện, làm evaluation còn `INCOMPLETE`. Chưa triển khai
+`AUTHENTICATION_HISTORY_RISK`; dải high bắt buộc `STEP_UP_MFA` kể cả khi weighted
+score thấp hơn ngưỡng medium. Listener hiện cũng thu `LOGIN` thành công làm dữ
+liệu nguồn cho Temporal Profile. Risk Service hiện đã tính baseline theo thứ/giờ,
+phân biệt cold-start với lỗi dữ liệu và nối Temporal Risk vào extractor. Thiết bị
+CIDR Network Intelligence đã được nối vào Risk Service nhưng mặc định tắt để
+fail-safe cho đến khi canonical client IP và policy mạng được duyệt. Vì vậy local
+hiện tại vẫn có thể trả `INCOMPLETE` và yêu cầu OTP cho device `TRUSTED`. Chưa triển khai
 production cho đến khi endpoint dùng TLS/mạng nội bộ, Keycloak có canonical
 hostname/issuer và các nhánh failure/deny được kiểm thử đầy đủ.
 

@@ -12,6 +12,7 @@ import org.jboss.logging.Logger;
 import org.keycloak.events.Event;
 import org.keycloak.events.EventListenerProvider;
 import org.keycloak.events.EventType;
+import org.keycloak.events.Errors;
 import org.keycloak.events.admin.AdminEvent;
 import org.keycloak.models.AuthenticatorConfigModel;
 import org.keycloak.models.KeycloakSession;
@@ -19,11 +20,16 @@ import org.keycloak.models.RealmModel;
 
 import java.time.Instant;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 
 public final class RiskEventListener implements EventListenerProvider {
 
     private static final Logger LOGGER = Logger.getLogger(RiskEventListener.class);
+    private static final Set<String> COUNTED_AUTHENTICATION_ERRORS = Set.of(
+            Errors.INVALID_USER_CREDENTIALS,
+            Errors.USER_NOT_FOUND
+    );
 
     private final KeycloakSession session;
     private final BrowserFlowRiskConfigLocator configLocator;
@@ -54,6 +60,10 @@ public final class RiskEventListener implements EventListenerProvider {
     @Override
     public void onEvent(Event event) {
         if (event == null || !isSupported(event.getType())) {
+            return;
+        }
+        if (event.getType() == EventType.LOGIN_ERROR
+                && !COUNTED_AUTHENTICATION_ERRORS.contains(event.getError())) {
             return;
         }
 

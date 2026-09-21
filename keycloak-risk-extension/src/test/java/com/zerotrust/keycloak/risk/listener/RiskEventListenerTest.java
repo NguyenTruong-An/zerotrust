@@ -12,6 +12,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.keycloak.events.Event;
 import org.keycloak.events.EventType;
+import org.keycloak.events.Errors;
 import org.keycloak.models.AuthenticatorConfigModel;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.RealmModel;
@@ -112,6 +113,26 @@ class RiskEventListenerTest {
     }
 
     @Test
+    void ignoresExpiredAuthenticationCodeWithoutIncrementingFailureCounters() {
+        Event event = loginEvent(EventType.LOGIN_ERROR, "zerotrust-spa");
+        event.setError(Errors.EXPIRED_CODE);
+
+        listener.onEvent(event);
+
+        verifyNoInteractions(configLocator, configResolver, clientFactory, client);
+    }
+
+    @Test
+    void ignoresTemporaryLockoutErrorsWithoutIncrementingFailureCounters() {
+        Event event = loginEvent(EventType.LOGIN_ERROR, "zerotrust-spa");
+        event.setError(Errors.USER_TEMPORARILY_DISABLED);
+
+        listener.onEvent(event);
+
+        verifyNoInteractions(configLocator, configResolver, clientFactory, client);
+    }
+
+    @Test
     void ignoresUnrelatedEventWithoutResolvingConfiguration() {
         Event event = loginEvent(EventType.LOGOUT, "zerotrust-spa");
 
@@ -155,6 +176,9 @@ class RiskEventListenerTest {
         event.setRealmId("realm-1");
         event.setClientId(clientId);
         event.setIpAddress("203.0.113.10");
+        if (eventType == EventType.LOGIN_ERROR) {
+            event.setError(Errors.INVALID_USER_CREDENTIALS);
+        }
         return event;
     }
 }

@@ -288,7 +288,9 @@ là hai điểm mở rộng khác nhau dù cùng nằm trong một JAR.
 
 #### `RiskEventListener`
 
-- `onEvent(Event)` bỏ qua mọi event ngoài `LOGIN_ERROR` và `LOGIN`.
+- `onEvent(Event)` bỏ qua mọi event ngoài `LOGIN_ERROR` và `LOGIN`. Với
+  `LOGIN_ERROR`, listener chỉ giữ `invalid_user_credentials` và `user_not_found`;
+  `expired_code`, lỗi session và `user_temporarily_disabled` không được đếm.
 - Listener tìm realm, lấy config Browser Flow, rồi chỉ tiếp tục khi `clientId`
   khớp client được giám sát, mặc định `zerotrust-spa`.
 - Với `LOGIN_ERROR`, request gửi `eventId`, `userId` nếu có và IP do Keycloak quan
@@ -693,8 +695,9 @@ Engine quyết định DENY                             -> HTTP 200 + decision=D
 - `evaluate(context)` chạy `PrioritySecurityRuleEvaluator.firstViolation()`
   trước. Có vi phạm thì deny ngay; không có mới gọi `evaluateFeatures()`.
 - `evaluateFeatures()` gọi extractor, deny nếu extractor phát hiện priority
-  violation như revoked device, step-up nếu data chưa complete, và chỉ weighted
-  scoring khi data complete.
+  violation như revoked device, step-up nếu data chưa complete, bắt buộc step-up
+  nếu authentication history ở dải high, và weighted scoring bình thường cho dữ
+  liệu complete còn lại. Guardrail không hạ một weighted decision `HIGH/DENY`.
 
 #### `PrioritySecurityRule`
 
@@ -724,15 +727,23 @@ Interface có `extract(context)` trả `RiskFeatureExtraction`.
 1. gọi `DeviceRecognitionService.recognize()`;
 2. map `MISSING/NEW/PENDING/TRUSTED/REVOKED` thành device score/reason;
 3. revoked device tạo priority violation;
-4. gọi `AuthenticationHistoryRiskCalculator.calculate()` để đọc counter Redis và
-   ánh xạ authentication-history score;
-5. thêm `AUTHENTICATION_HISTORY_RISK` khi score dương, hoặc
-   `AUTHENTICATION_HISTORY_UNAVAILABLE` khi Redis không đọc được;
-6. thêm hai reason network và temporal unavailable, đặt hai factor này bằng 0;
-7. hiện vẫn trả `RiskDataStatus.INCOMPLETE` vì network chưa có nguồn và successful
-   login history chưa được chuyển thành Temporal Risk factor.
+4. gọi `AuthenticationHistoryRiskCalculator.calculate()` để đọc counter Redis,
+   ánh xạ authentication-history score và giữ cờ high-risk độc lập với score;
+5. thêm `AUTHENTICATION_HISTORY_RISK` khi score dương; dải high thêm
+   `EXCESSIVE_AUTHENTICATION_FAILURES` và mandatory-step-up guardrail; Redis
+   không đọc được thì thêm `AUTHENTICATION_HISTORY_UNAVAILABLE`;
+6. gọi `NetworkRiskCalculator.calculate()` để phân loại canonical IP bằng policy
+   CIDR; thêm `NETWORK_RISK` khi score dương hoặc
+   `NETWORK_INTELLIGENCE_UNAVAILABLE` khi provider bị tắt/IP không hợp lệ;
+7. gọi `TemporalRiskCalculator.calculate()` để đọc successful-login history và
+   ánh xạ baseline thứ/giờ thành temporal score;
+8. thêm `TEMPORAL_RISK` khi score dương, `TEMPORAL_PROFILE_COLD_START` khi chưa đủ
+   mẫu hoặc `TEMPORAL_PROFILE_UNAVAILABLE` khi Risk DB không đọc được;
+9. trả `COMPLETE` chỉ khi network, authentication history và temporal đều
+   available; trường hợp khác trả `INCOMPLETE`.
 
-Hai số 0 của nguồn chưa triển khai không được dùng để tạo score thấp giả, vì
+Network/authentication-history score 0 thay thế khi unavailable và temporal score
+0 trong cold-start/unavailable không được dùng để tạo score thấp giả, vì
 orchestrator không gọi weighted scoring khi data status là `INCOMPLETE`.
 
 ### 5.4. Nhận diện và lưu thiết bị
@@ -868,9 +879,11 @@ gần 15 phút cho counter.
 
 #### `AuthenticationSuccessEventRepository`
 
-- Kế thừa `JpaRepository` để chuẩn bị cho truy vấn profile tiếp theo.
+- Kế thừa `JpaRepository`.
 - `insertIfAbsent()` dùng native `INSERT IGNORE` trên unique `event_id`; đây là một
   thao tác nguyên tử, tránh race của mô hình `exists` rồi `insert`.
+- `findRecentAuthenticationTimes()` chỉ lấy event đúng subject/client, trong
+  `[windowStart, evaluationTime)`, mới nhất trước và giới hạn bằng `Pageable`.
 
 #### `AuthenticationSuccessService`
 
@@ -881,14 +894,73 @@ gần 15 phút cho counter.
 
 Migration `V2__create_authentication_success_events.sql` tạo unique event ID,
 index `(subject_id, authenticated_at)` cho truy vấn lịch sử theo user/thời gian và
-index `recorded_at` cho vận hành/retention sau này. Milestone này mới thu dữ liệu
-thật; chưa dựng baseline, cold-start rule hoặc Temporal Risk factor.
+index `recorded_at` cho vận hành/retention sau này. Migration V3 thêm index
+`(subject_id, client_id, authenticated_at)` cho đường đọc Temporal Profile.
 
 Runtime ngày 2026-09-17 đã xác nhận một login password + OTP tạo đúng một row cho
 `zerotrust-spa`; event ID và subject là UUID 36 ký tự, cả hai timestamp đều có giá
 trị. Gửi cùng một smoke-test event hai lần chỉ tạo một row và row test đã được dọn.
 
-### 5.7. Tính điểm và quyết định
+### 5.7. Temporal Profile
+
+#### `TemporalRiskProperties`
+
+- Bind history window, số mẫu tối thiểu/tối đa, timezone, dung sai giờ, ngưỡng tần
+  suất thứ/giờ và score medium/high.
+- Validation buộc history window dương, minimum không vượt maximum, dung sai giờ
+  trong `[0,12]`, tần suất trong `(0,1]`, score trong `(0,100]` và medium không
+  vượt high.
+- Baseline development hiện là 90 ngày, 5-200 event, dung sai 1 giờ, tần suất thứ
+  tối thiểu 0.10, tần suất giờ tối thiểu 0.20 và score 50/100. Tất cả đều là
+  cấu hình `TBD`, chưa phải policy production.
+
+#### `TemporalRiskCalculator`
+
+1. lấy `receivedAt` làm thời điểm evaluation và trừ history window;
+2. đọc tối đa `maximumEvents` event trước evaluation, đúng subject và client;
+3. chưa đủ `minimumEvents` -> `COLD_START`, không tạo score thấp;
+4. đổi current/event time sang `zoneId` của policy;
+5. tính tỷ lệ event cùng thứ trong tuần và tỷ lệ event nằm trong dung sai giờ;
+6. khoảng cách giờ là vòng 24 giờ nên 23:00 và 00:00 cách nhau một giờ;
+7. không có tín hiệu bất thường -> 0, một tín hiệu -> medium, cả hai -> high;
+8. `DataAccessException` -> `UNAVAILABLE`, log loại lỗi nhưng không log subject.
+
+`TemporalRiskAssessment` mang trạng thái `AVAILABLE`, `COLD_START` hoặc
+`UNAVAILABLE`. Chỉ trạng thái available mới được có score. Extractor thêm
+`TEMPORAL_RISK`, `TEMPORAL_PROFILE_COLD_START` hoặc
+`TEMPORAL_PROFILE_UNAVAILABLE` tương ứng.
+
+### 5.8. Network Intelligence theo CIDR
+
+#### `NetworkRiskProperties`
+
+- Bind cờ enabled, score default/elevated/high và ba danh sách CIDR
+  trusted/elevated/high.
+- Validation ép score vào `[0,100]`, elevated/high dương và thứ tự
+  default <= elevated <= high. Các giá trị vẫn là policy baseline `TBD`.
+
+#### `IpCidr`
+
+- Parse CIDR IPv4/IPv6 mà không resolve hostname, chuẩn hóa host bits về network
+  address và so khớp bằng prefix bit.
+- Prefix ngoài phạm vi hoặc CIDR sai làm ứng dụng fail startup; IP runtime sai làm
+  assessment unavailable thay vì dùng default score.
+
+#### `NetworkRiskCalculator`
+
+1. provider disabled -> `UNAVAILABLE`;
+2. validate IP runtime;
+3. kiểm tra high, elevated rồi trusted để high-risk luôn thắng khi CIDR chồng lấn;
+4. IP trusted -> score 0, CIDR elevated/high -> score tương ứng, còn lại ->
+   default score;
+5. trả `NetworkRiskAssessment` với trạng thái `AVAILABLE/UNAVAILABLE`.
+
+Provider chạy nội bộ, không gọi API bên thứ ba và không lưu IP. Địa chỉ đầu vào là
+`ClientConnection.getRemoteAddr()` từ Keycloak; production phải cấu hình proxy
+headers ở trusted proxy/Keycloak trước khi bật provider. Không được xem cả mạng
+private/VPN/NAT dùng chung là trusted chỉ dựa trên vị trí mạng.
+
+### 5.9. Tính điểm và quyết định
 
 #### `RiskScoringService`
 
@@ -913,10 +985,11 @@ device * deviceWeight
 - `reasonsFor()` thêm reason tổng quát cho factor dương.
 - `addIfPositive()` là helper của `reasonsFor()`.
 
-Với extractor hiện tại, nhánh `evaluate(factors)` chưa xảy ra trong runtime vì
-data luôn `INCOMPLETE`.
+Nhánh `evaluate(factors)` xảy ra khi CIDR provider được bật, Redis available và
+Temporal Profile đủ mẫu. Cấu hình mặc định vẫn tắt provider nên giữ fail-safe
+`INCOMPLETE` cho đến khi canonical IP và policy mạng được duyệt.
 
-### 5.8. Các domain type
+### 5.10. Các domain type
 
 - `LoginContext`: subject, auth session, client, IP, User-Agent, device ID,
   received-at; compact constructor bắt buộc các trường cốt lõi.
@@ -933,13 +1006,24 @@ data luôn `INCOMPLETE`.
 - `RiskDecision`: `ALLOW`, `STEP_UP_MFA`, `DENY`.
 - `RiskLevel`: `LOW`, `MEDIUM`, `HIGH`.
 - `RiskDataStatus`: `COMPLETE`, `INCOMPLETE`, `NOT_EVALUATED`.
+- `TemporalProfileStatus`: `AVAILABLE`, `COLD_START`, `UNAVAILABLE`.
+- `TemporalRiskAssessment`: status và nullable score; invariant chỉ cho phép
+  `AVAILABLE` mang score trong `[0,100]`.
+- `NetworkRiskStatus`: `AVAILABLE`, `UNAVAILABLE`.
+- `NetworkRiskAssessment`: status và nullable score; invariant chỉ cho phép
+  `AVAILABLE` mang score trong `[0,100]`.
+- `AuthenticationHistoryRiskAssessment`: score khả dụng và cờ `highRisk`; cờ này
+  giữ guardrail tách biệt khỏi mức đóng góp của factor vào weighted score.
 - `RiskReason` giải thích vì sao có kết quả:
   - `PRIORITY_SECURITY_RULE`, `BLOCKED_IP_ADDRESS`: luật chặn ưu tiên;
   - `DEVICE_IDENTIFIER_MISSING`, `NEW_DEVICE`, `PENDING_DEVICE`,
     `REVOKED_DEVICE`: trạng thái nhận diện thiết bị;
-  - `NETWORK_INTELLIGENCE_UNAVAILABLE`, `TEMPORAL_PROFILE_UNAVAILABLE`: nguồn dữ
-    liệu chưa triển khai;
+  - `NETWORK_INTELLIGENCE_UNAVAILABLE`: provider tắt hoặc IP không dùng được;
+  - `TEMPORAL_PROFILE_COLD_START`: chưa đủ successful-login event;
+  - `TEMPORAL_PROFILE_UNAVAILABLE`: Risk DB tạm thời không đọc được;
   - `AUTHENTICATION_HISTORY_UNAVAILABLE`: Redis/counter tạm thời không đọc được;
+  - `EXCESSIVE_AUTHENTICATION_FAILURES`: counter subject hoặc IP đã vào dải high,
+    bắt buộc MFA ngay cả khi weighted score vẫn thấp;
   - `DEVICE_RISK`, `NETWORK_RISK`, `TEMPORAL_RISK`,
     `AUTHENTICATION_HISTORY_RISK`: factor tương ứng lớn hơn 0 trong nhánh tính
     điểm đầy đủ.
@@ -947,7 +1031,7 @@ data luôn `INCOMPLETE`.
 Java record tự sinh accessor như `decision()`, `riskScore()`, `subjectId()`, cùng
 `equals()`, `hashCode()` và `toString()`.
 
-### 5.9. Các properties class
+### 5.11. Các properties class
 
 #### `DeviceFingerprintProperties`
 
@@ -966,6 +1050,17 @@ nằm trong `[0,100]`. Lombok sinh getter/setter.
 - Nested `Thresholds.isOrderValid()` yêu cầu medium nhỏ hơn high.
 - Nested `PriorityRules` giữ blocked IP list.
 - Lombok sinh getter/setter cho các property còn lại.
+
+#### `TemporalRiskProperties`
+
+Bind và validate toàn bộ tham số baseline Temporal Profile. Timezone là `ZoneId`
+được cấu hình rõ ràng; không phụ thuộc timezone mặc định của JVM.
+
+#### `NetworkRiskProperties`
+
+Bind và validate cờ provider, score default/elevated/high cùng ba danh sách CIDR.
+CIDR được parse một lần khi tạo `NetworkRiskCalculator`; cấu hình sai làm startup
+thất bại rõ ràng thay vì âm thầm bỏ qua policy.
 
 Baseline development hiện tại: bốn weight đều 0.25, medium từ 40, high từ 75;
 device score missing/new/pending/trusted/revoked lần lượt 80/60/50/0/100. Đây là
@@ -1086,19 +1181,27 @@ Interface công bố `getCurrentStudentScores()` và
 |---|---|
 | IP nằm trong exact blocklist | `HIGH / DENY / NOT_EVALUATED`, score null |
 | Device có row `REVOKED` | `HIGH / DENY / NOT_EVALUATED`, score null |
-| Không có `ZT_DEVICE_ID` | `MEDIUM / STEP_UP_MFA / INCOMPLETE`, score null |
-| Device mới hoặc pending | `MEDIUM / STEP_UP_MFA / INCOMPLETE`, score null |
-| Device đã trusted | Vẫn `MEDIUM / STEP_UP_MFA / INCOMPLETE`, score null |
+| Network provider mặc định bị tắt | `MEDIUM / STEP_UP_MFA / INCOMPLETE`, score null |
+| Không có `ZT_DEVICE_ID` khi provider tắt | `MEDIUM / STEP_UP_MFA / INCOMPLETE`, score null |
+| Device mới hoặc pending khi provider tắt | `MEDIUM / STEP_UP_MFA / INCOMPLETE`, score null |
+| Device đã trusted khi provider tắt | Vẫn `MEDIUM / STEP_UP_MFA / INCOMPLETE`, score null |
 | Subject có 3 lần thất bại trong 15 phút | Thêm `AUTHENTICATION_HISTORY_RISK`; vẫn `MEDIUM / STEP_UP_MFA / INCOMPLETE`, score null |
-| Dữ liệu `COMPLETE` | Chưa xảy ra với extractor hiện tại |
+| Subject có ít nhất 5 lỗi hoặc IP có ít nhất 20 lỗi, mọi nguồn available | Thêm `EXCESSIVE_AUTHENTICATION_FAILURES`; tối thiểu `MEDIUM / STEP_UP_MFA / COMPLETE`, trừ khi weighted score đã là `HIGH / DENY` |
+| `expired_code` hoặc `user_temporarily_disabled` | Listener bỏ qua, không tăng counter Redis |
+| Temporal chưa đủ 5 event | Thêm `TEMPORAL_PROFILE_COLD_START`; vẫn `MEDIUM / STEP_UP_MFA / INCOMPLETE`, score null |
+| Temporal đủ mẫu, lệch thứ hoặc giờ nhưng network tắt | Thêm `TEMPORAL_RISK`; vẫn `MEDIUM / STEP_UP_MFA / INCOMPLETE`, score null |
+| Provider bật và mọi nguồn available | `COMPLETE`; weighted score quyết định `ALLOW`, `STEP_UP_MFA` hoặc `DENY` |
 
 Feature extractor có nhận diện thiết bị thật từ DB và authentication history thật
-từ Redis. Successful-login history đã được thu vào DB, nhưng Temporal Profile chưa
-được tính; Network Intelligence cũng chưa có. Vì vậy toàn bộ evaluation vẫn là
-`INCOMPLETE` và runtime chưa dùng các factor để tính weighted score; nó trả
-`riskScore=null` và yêu cầu MFA. Reason authentication history chỉ xuất hiện khi
-counter đạt ngưỡng; `AUTHENTICATION_HISTORY_UNAVAILABLE` chỉ xuất hiện khi Redis
-không đọc được.
+từ Redis. Successful-login history đã được nối vào Temporal Profile thật từ Risk
+DB; calculator phân biệt available, cold-start và DB unavailable. CIDR Network
+Intelligence đã được nối vào extractor nhưng mặc định tắt; khi bật và mọi nguồn
+available, runtime dùng các factor để tính weighted score. Khi bất kỳ nguồn bắt
+buộc nào unavailable, nó trả `riskScore=null` và yêu cầu MFA.
+Reason authentication history chỉ xuất hiện khi counter đạt ngưỡng;
+`AUTHENTICATION_HISTORY_UNAVAILABLE` chỉ xuất hiện khi Redis không đọc được. Dải
+high luôn yêu cầu MFA, không còn phụ thuộc việc factor authentication history chỉ
+chiếm 25% weighted score.
 
 ## 9. Vì sao logout rồi đăng nhập lại vẫn hỏi OTP
 
@@ -1115,9 +1218,10 @@ OTP thành công
 
 Credential OTP vẫn được lưu ở Keycloak nên user chỉ nhập mã mới, không phải quét
 QR lại. Code hiện đã có “remember/trust this device”, authentication-history và
-dữ liệu successful-login; network cùng phép tính temporal vẫn `UNAVAILABLE`. Vì policy không tính điểm
-trên dữ liệu thiếu, ngay cả row `TRUSTED` vẫn cho kết quả step-up. Milestone cookie
-hoàn thiện vòng đời device và khả năng revoke; nó chưa phải policy bỏ qua MFA.
+Temporal Profile. Network provider mặc định bị tắt nên trả `UNAVAILABLE`;
+temporal cũng là cold-start cho đến khi đủ mẫu. Vì policy không tính điểm trên dữ
+liệu thiếu, ngay cả row `TRUSTED` vẫn cho kết quả step-up. Chỉ bật network provider
+sau khi canonical client IP và CIDR policy đã được duyệt.
 
 Nếu tab vẫn còn token hợp lệ thì frontend có thể vào trang mà không tạo login
 attempt mới. Reload làm mất token memory; `check-sso` sẽ thử khôi phục phiên từ
@@ -1135,8 +1239,9 @@ Keycloak. Logout thành công thì phiên SSO bị kết thúc và flow phải c
   quản lý identity, không xác thực browser.
 - Redis failure store, protected ingestion endpoint, Keycloak Event Listener và
   mapping counter thành authentication-history score đã có implementation runtime.
-  Successful-login collection đã có; network/geolocation intelligence, phép tính
-  temporal profile và audit persistence vẫn chưa được triển khai.
+  Successful-login collection, Temporal Profile và CIDR Network Intelligence đã
+  có; external network reputation/geolocation và audit persistence vẫn chưa được
+  triển khai.
 
 ## 11. Thứ tự đọc code dễ hiểu nhất
 
@@ -1155,11 +1260,13 @@ Keycloak. Logout thành công thì phiên SSO bị kết thúc và flow phải c
 11. `DeviceRecognitionService.recognize()`.
 12. `AuthenticationHistoryRiskCalculator.calculate()` và
     `AuthenticationFailureStore`.
-13. `RiskScoringService` với ba method tạo kết quả.
-13. `RiskDecisionHandler.handle()`.
-14. `RiskStepUpCondition.matchCondition()` rồi built-in OTP Form trong Admin
+13. `TemporalRiskCalculator.calculate()` và
+    `AuthenticationSuccessEventRepository.findRecentAuthenticationTimes()`.
+14. `RiskScoringService` với ba method tạo kết quả.
+15. `RiskDecisionHandler.handle()`.
+16. `RiskStepUpCondition.matchCondition()` rồi built-in OTP Form trong Admin
     Console.
-15. `frontend/lib/api.ts` và `StudentController.getCurrentStudentScores()`.
+17. `frontend/lib/api.ts` và `StudentController.getCurrentStudentScores()`.
 
 Khi debug, các breakpoint có giá trị nhất là bốn điểm biên:
 

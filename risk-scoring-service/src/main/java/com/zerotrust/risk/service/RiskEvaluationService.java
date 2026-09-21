@@ -33,6 +33,12 @@ public class RiskEvaluationService {
         if (extraction.dataStatus() != RiskDataStatus.COMPLETE) {
             return riskScoringService.stepUpForIncompleteData(extraction.reasons());
         }
+        if (extraction.mandatoryStepUpReason().isPresent()) {
+            return riskScoringService.evaluateWithRequiredStepUp(
+                    extraction.factors(),
+                    extraction.reasons()
+            );
+        }
         return riskScoringService.evaluate(extraction.factors());
     }
 }

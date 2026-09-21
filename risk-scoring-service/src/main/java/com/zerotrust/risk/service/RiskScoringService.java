@@ -52,6 +52,27 @@ public class RiskScoringService {
         );
     }
 
+    public RiskEvaluation evaluateWithRequiredStepUp(
+            RiskFactors factors,
+            List<RiskReason> additionalReasons
+    ) {
+        BigDecimal score = weightedScore(factors);
+        RiskLevel calculatedLevel = classify(score);
+        RiskLevel effectiveLevel = calculatedLevel == RiskLevel.HIGH
+                ? RiskLevel.HIGH
+                : RiskLevel.MEDIUM;
+
+        return new RiskEvaluation(
+                UUID.randomUUID(),
+                score,
+                effectiveLevel,
+                decisionFor(effectiveLevel),
+                RiskDataStatus.COMPLETE,
+                mergeReasons(reasonsFor(factors), additionalReasons),
+                Instant.now()
+        );
+    }
+
     public RiskEvaluation denyForPriorityRule(RiskReason reason) {
         return new RiskEvaluation(
                 UUID.randomUUID(),
@@ -105,6 +126,19 @@ public class RiskScoringService {
                 RiskReason.AUTHENTICATION_HISTORY_RISK
         );
         return reasons;
+    }
+
+    private List<RiskReason> mergeReasons(
+            List<RiskReason> calculatedReasons,
+            List<RiskReason> additionalReasons
+    ) {
+        List<RiskReason> merged = new ArrayList<>(calculatedReasons);
+        for (RiskReason reason : additionalReasons) {
+            if (!merged.contains(reason)) {
+                merged.add(reason);
+            }
+        }
+        return merged;
     }
 
     private void addIfPositive(List<RiskReason> reasons, BigDecimal score, RiskReason reason) {

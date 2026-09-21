@@ -11,6 +11,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -59,6 +60,31 @@ class RiskScoringServiceTests {
         assertThat(result.riskLevel()).isEqualTo(RiskLevel.HIGH);
         assertThat(result.decision()).isEqualTo(RiskDecision.DENY);
         assertThat(result.reasons()).containsExactly(RiskReason.BLOCKED_IP_ADDRESS);
+    }
+
+    @Test
+    void highAuthenticationFailureGuardrailRequiresMfaEvenWhenWeightedScoreIsLow() {
+        RiskEvaluation result = service.evaluateWithRequiredStepUp(
+                factors("0", "0", "0", "100"),
+                List.of(RiskReason.EXCESSIVE_AUTHENTICATION_FAILURES)
+        );
+
+        assertThat(result.riskScore()).isEqualByComparingTo("25.00");
+        assertThat(result.riskLevel()).isEqualTo(RiskLevel.MEDIUM);
+        assertThat(result.decision()).isEqualTo(RiskDecision.STEP_UP_MFA);
+        assertThat(result.dataStatus()).isEqualTo(RiskDataStatus.COMPLETE);
+        assertThat(result.reasons()).contains(RiskReason.EXCESSIVE_AUTHENTICATION_FAILURES);
+    }
+
+    @Test
+    void requiredStepUpDoesNotDowngradeAnOtherwiseHighRiskDecision() {
+        RiskEvaluation result = service.evaluateWithRequiredStepUp(
+                factors("100", "100", "100", "100"),
+                List.of(RiskReason.EXCESSIVE_AUTHENTICATION_FAILURES)
+        );
+
+        assertThat(result.riskLevel()).isEqualTo(RiskLevel.HIGH);
+        assertThat(result.decision()).isEqualTo(RiskDecision.DENY);
     }
 
     private RiskFactors factors(
