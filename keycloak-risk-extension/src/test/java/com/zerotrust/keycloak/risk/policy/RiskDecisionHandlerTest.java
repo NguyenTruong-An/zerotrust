@@ -139,7 +139,7 @@ class RiskDecisionHandlerTest {
                 decision,
                 RiskDataStatus.COMPLETE,
                 List.of(),
-                Instant.parse("2026-09-04T08:00:00Z")
+                Instant.parse("2026-09-04T08:00:00Z"), 0L
         );
     }
 }

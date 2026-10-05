@@ -1,297 +1,230 @@
-# Kiến trúc chuẩn của đồ án Zero Trust
+# Kiến trúc ZeroTrust Portal
 
-**Trạng thái:** Đã chấp nhận (Accepted)  
-**Ngày cập nhật:** 2026-09-18
+**Trạng thái quyết định:** Kiến trúc đích đã chấp nhận (Accepted).
 
-**Phạm vi:** Kiến trúc đích và nguyên tắc triển khai bắt buộc của toàn bộ đồ án
+**Ngày đối chiếu mã và cập nhật diễn giải:** 2026-10-05.
 
-## 1. Phạm vi đã chốt
+**Phạm vi:** Trách nhiệm dịch vụ, hiện trạng repository và các quyết định còn mở.
 
-Đồ án sử dụng kiến trúc **Zero Trust Adaptive Authentication** với một **Risk Scoring Service** độc lập. Risk Scoring Service đánh giá rủi ro đăng nhập dựa trên ngữ cảnh hiện tại, lịch sử xác thực và các chính sách bảo mật.
+## 1. Mục đích và cách đọc
 
-Các thành phần, ranh giới dịch vụ, luồng xác thực và ba loại quyết định `ALLOW`, `STEP_UP_MFA`, `DENY` trong tài liệu này đã được chốt.
+Hệ thống quản lý học vụ và xác thực thích ứng theo rủi ro đăng nhập. Keycloak
+kiểm tra mật khẩu/MFA và phát token; Risk Service đánh giá ngữ cảnh đăng nhập;
+Portal API kiểm tra quyền khi đọc/sửa hồ sơ và điểm.
 
-Mô hình tính điểm chi tiết, trọng số của từng nhóm đặc trưng và ngưỡng số giữa các mức `LOW`, `MEDIUM`, `HIGH` **chưa được chốt**.
+Ranh giới dịch vụ và ba quyết định `ALLOW`, `STEP_UP_MFA`, `DENY` đã chốt.
+Policy số, công thức chính thức, trọng số và ngưỡng chưa được phê duyệt hoặc
+hiệu chỉnh bằng dữ liệu thực nghiệm. Cấu hình development không thay quyết định này.
 
-Kết quả đối chiếu với NIST, OWASP, OAuth BCP và tài liệu Keycloak được ghi tại
-`SECURITY_REFERENCE_REVIEW.md`.
+| Trạng thái tài liệu | Ý nghĩa |
+|---|---|
+| Kiến trúc đích đã chốt | Trách nhiệm/ràng buộc cần giữ khi hoàn thiện |
+| Đã có trong mã | Có class/config/migration, kể cả thay đổi chưa commit |
+| Đã kiểm chứng theo ngày | Có kết quả thực chạy tại ngày và môi trường ghi nhận |
+| Chưa triển khai/chưa kiểm chứng | Thiếu implementation hoặc bằng chứng runtime |
+| Đề xuất | Phương án chưa chấp thuận, không phải hành vi hiện tại |
 
-## 2. Sơ đồ kiến trúc hệ thống
+Đọc class theo [CODE_FLOW_WALKTHROUGH](docs/development/CODE_FLOW_WALKTHROUGH.md).
+Chạy local theo [LOCAL_SETUP](docs/operations/LOCAL_SETUP.md). Mục lục ở [docs](docs/README.md).
+
+## 2. Thành phần và phiên bản
+
+| Thành phần | Trách nhiệm và nguồn |
+|---|---|
+| Frontend SPA | OIDC + PKCE, UI admin/sinh viên; [PortalRoute](frontend/components/portal-route.tsx), [package.json](frontend/package.json) |
+| Portal API | Java 17, Spring Boot 3.5.7, resource server và học vụ; [POM](pom.xml), [SecurityConfig](src/main/java/com/zerotrust/zerotrust/config/SecurityConfig.java) |
+| Keycloak SPI | Java 17, Keycloak 26.7.0, chạy trong Keycloak; [POM](keycloak-risk-extension/pom.xml) |
+| Risk Service | Java 17, Spring Boot 3.5.7, scoring/history/device trust; [POM](risk-scoring-service/pom.xml) |
+| Portal DB | Người dùng, sinh viên, lớp, môn, điểm; [entity](src/main/java/com/zerotrust/zerotrust/entity/) |
+| Risk DB | Thiết bị, event thành công, generation, audit revoke; [Flyway V1–V4](risk-scoring-service/src/main/resources/db/migration/) |
+| Redis Risk | Counter thất bại và marker chống trùng; [failure store](risk-scoring-service/src/main/java/com/zerotrust/risk/repository/RedisAuthenticationFailureStore.java) |
+| GeoLite local | City/ASN `.mmdb` tùy chọn; [provider](risk-scoring-service/src/main/java/com/zerotrust/risk/service/MaxMindGeoIpProvider.java) |
+
+Ba POM độc lập, wrapper gốc dùng `-f`; không có parent reactor chung.
+Portal dùng Keycloak admin-client **26.0.11**, khác phiên bản SPI **26.7.0**.
+Frontend dùng React/TypeScript, cấu trúc route Next và script `vinext`; không
+mặc định lệnh chạy là `next dev`.
+
+## 3. Sơ đồ hiện trạng trong mã
+
+```mermaid
+flowchart LR
+    B["Trình duyệt / Frontend SPA"] -->|"OIDC Authorization Code + PKCE"| KC["Keycloak + Risk SPI"]
+    B -->|"User Bearer JWT"| P["Portal API"]
+    P --> PDB[("Portal DB")]
+    P -->|"Admin API / provisioner"| KC
+    P -->|"Revoke + completion / portal-risk-admin"| R["Risk API"]
+    KC -->|"Evaluate · registration · events / risk-caller"| R
+    R --> RDB[("Risk DB")]
+    R --> RD[("Redis / counter + dedup")]
+    R --> G["GeoLite local / tùy chọn"]
+    P -. "JWKS khi cần" .-> KC
+    R -. "JWKS khi cần" .-> KC
+```
+
+Sơ đồ biểu diễn đường gọi, không xác nhận các tiến trình đang chạy.
+[compose.yaml](compose.yaml) chỉ dựng Risk DB MySQL và Redis. Keycloak, Portal DB
+và các ứng dụng chạy riêng. SPI không kết nối trực tiếp Risk DB/Redis.
+Portal gọi Risk khi reset MFA, không gọi Risk mỗi lần xem điểm.
+
+## 4. Kiến trúc đích đã chốt
 
 ```mermaid
 flowchart TB
-    USER["Internet / Người dùng"] --> RP["Reverse Proxy<br/>TLS Termination"]
-
-    subgraph ACCESS["Lớp truy cập"]
-        RP --> SPA["Frontend SPA<br/>Authorization Code + PKCE"]
-        SPA -->|"Bearer JWT"| GW["API Gateway<br/>Routing · Rate Limit"]
-    end
-
-    subgraph PORTAL["Hệ thống nghiệp vụ"]
-        GW --> APP["Portal API<br/>Spring Boot Resource Server"]
-        APP --> PDB[("Portal DB · MySQL<br/>Người dùng · Lớp · Môn · Điểm")]
-    end
-
-    subgraph IAM["Xác thực và quản lý danh tính"]
-        SPA <-->|"OIDC + PKCE S256"| KC["Keycloak<br/>IAM · Realm · Clients · MFA"]
-        KC --> PA["Primary Authentication<br/>Username + Password"]
-        PA --> SPI["Custom Authenticator<br/>Keycloak SPI"]
-        KC --> EL["Keycloak Event Listener<br/>Ghi nhận đăng nhập thành công/thất bại"]
-    end
-
-    subgraph RISK["Hệ thống đánh giá rủi ro"]
-        SPI -->|"OAuth2 Client Credentials<br/>Bearer JWT + TLS"| RS["Risk Scoring Service<br/>Spring Boot Resource Server"]
-        EL --> RS
-        RS --> RDB[("Risk DB · MySQL<br/>Thiết bị · Lịch sử · Audit")]
-        RS --> REDIS[("Redis<br/>Cache · Failure Counter · Velocity")]
-    end
-
-    APP -. "Xác minh JWT bằng JWKS" .-> KC
+    U["Người dùng / Internet"] --> RP["Reverse Proxy / TLS"]
+    RP --> SPA["Frontend SPA"]
+    RP --> KC["Keycloak + SPI + Event Listener"]
+    SPA -->|"OIDC + PKCE"| KC
+    SPA -->|"User JWT"| GW["API Gateway / routing + rate limit"]
+    GW --> P["Portal API / resource server"]
+    P --> PDB[("Portal DB")]
+    P -->|"Admin API / provisioner"| KC
+    P -->|"Reset trust / portal-risk-admin + TLS"| R["Risk Service"]
+    KC -->|"Service JWT / risk-caller + TLS"| R
+    R --> RDB[("Risk DB / history + audit")]
+    R --> RD[("Redis / dữ liệu ngắn hạn")]
+    R --> G["GeoLite local"]
+    P -. "JWKS" .-> KC
+    R -. "JWKS" .-> KC
 ```
 
-## 3. Luồng xác thực và đánh giá rủi ro
+Reverse Proxy là điểm vào, xử lý TLS và chuyển tiếp header theo cấu hình tin cậy.
+API Gateway định tuyến và rate limit Portal. Repository chưa có manifest chứng
+minh deployment đầy đủ hai thành phần này. TLS/mạng riêng, secret manager,
+retention và giám sát production phải được xác nhận riêng; profile `prod` không
+tự dựng hạ tầng đó.
+
+## 5. Đăng nhập mới và quyết định Risk
+
+1. SPA chuyển browser sang Keycloak bằng Authorization Code Flow + PKCE S256.
+2. Keycloak kiểm tra mật khẩu. Sai credential bị từ chối; event gửi Risk bổ sung
+   lịch sử, không quyết định password và không làm login thành công.
+3. `RiskAuthenticator` thu subject/session/client/IP/User-Agent/device ID;
+   dùng service token gọi evaluation API.
+4. Risk kiểm tra JWT/caller/role, validation request và reset pending.
+5. IP blocklist chạy trước feature extraction; sau đó nhận diện device và lấy
+   network, temporal, history. Security revoke thắng mọi scoring.
+6. Dữ liệu bắt buộc thiếu tạo `INCOMPLETE` và MFA. Khi đủ dữ liệu, weighted score
+   được xét cùng guardrail bắt buộc MFA.
+7. SPI áp quyết định: ALLOW hoàn tất execution Risk; STEP_UP mở subflow MFA;
+   DENY dừng login. `context.success()` chưa chứng minh cả login đã hoàn tất.
+8. Sau MFA thật, registration đủ điều kiện gửi generation về Risk. API 204 mới
+   cho phép phát cookie device. `CONFIGURE_TOTP` còn pending khiến bước này bỏ
+   qua; enrollment chưa chứng minh MFA đã hoàn tất.
+9. Khi cả flow và required actions thành công, Keycloak trả authorization code;
+   SPA đổi code cùng PKCE verifier lấy token. LOGIN event gửi độc lập để lưu history.
 
 ```mermaid
-flowchart TB
-    LOGIN["Login Attempt"] --> PRIMARY["Keycloak kiểm tra<br/>username + password"]
-
-    PRIMARY -->|"Sai"| EVENT["Keycloak Event Listener"]
-    EVENT -->|"POST authentication-failures<br/>service token"| COUNTER["Risk Service cập nhật<br/>failure counter trong Redis"]
-    COUNTER --> REJECT["Từ chối đăng nhập"]
-
-    PRIMARY -->|"Đúng"| CONTEXT["Context Collection"]
-
-    CONTEXT --> DEVICE["Device / Fingerprint"]
-    CONTEXT --> NETWORK["IP / Geolocation"]
-    CONTEXT --> TIME["Login Time"]
-    CONTEXT --> FAILURE["Failed Attempts"]
-
-    DEVICE --> FEATURES["Feature Calculation"]
-    NETWORK --> FEATURES
-    TIME --> FEATURES
-    FAILURE --> FEATURES
-    HISTORY[("Risk DB + Redis<br/>Hồ sơ hành vi lịch sử")] --> FEATURES
-
-    FEATURES --> RULES["Priority Security Rules"]
-
-    RULES -->|"Vi phạm luật bắt buộc"| HARD["Hard Deny"]
-    RULES -->|"Không vi phạm"| SCORE["Policy-based Weighted<br/>Risk Scoring"]
-
-    SCORE --> RESULT["Risk Score<br/>Trust Score"]
-    RESULT --> POLICY["Decision Policy"]
-
-    POLICY -->|"LOW"| ALLOW["ALLOW"]
-    POLICY -->|"MEDIUM"| MFA["STEP-UP OTP / MFA"]
-    POLICY -->|"HIGH"| DENY["DENY"]
-
-    MFA -->|"MFA thành công"| ALLOW
-    MFA -->|"MFA thất bại"| DENY
-
-    ALLOW --> TOKEN["Keycloak phát hành JWT"]
-    TOKEN --> SUCCESS_EVENT["Keycloak LOGIN event"]
-    SUCCESS_EVENT -->|"POST authentication-successes<br/>service token"| LOGIN_HISTORY[("Risk DB<br/>Successful login history")]
-    HARD --> AUDIT["Lưu kết quả và Audit Log"]
-    DENY --> AUDIT
-    TOKEN --> AUDIT
-
-    TOKEN --> API["Client gọi Portal API bằng JWT"]
+flowchart TD
+    IN["Risk evaluation được cấp quyền"] --> PENDING{"Reset đang pending?"}
+    PENDING -->|"Có"| DENY["DENY / không cấp code"]
+    PENDING -->|"Không"| IP{"IP thuộc blocklist?"}
+    IP -->|"Có"| DENY
+    IP -->|"Không"| F["Device · Network · Temporal · History"]
+    F --> REV{"Security-revoked device?"}
+    REV -->|"Có"| DENY
+    REV -->|"Không"| COMPLETE{"Đủ dữ liệu bắt buộc?"}
+    COMPLETE -->|"Không"| MFA["STEP_UP_MFA / OTP hoặc recovery code"]
+    COMPLETE -->|"Có"| SCORE["Weighted score + guardrail MFA"]
+    SCORE -->|"HIGH"| DENY
+    SCORE -->|"MEDIUM hoặc LOW có guardrail"| MFA
+    SCORE -->|"LOW không có guardrail"| ALLOW["ALLOW"]
+    MFA -->|"MFA thất bại"| FAIL["Không cấp authorization code"]
+    MFA -->|"MFA thành công"| REG["Đăng ký trust nếu đủ điều kiện"]
+    REG --> FIN["Hoàn tất flow + required actions"]
+    ALLOW --> FIN
+    FIN --> CODE["Authorization code"]
+    CODE --> TOKEN["SPA đổi code + verifier lấy token"]
 ```
 
-## 4. Những nội dung đã chốt trong Risk Scoring
+Nguồn: [controller](risk-scoring-service/src/main/java/com/zerotrust/risk/controller/RiskEvaluationController.java),
+[pipeline](risk-scoring-service/src/main/java/com/zerotrust/risk/service/RiskEvaluationService.java),
+[extractor](risk-scoring-service/src/main/java/com/zerotrust/risk/feature/DatabaseBackedRiskFeatureExtractor.java),
+[decision handler](keycloak-risk-extension/src/main/java/com/zerotrust/keycloak/risk/policy/RiskDecisionHandler.java).
+Sơ đồ giả định Browser Flow thật có đúng thứ tự execution. Code provider không
+chứng minh realm đã bind flow đó. SSO/refresh có thể không chạy Risk.
+Lỗi ghi event không đổi auth result. Lỗi registration sau MFA không phát cookie
+mới nhưng cho flow tiếp tục.
 
-Pipeline đánh giá rủi ro gồm:
+## 6. Danh tính và ranh giới tin cậy
 
-1. Thu thập ngữ cảnh đăng nhập hiện tại.
-2. Đọc hồ sơ hành vi và lịch sử xác thực từ Risk DB và Redis.
-3. Tính các đặc trưng rủi ro.
-4. Kiểm tra Priority Security Rules.
-5. Nếu không bị Hard Deny, thực hiện Policy-based Weighted Risk Scoring.
-6. Phân loại kết quả thành `LOW`, `MEDIUM` hoặc `HIGH`.
-7. Ánh xạ mức rủi ro sang `ALLOW`, `STEP_UP_MFA` hoặc `DENY`.
-8. Lưu kết quả và Audit Log.
+| Client | Nơi dùng |
+|---|---|
+| `zerotrust-spa` | Public client, không secret; user token gọi Portal, audience `zerotrust-api` |
+| `zerotrust-provisioner` | Portal gọi Keycloak Admin API để quản lý user |
+| `zerotrust-risk-caller` | SPI/listener gọi Risk với `risk:evaluate`, `risk:device:write`, `risk:events:write` |
+| `zerotrust-portal-risk-admin` | Portal revoke/completion với `risk:device:revoke`; secret/service account riêng |
+| `zerotrust-risk-api` | Resource/audience chứa bốn client role Risk, không phải caller |
 
-Các nhóm đặc trưng cấp cao đã xác định:
+Risk kiểm tra chữ ký/JWKS, issuer, `exp`, `nbf`, audience, `azp` và role theo endpoint.
+Realm role hoặc role của client khác không cấp quyền Risk.
+Portal kiểm tra user JWT, realm role và quyền sở hữu: STUDENT đọc dữ liệu của
+mình theo `sub`; ADMIN quản lý học vụ. UI ẩn nút không thay quyền backend.
+Chi tiết: [RISK_API_SECURITY](docs/security/RISK_API_SECURITY.md).
 
-- Device Risk.
-- Network / Location Risk.
-- Temporal Risk.
-- Authentication History Risk.
+`ClientConnection.getRemoteAddr()` phụ thuộc proxy tin cậy của Keycloak.
+Chuẩn hóa cách viết IP trong Risk ngăn lệch blocklist/counter, không xác nhận
+nguồn IP là thật và không thay việc chặn forwarded header giả.
 
-Priority Security Rules chạy trước weighted scoring. Một vi phạm bắt buộc có thể dẫn đến `Hard Deny` mà không phụ thuộc vào điểm tổng hợp.
+## 7. Dữ liệu, trust và reset MFA
 
-Nguồn Network Risk của milestone hiện tại là policy CIDR IPv4/IPv6 do operator
-quản lý, chạy nội bộ trong Risk Service và không gửi IP cho bên thứ ba. Provider
-mặc định tắt; chỉ được bật khi reverse proxy/Keycloak đã cung cấp canonical client
-IP và policy cho shared NAT/VPN đã được duyệt. CIDR network chỉ là một tín hiệu,
-không thay thế identity hoặc device trust. External reputation/geolocation là một
-thay đổi provider riêng và cần review SLA, privacy, retention cùng data residency.
+Portal DB lưu hồ sơ/điểm, không lưu password. Keycloak sở hữu credential MFA.
+Risk DB lưu HMAC thiết bị gắn subject, event thành công, generation và audit
+revoke. Redis lưu HMAC counter/marker với TTL. HMAC là giả danh hóa dữ liệu,
+không có nghĩa dữ liệu đã ẩn danh hoàn toàn. Xem [DATA_PRIVACY](docs/security/DATA_PRIVACY.md).
 
-## 5. Những nội dung chưa chốt
+Trạng thái lưu device là PENDING/TRUSTED/REVOKED. Nhận diện thêm MISSING/NEW/
+REAUTHENTICATION_REQUIRED. TRUSTED hết hiệu lực sau 30 ngày từ `trusted_at`;
+MFA registration tiếp theo có thể cập nhật mốc này. Cookie 30 ngày và trust
+server là hai cơ chế khác nhau. Security revoke dẫn DENY; MFA-reset revoke yêu
+cầu MFA và ID mới khi reset hoàn tất.
 
-Các nội dung sau vẫn là quyết định thiết kế mở:
+Reset admin theo thứ tự **Risk revoke → Keycloak reset → Risk completion**.
+Risk tăng generation/đặt pending trước khi xóa MFA cũ. Registration khóa cùng
+subject và kiểm tra generation để login cũ không phục hồi trust. Không có
+transaction chung giữa Risk DB, Portal và Keycloak; lỗi giữa các bước phải báo
+partial/pending. Chi tiết/class: [MFA_RESET_LIFECYCLE](docs/authentication/MFA_RESET_LIFECYCLE.md).
 
-- Công thức tính điểm chi tiết.
-- Cách chuẩn hóa từng đặc trưng.
-- Trọng số của từng đặc trưng hoặc nhóm đặc trưng.
-- Thang điểm chính thức của Risk Score và Trust Score.
-- Ngưỡng số phân chia `LOW`, `MEDIUM`, `HIGH`.
-- Danh sách đầy đủ và tham số của Priority Security Rules.
-- Cách hiệu chỉnh trọng số và ngưỡng bằng dữ liệu thực nghiệm.
+## 8. Phần đã có và còn thiếu
 
-Không được tự sử dụng các trọng số `30% / 25% / 15% / 30%` hoặc các ngưỡng `0–29 / 30–69 / 70–100` làm giá trị chính thức. Đây chỉ là ví dụ từng được đề xuất và hiện không thuộc kiến trúc đã chốt.
+| Nội dung | Hiện trạng |
+|---|---|
+| Weighted engine, priority deny, mandatory MFA | Có mã; policy số còn là baseline development |
+| CIDR/GeoLite, Temporal Profile, failure history | Có calculator; Network provider mặc định tắt, Temporal có cold-start |
+| Device trust, generation, reset orchestration | Có mã/test; provisioning và flow thật cần xác minh theo môi trường |
+| Audit | Có `device_trust_revocations`; chưa lưu mọi evaluation/decision |
+| Trust Score riêng, location history/impossible travel | Chưa triển khai; response có `riskScore`, không có `trustScore` |
+| Redis cache hồ sơ, velocity/rate limiter riêng | Chưa có implementation tương ứng trong Risk |
+| Retention/purge, giám sát/cảnh báo | Chưa hoàn thiện; cửa sổ query không tự xóa event cũ |
+| Continuous authentication, thu hồi JWT tức thì | Chưa triển khai; không suy ra từ logout/reset trust |
 
-Cho đến khi chủ đồ án phê duyệt, code không được hard-code trọng số hoặc ngưỡng giả định. Nếu cần tạo cấu trúc kỹ thuật trước, các giá trị phải nằm trong cấu hình và được đánh dấu `TBD`.
+Báo cáo có ngày tại [docs/reviews](docs/reviews/) là bằng chứng lịch sử, không
+xác nhận runtime hôm nay. Test unit/MockMvc/H2 không chứng minh Browser Flow,
+Redis Lua, MySQL hoặc TLS production. Mốc test xem [DEVELOPMENT_CHECKS](docs/development/DEVELOPMENT_CHECKS.md).
 
-## 6. Phân chia trách nhiệm
+## 9. Quyết định còn mở và quy tắc thay đổi
 
-### Reverse Proxy
+Chưa chốt policy số/công thức chính thức, chuẩn hóa từng đặc trưng, trọng số,
+ngưỡng LOW/MEDIUM/HIGH, Trust Score, tham số đầy đủ priority rules và cách hiệu
+chỉnh theo dữ liệu/false positive. Ví dụ `30/25/15/30` hoặc ngưỡng
+`0–29/30–69/70–100` không phải policy được phê duyệt.
 
-- Là điểm vào từ Internet.
-- TLS termination.
-- Chuyển traffic đến API Gateway hoặc Keycloak.
+Giữ các ràng buộc đã chốt:
 
-### Frontend SPA
+- Không gộp Risk vào Portal; không đặt scoring trong controller/SPI.
+- Keycloak sở hữu password/MFA/token; Portal là resource server stateless,
+  không chuyển sang password store hoặc cookie session riêng.
+- Portal DB/Risk DB là hai miền dữ liệu; SPI không truy cập Risk DB trực tiếp.
+- Không lưu token vào browser storage lâu dài hoặc secret trong `NEXT_PUBLIC_*`.
+- Không dùng provisioner/SPA/user token làm Risk caller; revoke dùng danh tính riêng.
+- Không bỏ Reverse Proxy/API Gateway hoặc JWT/JWKS trong kiến trúc đích.
+- Không tự chọn policy số chính thức, thay weighted scoring bằng ML hoặc đổi
+  ranh giới dịch vụ khi chưa được chủ đồ án chấp thuận.
+- STUDENT chỉ xem điểm của mình; ADMIN quản lý nhập/sửa điểm. Hệ thống chưa quản
+  lý tài khoản giảng viên hoặc lớp học phần.
 
-- Là public OIDC client, không có client secret.
-- Dùng Authorization Code Flow với PKCE S256 trực tiếp với Keycloak.
-- Chỉ giữ token trong memory của tab và gọi Portal API bằng Bearer access token.
-- Không tự xử lý password/MFA và không quyết định quyền truy cập cuối cùng.
-- Luồng triển khai chi tiết được quy định trong `LOGIN_FLOW.md`.
-
-### API Gateway
-
-- Routing đến Portal API.
-- Rate limiting và chính sách bảo vệ tại biên.
-
-### Keycloak
-
-- Quản lý tài khoản, mật khẩu, realm role, clients và MFA.
-- Thực hiện primary authentication.
-- Phát hành JWT sau khi authentication flow thành công.
-
-### Custom Authenticator
-
-- Là Keycloak SPI trong authentication flow.
-- Thu thập context đăng nhập.
-- Gọi Risk Scoring Service.
-- Dùng confidential service client `zerotrust-risk-caller` để lấy access token
-  bằng Client Credentials; không dùng danh tính của người dùng đang đăng nhập.
-- Chuyển quyết định thành allow, step-up MFA hoặc deny.
-- Sau một `STEP_UP_MFA` thật và OTP thành công, đăng ký trusted device bằng role
-  `risk:device:write`; chỉ phát cookie định danh thiết bị khi Risk API trả `204`.
-- Cookie device là ID ngẫu nhiên realm-scoped, `HttpOnly`, `SameSite=Lax`, không
-  phải credential và không thay password/MFA.
-- Không tự chứa công thức, trọng số hoặc ngưỡng chấm điểm.
-
-### Keycloak Event Listener
-
-- Provider `zerotrust-risk-events` ghi nhận `LOGIN`, `invalid_user_credentials`
-  và `user_not_found` của client được cấu hình, mặc định là `zerotrust-spa`;
-  `expired_code`, lỗi do lockout, sự kiện Admin Console và client khác bị bỏ qua.
-- Gửi sự kiện tới endpoint nội bộ của Risk Service bằng service token có role
-  `risk:events:write`; không kết nối trực tiếp từ Keycloak tới Redis.
-- Dùng lại URL, client credential và timeout của execution `ZeroTrust Risk
-  Evaluation` trong Browser Flow, tránh lưu thêm một bản client secret.
-- `LOGIN_ERROR` cập nhật counter ngắn hạn trong Redis; `LOGIN` lưu thời điểm xác
-  thực dài hạn trong Risk DB để làm dữ liệu nguồn cho Temporal Profile.
-- Lỗi telemetry chỉ được log ở mức an toàn và không thay đổi kết quả xác thực mà
-  Keycloak đã quyết định.
-
-### Risk Scoring Service
-
-- Là Spring Boot service tách biệt với Portal.
-- Trích xuất đặc trưng rủi ro.
-- Áp dụng Priority Security Rules.
-- Thực hiện Policy-based Weighted Risk Scoring sau khi mô hình được phê duyệt.
-- Dựng Temporal Profile theo subject/client từ lịch sử đăng nhập thành công,
-  baseline thứ trong tuần và giờ địa phương; cold-start hoặc lỗi dữ liệu không
-  được hiểu là rủi ro thấp.
-- Dải authentication-history high là guardrail bắt buộc MFA, không phụ thuộc việc
-  factor này chỉ chiếm một phần trong weighted score; Keycloak vẫn sở hữu khóa
-  brute-force tạm thời.
-- Trả về mức rủi ro, quyết định và lý do.
-- Chỉ nhận evaluation request có JWT đúng issuer, audience
-  `zerotrust-risk-api`, authorized party `zerotrust-risk-caller` và client role
-  `risk:evaluate`.
-- Chỉ nhận request đăng ký trusted device từ cùng service caller khi token có
-  client role riêng `risk:device:write`.
-- Chỉ nhận authentication failure/success event khi token có client role riêng
-  `risk:events:write`. Role đã được gán cho service account và dedicated scope của
-  `zerotrust-risk-caller`; token runtime đã được xác minh có role này.
-- Chỉ expose endpoint nội bộ qua TLS và mạng riêng trong production.
-
-### Redis
-
-- Lưu failure counter theo subject/IP trong cửa sổ thời gian 15 phút mặc định.
-- Dùng HMAC cho phần định danh trong key, TTL cho mọi counter và event marker,
-  cùng Lua script nguyên tử để chống một `eventId` làm tăng counter nhiều lần.
-- Event Listener đã cấp dữ liệu thật cho các counter này; feature extractor đọc
-  counter theo subject và source IP, ánh xạ theo các dải cấu hình rồi lấy mức cao
-  hơn để tránh tính hai lần cùng một failure event.
-- Lưu login velocity, rate limit và dữ liệu ngắn hạn.
-- Cache dữ liệu thiết bị, IP hoặc hồ sơ cần truy cập nhanh.
-
-### Risk DB
-
-- Lưu thiết bị và hồ sơ hành vi rủi ro.
-- Lưu mỗi `LOGIN` thành công theo `event_id`, subject, client, thời điểm Keycloak
-  xác thực và thời điểm Risk Service ghi nhận; unique event ID chống ghi lặp.
-- Có index `(subject_id, client_id, authenticated_at)` để đọc cửa sổ lịch sử cho
-  Temporal Profile mà không quét toàn bảng.
-- Lưu authentication event, kết quả đánh giá, quyết định và lý do.
-- Lưu audit dài hạn.
-
-### Portal API
-
-- Xử lý nghiệp vụ người dùng, sinh viên, lớp, môn học và điểm.
-- Là OAuth2 Resource Server stateless.
-- Xác minh JWT của Keycloak bằng JWKS.
-- Kiểm tra realm role và quyền trên từng tài nguyên.
-- Không kiểm tra mật khẩu và không tự chấm điểm rủi ro đăng nhập.
-- Không giữ phiên người dùng, refresh token hoặc OAuth authorized client.
-
-### Portal DB
-
-- Chỉ lưu hồ sơ người dùng và dữ liệu nghiệp vụ quản lý điểm.
-- Không lưu mật khẩu.
-- Tách biệt khỏi Risk DB.
-
-## 7. Kiểm soát quyền trong Portal
-
-JWT hợp lệ chỉ xác nhận danh tính. Portal vẫn phải kiểm tra:
-
-- `STUDENT` chỉ được xem điểm của chính mình.
-- `ADMIN` được quản lý người dùng, môn học và điểm của toàn hệ thống theo policy.
-- Việc nhập và sửa điểm chỉ do `ADMIN` thực hiện; hệ thống không quản lý tài khoản giảng viên hoặc lớp học phần.
-
-Portal xác minh chữ ký, issuer, expiration và audience của JWT bằng JWKS. Portal không gọi Keycloak để introspect mỗi API request.
-
-## 8. Các ràng buộc không được tự ý thay đổi
-
-- Không gộp Risk Scoring Service vào Portal.
-- Không đặt logic chấm điểm trong controller hoặc Keycloak SPI.
-- Không gộp Portal DB và Risk DB thành một miền dữ liệu.
-- Không lưu mật khẩu tại Portal DB.
-- Không lưu access token hoặc refresh token vào browser storage lâu dài.
-- Không thêm client secret vào SPA hoặc biến môi trường `NEXT_PUBLIC_*`.
-- Không dùng `zerotrust-provisioner`, user token hoặc client secret của SPA để gọi
-  Risk API.
-- Không chuyển Portal API về xác thực cookie/session nếu chưa cập nhật `LOGIN_FLOW.md` và mô hình CSRF.
-- Không để Risk Scoring Service đọc trực tiếp dữ liệu nghiệp vụ Portal DB.
-- Không bỏ qua Reverse Proxy, API Gateway, Keycloak hoặc bước xác minh JWT/JWKS trong kiến trúc đích.
-- Không tự chọn trọng số, ngưỡng hoặc công thức chấm điểm khi chưa được phê duyệt.
-- Không thay mô hình policy-based weighted scoring bằng ML hoặc mô hình khác khi chưa có chấp thuận rõ ràng.
-- Không thay đổi ranh giới dịch vụ hoặc luồng xác thực nếu chưa cập nhật tài liệu này và được chủ đồ án chấp thuận.
-
-Chi tiết triển khai và vận hành kết nối này nằm trong `RISK_API_SECURITY.md`.
-
-## 9. Quy tắc thay đổi kiến trúc
-
-Mọi đề xuất thay đổi phải:
-
-1. Nêu rõ vấn đề của kiến trúc hiện tại.
-2. Phân tích tác động và phương án thay thế.
-3. Được chủ đồ án chấp thuận rõ ràng.
-4. Cập nhật tài liệu này trước hoặc cùng lúc với code.
-
-Nếu không có chấp thuận, kiến trúc trong tài liệu này là nguồn sự thật duy nhất để thiết kế, hướng dẫn và triển khai đồ án.
+Đề xuất phải nêu vấn đề, phương án, đánh đổi, tác động và kế hoạch kiểm chứng;
+được chủ đồ án chấp thuận rồi cập nhật tài liệu trước hoặc cùng code.
+Quyết định mới có tác động kiến trúc được ghi ADR Proposed tới khi có chấp thuận.
+Lần cập nhật này diễn giải hiện trạng và quyết định có từ trước, không ban hành
+policy số hoặc quyết định kiến trúc mới.

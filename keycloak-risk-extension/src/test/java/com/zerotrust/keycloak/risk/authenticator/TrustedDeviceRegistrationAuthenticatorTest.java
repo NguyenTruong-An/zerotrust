@@ -44,7 +44,7 @@ class TrustedDeviceRegistrationAuthenticatorTest {
         TrustedDeviceRegistrationRequest expected = new TrustedDeviceRegistrationRequest(
                 "user-1",
                 "generated-device-id"
-        );
+        , 0);
         verify(fixture.client).register(expected);
         verify(fixture.cookieWriter).issue(fixture.context, "generated-device-id");
         verify(fixture.authenticationSession).removeAuthNote(
@@ -66,7 +66,7 @@ class TrustedDeviceRegistrationAuthenticatorTest {
         verify(fixture.client).register(new TrustedDeviceRegistrationRequest(
                 "user-1",
                 "existing-device-id"
-        ));
+        , 0));
         verifyNoInteractions(fixture.deviceIdGenerator);
         verify(fixture.cookieWriter).issue(fixture.context, "existing-device-id");
     }
@@ -80,7 +80,7 @@ class TrustedDeviceRegistrationAuthenticatorTest {
         );
         when(failure.statusCode()).thenReturn(-1);
         org.mockito.Mockito.doThrow(failure).when(fixture.client).register(
-                new TrustedDeviceRegistrationRequest("user-1", "generated-device-id")
+                new TrustedDeviceRegistrationRequest("user-1", "generated-device-id", 0)
         );
 
         fixture.authenticator.authenticate(fixture.context);
@@ -98,7 +98,7 @@ class TrustedDeviceRegistrationAuthenticatorTest {
         when(conflict.failureType()).thenReturn(RiskScoringClientException.FailureType.HTTP_ERROR);
         when(conflict.statusCode()).thenReturn(409);
         org.mockito.Mockito.doThrow(conflict).when(fixture.client).register(
-                new TrustedDeviceRegistrationRequest("user-1", "revoked-device-id")
+                new TrustedDeviceRegistrationRequest("user-1", "revoked-device-id", 0)
         );
 
         fixture.authenticator.authenticate(fixture.context);
@@ -139,6 +139,7 @@ class TrustedDeviceRegistrationAuthenticatorTest {
                     .thenReturn(Boolean.toString(eligible));
             when(authenticationSession.getAuthNote(RiskAuthenticationNotes.EVALUATOR_CONFIG_ID))
                     .thenReturn(CONFIG_ID);
+            when(authenticationSession.getAuthNote(RiskAuthenticationNotes.TRUST_GENERATION)).thenReturn("0");
             when(context.getRealm()).thenReturn(realm);
             when(realm.getAuthenticatorConfigById(CONFIG_ID)).thenReturn(evaluatorConfig);
             when(configResolver.resolve(evaluatorConfig)).thenReturn(config);
@@ -155,5 +156,36 @@ class TrustedDeviceRegistrationAuthenticatorTest {
                     clientFactory
             );
         }
+    }
+
+    @Test
+    void rotatesResetOrExpiredCookieAndSendsCurrentGeneration() {
+        Fixture fixture = new Fixture(true);
+        when(fixture.authenticationSession.getAuthNote(RiskAuthenticationNotes.ROTATE_DEVICE)).thenReturn("true");
+        when(fixture.authenticationSession.getAuthNote(RiskAuthenticationNotes.TRUST_GENERATION)).thenReturn("7");
+        fixture.authenticator.authenticate(fixture.context);
+        verifyNoInteractions(fixture.deviceIdResolver);
+        verify(fixture.client).register(new TrustedDeviceRegistrationRequest("user-1", "generated-device-id", 7));
+        verify(fixture.cookieWriter).issue(fixture.context, "generated-device-id");
+    }
+
+    @Test
+    void doesNotTrustBeforeRequiredMfaEnrollmentCompletes() {
+        Fixture fixture = new Fixture(true);
+        when(fixture.user.getRequiredActionsStream()).thenReturn(java.util.stream.Stream.of("CONFIGURE_TOTP"));
+        when(fixture.authenticationSession.getAuthNote(RiskAuthenticationNotes.ROTATE_DEVICE)).thenReturn("true");
+        fixture.authenticator.authenticate(fixture.context);
+        verifyNoInteractions(fixture.client);
+        verify(fixture.cookieWriter).expire(fixture.context);
+        verify(fixture.context).success();
+    }
+
+    @Test
+    void missingGenerationNeverRegistersADevice() {
+        Fixture fixture = new Fixture(true);
+        when(fixture.authenticationSession.getAuthNote(RiskAuthenticationNotes.TRUST_GENERATION)).thenReturn(null);
+        fixture.authenticator.authenticate(fixture.context);
+        verifyNoInteractions(fixture.client, fixture.cookieWriter);
+        verify(fixture.context).success();
     }
 }

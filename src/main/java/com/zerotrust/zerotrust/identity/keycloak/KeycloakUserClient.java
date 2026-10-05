@@ -18,13 +18,22 @@ import org.keycloak.representations.idm.UserRepresentation;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.LinkedHashSet;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 
 @Component
 @Slf4j
 @RequiredArgsConstructor
 public class KeycloakUserClient {
+    private static final List<String> MFA_ENROLLMENT_ACTIONS = List.of(
+            "CONFIGURE_TOTP",
+            "CONFIGURE_RECOVERY_AUTHN_CODES");
+    private static final Set<String> MFA_CREDENTIAL_TYPES = Set.of(
+            "otp",
+            "recovery-authn-codes");
+
     private final Keycloak keycloak;
     private final KeycloakAdminProperties properties;
     private final KeycloakExceptionMapper exceptionMapper;
@@ -114,6 +123,31 @@ public class KeycloakUserClient {
         }
     }
 
+    public void resetMfa(UUID userId) {
+        try {
+            UserResource userResource = users().get(userId.toString());
+            UserRepresentation user = userResource.toRepresentation();
+            LinkedHashSet<String> requiredActions = new LinkedHashSet<>();
+            if (user.getRequiredActions() != null) {
+                requiredActions.addAll(user.getRequiredActions());
+            }
+            requiredActions.addAll(MFA_ENROLLMENT_ACTIONS);
+            user.setRequiredActions(List.copyOf(requiredActions));
+            userResource.update(user);
+
+            userResource.credentials().stream()
+                    .filter(credential -> MFA_CREDENTIAL_TYPES.contains(credential.getType()))
+                    .map(CredentialRepresentation::getId)
+                    .filter(Objects::nonNull)
+                    .forEach(userResource::removeCredential);
+            userResource.logout();
+        } catch (ProcessingException ex) {
+            throw exceptionMapper.providerUnavailable();
+        } catch (WebApplicationException ex) {
+            throw exceptionMapper.mapClientFailure(ex);
+        }
+    }
+
     private UsersResource users() {
         return keycloak.realm(properties.realm()).users();
     }
@@ -132,6 +166,7 @@ public class KeycloakUserClient {
         user.setEnabled(true);
         user.setEmailVerified(false);
         user.setCredentials(List.of(password));
+        user.setRequiredActions(MFA_ENROLLMENT_ACTIONS);
         return user;
     }
 

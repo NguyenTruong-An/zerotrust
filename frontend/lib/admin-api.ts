@@ -125,6 +125,15 @@ export function emptyPage<T>(size = 10): PageResponse<T> {
 }
 
 function errorMessage(body: ApiErrorBody | null, fallback: string): string {
+  if (body?.error === 'RISK_DEVICE_REVOCATION_FAILED') {
+    return 'Chưa xác nhận được việc thu hồi thiết bị. Reset MFA chưa hoàn tất; hãy thử lại.';
+  }
+  if (body?.error === 'MFA_RESET_PARTIAL') {
+    return 'Đã thu hồi thiết bị nhưng chưa hoàn tất reset MFA. Đăng nhập mới đang bị chặn; hãy thử reset lại.';
+  }
+  if (body?.error === 'MFA_RESET_COMPLETION_PENDING') {
+    return 'Đã reset MFA nhưng chưa mở lại luồng khôi phục. Hãy thử reset lại để hoàn tất.';
+  }
   if (typeof body?.message === 'string' && body.message.trim()) {
     return body.message;
   }

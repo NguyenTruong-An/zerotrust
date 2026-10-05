@@ -1,7 +1,7 @@
 'use client';
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
-import { BookOpen, Plus, School, Search, Trash2, UserCog } from 'lucide-react';
+import { BookOpen, KeyRound, Plus, School, Search, Trash2, UserCog } from 'lucide-react';
 import { AuthenticationExpiredError } from '../lib/api';
 import {
   adminRequest,
@@ -273,12 +273,18 @@ export function SubjectsPanel({ onAuthenticationExpired, onChanged, onNotify }: 
   );
 }
 
-export function UsersPanel({ onAuthenticationExpired }: Pick<SharedProps, 'onAuthenticationExpired'>) {
+export function UsersPanel({
+  onAuthenticationExpired,
+  onNotify,
+}: Pick<SharedProps, 'onAuthenticationExpired' | 'onNotify'>) {
   const [users, setUsers] = useState<UserAccount[]>([]);
   const [keyword, setKeyword] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  const [resettingUser, setResettingUser] = useState<UserAccount | null>(null);
+  const [resetBusy, setResetBusy] = useState(false);
+  const [resetError, setResetError] = useState<string | null>(null);
   const handleError = useErrorHandler(onAuthenticationExpired);
 
   useEffect(() => {
@@ -297,13 +303,35 @@ export function UsersPanel({ onAuthenticationExpired }: Pick<SharedProps, 'onAut
       .some((value) => value?.toLocaleLowerCase('vi').includes(normalized)));
   }, [keyword, users]);
 
+  const resetMfa = async () => {
+    if (!resettingUser) return;
+    setResetBusy(true);
+    setResetError(null);
+    try {
+      await adminRequest<void>(`/api/admin/users/${resettingUser.id}/mfa/reset`, {
+        method: 'POST',
+      });
+      const username = resettingUser.username;
+      setResettingUser(null);
+      onNotify(`Đã reset MFA cho ${username}. Người dùng phải đăng ký lại ở lần đăng nhập tiếp theo.`);
+    } catch (caught) {
+      const message = handleError(caught, 'Không thể reset MFA cho tài khoản này.');
+      if (message) setResetError(message);
+    } finally {
+      setResetBusy(false);
+    }
+  };
+
   return (
     <>
-      <section className="admin-page-heading"><div><p className="eyebrow">Dữ liệu nội bộ</p><h1>Tài khoản người dùng</h1><p>Danh sách tài khoản đã đồng bộ với hệ thống học vụ.</p></div><span className="admin-heading-icon"><UserCog aria-hidden="true" size={22} /></span></section>
+      <section className="admin-page-heading"><div><p className="eyebrow">Dữ liệu nội bộ</p><h1>Tài khoản người dùng</h1><p>Danh sách tài khoản đã đồng bộ và công cụ khôi phục MFA có kiểm soát.</p></div><span className="admin-heading-icon"><UserCog aria-hidden="true" size={22} /></span></section>
       <section className="admin-data-panel">
         <div className="admin-client-filter"><div className="admin-input-icon"><Search aria-hidden="true" size={16} /><input aria-label="Tìm tài khoản" placeholder="Tìm username, email hoặc họ tên" value={keyword} onChange={(event) => setKeyword(event.target.value)} /></div><span>{filteredUsers.length}/{users.length} tài khoản</span></div>
-        {error ? <PanelError message={error} onRetry={() => { setLoading(true); setError(null); setReloadKey((value) => value + 1); }} /> : <div className="admin-table-wrap" aria-busy={loading}><table className="admin-table"><thead><tr><th>Người dùng</th><th>Username</th><th>Email</th><th>Trạng thái</th></tr></thead><tbody>{loading ? <TableSkeleton columns={4} /> : filteredUsers.length ? filteredUsers.map((user) => <tr key={user.id}><td><div className="admin-person-cell"><span>{user.firstName?.charAt(0)}{user.lastName?.charAt(0)}</span><div><strong>{`${user.lastName ?? ''} ${user.firstName ?? ''}`.trim() || 'Chưa cập nhật'}</strong></div></div></td><td><strong className="admin-cell-main">{user.username}</strong></td><td>{user.email}</td><td><StatusBadge status={user.status} /></td></tr>) : <tr><td colSpan={4}><EmptyState title="Không có tài khoản phù hợp" description="Thử tìm bằng từ khóa khác." /></td></tr>}</tbody></table></div>}
+        {error ? <PanelError message={error} onRetry={() => { setLoading(true); setError(null); setReloadKey((value) => value + 1); }} /> : <div className="admin-table-wrap" aria-busy={loading}><table className="admin-table"><thead><tr><th>Người dùng</th><th>Username</th><th>Email</th><th>Trạng thái</th><th aria-label="Thao tác" /></tr></thead><tbody>{loading ? <TableSkeleton columns={5} /> : filteredUsers.length ? filteredUsers.map((user) => <tr key={user.id}><td><div className="admin-person-cell"><span>{user.firstName?.charAt(0)}{user.lastName?.charAt(0)}</span><div><strong>{`${user.lastName ?? ''} ${user.firstName ?? ''}`.trim() || 'Chưa cập nhật'}</strong></div></div></td><td><strong className="admin-cell-main">{user.username}</strong></td><td>{user.email}</td><td><StatusBadge status={user.status} /></td><td><div className="admin-row-actions"><button aria-label={`Reset MFA cho ${user.username}`} disabled={user.status !== 'ACTIVE'} onClick={() => { setResettingUser(user); setResetError(null); }} title={user.status === 'ACTIVE' ? 'Reset MFA' : 'Chỉ reset được tài khoản đang hoạt động'} type="button"><KeyRound aria-hidden="true" size={15} /></button></div></td></tr>) : <tr><td colSpan={5}><EmptyState title="Không có tài khoản phù hợp" description="Thử tìm bằng từ khóa khác." /></td></tr>}</tbody></table></div>}
       </section>
+      {resettingUser && <Modal eyebrow="Khôi phục truy cập" title="Reset MFA cho tài khoản?" description={`Tài khoản ${resettingUser.username} sẽ phải thiết lập lại MFA.`} onClose={() => { if (!resetBusy) setResettingUser(null); }}>
+        <div className="admin-delete-confirmation"><FormAlert message={resetError} /><p>Thao tác này thu hồi toàn bộ thiết bị tin cậy, xóa OTP và mã khôi phục hiện tại, đồng thời đăng xuất các phiên Keycloak của người dùng. Nếu reset chưa hoàn tất, hãy thử lại trước khi yêu cầu người dùng đăng nhập. Chỉ tiếp tục sau khi đã xác minh danh tính người yêu cầu.</p><div className="admin-form-footer"><button className="admin-text-button" disabled={resetBusy} onClick={() => setResettingUser(null)} type="button">Hủy</button><button className="admin-primary-button" disabled={resetBusy} onClick={() => void resetMfa()} type="button"><KeyRound aria-hidden="true" size={16} /> {resetBusy ? 'Đang reset…' : 'Xác nhận reset MFA'}</button></div></div>
+      </Modal>}
     </>
   );
 }

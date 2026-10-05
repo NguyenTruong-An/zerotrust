@@ -1,6 +1,7 @@
 package com.zerotrust.risk.service;
 
 import com.zerotrust.risk.config.AuthenticationHistoryProperties;
+import com.zerotrust.risk.validation.IpAddressNormalizer;
 import org.springframework.stereotype.Service;
 
 import javax.crypto.Mac;
@@ -26,6 +27,9 @@ public class AuthenticationHistoryKeyHasher {
     public String hash(String scope, String value) {
         String normalizedScope = requireText(scope, "scope");
         String normalizedValue = requireText(value, "value");
+        if ("ip".equals(normalizedScope)) {
+            normalizedValue = IpAddressNormalizer.normalize(normalizedValue);
+        }
 
         try {
             Mac mac = Mac.getInstance(ALGORITHM);

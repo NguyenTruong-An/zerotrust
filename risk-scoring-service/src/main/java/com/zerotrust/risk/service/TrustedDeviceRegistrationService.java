@@ -16,15 +16,17 @@ public class TrustedDeviceRegistrationService {
     private final DeviceFingerprintHasher fingerprintHasher;
     private final KnownDeviceRepository knownDeviceRepository;
     private final Clock clock;
+    private final DeviceTrustLifecycle lifecycle;
 
     /**
      * Registers a device only after the trusted Keycloak caller has completed MFA.
      * The raw device identifier is used for HMAC calculation and is never persisted.
      */
     @Transactional
-    public void trustAfterMfa(String subjectId, String deviceId) {
-        String fingerprintHash = fingerprintHasher.hash(subjectId, deviceId);
+    public void trustAfterMfa(String subjectId, String deviceId, long generation) {
         String normalizedSubjectId = subjectId.trim();
+        lifecycle.requireGeneration(normalizedSubjectId, generation);
+        String fingerprintHash = fingerprintHasher.hash(normalizedSubjectId, deviceId);
         Instant trustedAt = clock.instant();
 
         knownDeviceRepository

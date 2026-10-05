@@ -17,6 +17,7 @@ import org.keycloak.admin.client.resource.RealmResource;
 import org.keycloak.admin.client.resource.UserResource;
 import org.keycloak.admin.client.resource.UsersResource;
 import org.keycloak.representations.idm.UserRepresentation;
+import org.keycloak.representations.idm.CredentialRepresentation;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
@@ -91,6 +92,9 @@ class KeycloakUserClientTest {
                     assertThat(credential.getValue()).isEqualTo(request.password());
                     assertThat(credential.isTemporary()).isFalse();
                 });
+        assertThat(createdUser.getRequiredActions()).containsExactly(
+                "CONFIGURE_TOTP",
+                "CONFIGURE_RECOVERY_AUTHN_CODES");
         verify(response).close();
     }
 
@@ -258,6 +262,34 @@ class KeycloakUserClientTest {
                 .isEqualTo(ErrorCode.IDENTITY_PROVIDER_UNAVAILABLE);
     }
 
+    @Test
+    void resetsMfaWithoutRemovingPasswordCredential() {
+        stubUsersResource();
+        UUID userId = UUID.randomUUID();
+        UserRepresentation user = new UserRepresentation();
+        user.setRequiredActions(List.of("VERIFY_EMAIL"));
+        CredentialRepresentation password = credential("password-id", "password");
+        CredentialRepresentation otp = credential("otp-id", "otp");
+        CredentialRepresentation recoveryCodes = credential(
+                "recovery-id", "recovery-authn-codes");
+
+        when(usersResource.get(userId.toString())).thenReturn(userResource);
+        when(userResource.toRepresentation()).thenReturn(user);
+        when(userResource.credentials()).thenReturn(List.of(password, otp, recoveryCodes));
+
+        client.resetMfa(userId);
+
+        verify(userResource).update(userCaptor.capture());
+        assertThat(userCaptor.getValue().getRequiredActions()).containsExactly(
+                "VERIFY_EMAIL",
+                "CONFIGURE_TOTP",
+                "CONFIGURE_RECOVERY_AUTHN_CODES");
+        verify(userResource).removeCredential("otp-id");
+        verify(userResource).removeCredential("recovery-id");
+        verify(userResource, never()).removeCredential("password-id");
+        verify(userResource).logout();
+    }
+
     private void stubUsersResource() {
         when(keycloak.realm("DoAn")).thenReturn(realmResource);
         when(realmResource.users()).thenReturn(usersResource);
@@ -270,5 +302,12 @@ class KeycloakUserClientTest {
                 "an@example.com",
                 "An",
                 "Nguyen");
+    }
+
+    private CredentialRepresentation credential(String id, String type) {
+        CredentialRepresentation credential = new CredentialRepresentation();
+        credential.setId(id);
+        credential.setType(type);
+        return credential;
     }
 }

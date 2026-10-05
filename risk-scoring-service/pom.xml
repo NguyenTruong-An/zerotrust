@@ -19,6 +19,7 @@
 
     <properties>
         <java.version>17</java.version>
+        <geoip2.version>5.2.0</geoip2.version>
     </properties>
 
     <dependencies>
@@ -63,6 +64,11 @@
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
             <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>com.maxmind.geoip2</groupId>
+            <artifactId>geoip2</artifactId>
+            <version>${geoip2.version}</version>
         </dependency>
 
         <dependency>

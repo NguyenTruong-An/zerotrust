@@ -633,6 +633,28 @@ class AdminControllerSecurityTest {
     }
 
     @Test
+    void rejectsStudentRoleFromMfaResetEndpoint() throws Exception {
+        UUID userId = UUID.randomUUID();
+
+        mockMvc.perform(post("/api/admin/users/{id}/mfa/reset", userId)
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_STUDENT"))))
+                .andExpect(status().isForbidden());
+
+        verify(userService, never()).resetMfa(any());
+    }
+
+    @Test
+    void allowsAdminToResetUserMfa() throws Exception {
+        UUID userId = UUID.randomUUID();
+
+        mockMvc.perform(post("/api/admin/users/{id}/mfa/reset", userId)
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
+                .andExpect(status().isNoContent());
+
+        verify(userService).resetMfa(userId);
+    }
+
+    @Test
     void rejectsStudentRoleFromStudentUpdateEndpoint() throws Exception {
         UUID id = UUID.randomUUID();
 

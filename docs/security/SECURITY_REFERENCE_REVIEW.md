@@ -1,8 +1,19 @@
+[Mục lục tài liệu](../README.md) · [Trang dự án](../../README.md)
+
 # Đối chiếu kiến trúc với các khung tham chiếu bảo mật
 
 **Ngày rà soát:** 2026-09-18
 **Phạm vi:** Keycloak authentication flow, Keycloak extension, Risk Scoring
 Service, Portal SPA/API và kết nối service-to-service.
+
+**Lưu ý khi đọc sau cập nhật 2026-10-05:** Đây là báo cáo theo mốc 18/09,
+không phải chứng nhận hoặc xác nhận live realm hiện tại. Mã mới có caller
+`zerotrust-portal-risk-admin`, generation/pending và expiry 30 ngày. Security
+revoke vẫn DENY, còn MFA-reset revoke yêu cầu MFA/ID mới sau completion.
+Chuẩn hóa IP đã được sửa cho blocklist/counter. Tra hiện trạng ở
+[ARCHITECTURE](../../ARCHITECTURE.md), [class/luồng mã](../development/CODE_FLOW_WALKTHROUGH.md)
+và [MFA lifecycle](../authentication/MFA_RESET_LIFECYCLE.md). Các kết luận chuẩn
+tham chiếu dưới đây không được tái đánh giá độc lập trong lần sửa tài liệu này.
 
 Tài liệu này là design review có bằng chứng từ code, cấu hình và phép thử local.
 Nó không phải chứng nhận tuân thủ. Kết luận hiện tại là: dự án **đúng hướng với
@@ -108,27 +119,30 @@ event là `TEMPORAL_PROFILE_COLD_START`; lỗi database là
 ngưỡng và score đều nằm trong cấu hình `TBD`, phải hiệu chỉnh bằng dữ liệu thật
 trước production.
 
-## 5. Network Intelligence theo policy CIDR nội bộ
+## 5. Network Intelligence theo CIDR và Geo-IP local
 
-Nguồn network đã chốt cho milestone hiện tại là policy CIDR do operator quản lý,
-chạy hoàn toàn trong Risk Service. Provider hỗ trợ IPv4/IPv6, phân loại
-`trusted/elevated/high/default` và chọn mức rủi ro cao nhất khi các dải chồng lấn.
-Nó không gọi API bên thứ ba, không lưu IP và không chuyển IP ra khỏi ranh giới
-Keycloak/Risk Service. SLA vì thế đi cùng Risk Service; đổi policy cần restart hoặc
-redeploy, không phụ thuộc SLA của vendor bên ngoài.
+Network provider chạy hoàn toàn trong Risk Service. CIDR hỗ trợ IPv4/IPv6, phân
+loại `trusted/elevated/high/default` và chọn mức cao nhất khi các dải chồng lấn.
+Nếu bật Geo-IP, IP public không khớp CIDR được tra GeoLite City/ASN từ file `.mmdb`
+local rồi phân loại theo ISO country code. Không gọi web service theo request,
+không persist raw IP/location và không chuyển IP ra khỏi ranh giới Keycloak/Risk
+Service. City/ASN chỉ tồn tại trong assessment nội bộ để chấm điểm/giải thích.
 
-Provider mặc định tắt. Trạng thái disabled hoặc IP runtime không hợp lệ tạo
-`NETWORK_INTELLIGENCE_UNAVAILABLE` và giữ evaluation `INCOMPLETE`. Chỉ khi provider
-được bật, network assessment available, Redis đọc được và Temporal Profile đủ mẫu
-thì extractor trả `COMPLETE` để weighted scoring chạy.
+Network provider và Geo-IP mặc định tắt. Network disabled/IP runtime sai tạo
+`NETWORK_INTELLIGENCE_UNAVAILABLE`; Geo-IP bật nhưng file/record lỗi thêm
+`GEOIP_INTELLIGENCE_UNAVAILABLE`. Cả hai giữ evaluation `INCOMPLETE`. High-risk
+CIDR/country thêm `HIGH_RISK_NETWORK` và mandatory MFA để tránh trường hợp score
+`100 * weight 0.25 = 25` bị phân loại LOW. `/actuator/health` trả DOWN nếu Geo-IP
+đã bật nhưng City database chưa sẵn sàng.
 
 Canonical IP vẫn lấy từ `ClientConnection.getRemoteAddr()` của Keycloak. Trước khi
 bật ở production, reverse proxy phải là hop được tin cậy, phải xóa/ghi đè header
 forwarded do Internet gửi và Keycloak phải cấu hình proxy headers đúng. CIDR VPN,
 private hoặc NAT dùng chung không được mặc nhiên xem là trusted: network chỉ là một
 tín hiệu, không thay thế identity/device và mọi user cùng egress sẽ nhận cùng tín
-hiệu. Nếu sau này cần reputation/geolocation bên thứ ba, phải review lại privacy,
-retention, data residency, timeout, circuit breaker và SLA trước khi thay provider.
+hiệu. Geo-IP local vẫn là dữ liệu vị trí ước tính, không phải địa chỉ vật lý. Chính
+sách thu thập tối thiểu, HMAC/TTL, masking log và retention được ghi trong
+`docs/security/DATA_PRIVACY.md`. Dịch vụ reputation/anonymous-IP bên ngoài chưa nằm trong scope.
 
 ## 6. Bằng chứng kiểm thử đến ngày 2026-09-18
 

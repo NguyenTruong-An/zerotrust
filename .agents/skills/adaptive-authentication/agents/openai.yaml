@@ -1,0 +1,3 @@
+interface:
+  display_name: "Xác thực thích ứng ZeroTrust"
+  short_description: "Risk, MFA và vòng đời thiết bị ZeroTrust"

@@ -8,6 +8,8 @@ import java.util.Optional;
 
 public interface KnownDeviceRepository extends JpaRepository<KnownDeviceEntity, Long> {
 
+    java.util.List<KnownDeviceEntity> findAllBySubjectId(String subjectId);
+
     Optional<KnownDeviceEntity> findBySubjectIdAndDeviceFingerprintHash(
             String subjectId,
             String deviceFingerprintHash

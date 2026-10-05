@@ -10,6 +10,7 @@ import com.zerotrust.risk.domain.RiskFeatureExtraction;
 import com.zerotrust.risk.domain.RiskReason;
 import com.zerotrust.risk.feature.RiskFeatureExtractor;
 import com.zerotrust.risk.rule.PrioritySecurityRule;
+import com.zerotrust.risk.rule.BlockedIpPrioritySecurityRule;
 import com.zerotrust.risk.rule.PrioritySecurityRuleEvaluator;
 import org.junit.jupiter.api.Test;
 
@@ -52,6 +53,30 @@ class RiskEvaluationServiceTests {
         assertThat(result.riskScore()).isNull();
         assertThat(result.dataStatus()).isEqualTo(RiskDataStatus.NOT_EVALUATED);
         assertThat(result.decision()).isEqualTo(RiskDecision.DENY);
+        assertThat(result.reasons()).containsExactly(RiskReason.BLOCKED_IP_ADDRESS);
+    }
+
+    @Test
+    void equivalentBlockedIpv6AddressHardDeniesBeforeFeatureExtraction() {
+        RiskPolicyProperties policy = new RiskPolicyProperties();
+        policy.getPriorityRules().setBlockedIpAddresses(List.of("2001:db8::1"));
+        RiskFeatureExtractor extractor = context -> {
+            throw new AssertionError("feature extraction must not run for a blocked IPv6 address");
+        };
+        RiskEvaluationService service = evaluationService(
+                List.of(new BlockedIpPrioritySecurityRule(policy)), extractor
+        );
+        LoginContext login = new LoginContext(
+                "subject-id", "session-id", "zerotrust-spa",
+                "2001:db8:0:0:0:0:0:1", null, null,
+                Instant.parse("2026-09-04T08:00:00Z")
+        );
+
+        RiskEvaluation result = service.evaluate(login);
+
+        assertThat(result.decision()).isEqualTo(RiskDecision.DENY);
+        assertThat(result.dataStatus()).isEqualTo(RiskDataStatus.NOT_EVALUATED);
+        assertThat(result.riskScore()).isNull();
         assertThat(result.reasons()).containsExactly(RiskReason.BLOCKED_IP_ADDRESS);
     }
 

@@ -73,7 +73,16 @@ public final class TrustedDeviceRegistrationAuthenticator implements Authenticat
         String evaluatorConfigId = authenticationSession.getAuthNote(
                 RiskAuthenticationNotes.EVALUATOR_CONFIG_ID
         );
+        String generation = authenticationSession.getAuthNote(RiskAuthenticationNotes.TRUST_GENERATION);
+        boolean rotate = Boolean.parseBoolean(authenticationSession.getAuthNote(RiskAuthenticationNotes.ROTATE_DEVICE));
         clearRegistrationNotes(authenticationSession);
+
+        // Required actions run after the browser flow: enrollment has not yet proved MFA.
+        if (requireUser(context).getRequiredActionsStream().anyMatch("CONFIGURE_TOTP"::equals)) {
+            if (rotate) expireRejectedCookie(context);
+            context.success();
+            return;
+        }
 
         try {
             AuthenticatorConfigModel evaluatorConfig = findEvaluatorConfig(
@@ -81,14 +90,16 @@ public final class TrustedDeviceRegistrationAuthenticator implements Authenticat
                     evaluatorConfigId
             );
             RiskAuthenticatorConfig config = configResolver.resolve(evaluatorConfig);
-            String deviceId = deviceIdResolver.resolve(context);
+            if (generation == null) throw new IllegalStateException("Trust generation is unavailable");
+            String deviceId = rotate ? null : deviceIdResolver.resolve(context);
             if (deviceId == null) {
                 deviceId = deviceIdGenerator.generate();
             }
 
             clientFactory.create(config).register(new TrustedDeviceRegistrationRequest(
                     requireUser(context).getId(),
-                    deviceId
+                    deviceId,
+                    Long.parseLong(generation)
             ));
             cookieWriter.issue(context, deviceId);
         } catch (RiskScoringClientException exception) {
@@ -141,6 +152,8 @@ public final class TrustedDeviceRegistrationAuthenticator implements Authenticat
     private static void clearRegistrationNotes(AuthenticationSessionModel session) {
         session.removeAuthNote(RiskAuthenticationNotes.TRUST_DEVICE_ELIGIBLE);
         session.removeAuthNote(RiskAuthenticationNotes.EVALUATOR_CONFIG_ID);
+        session.removeAuthNote(RiskAuthenticationNotes.TRUST_GENERATION);
+        session.removeAuthNote(RiskAuthenticationNotes.ROTATE_DEVICE);
     }
 
     private static AuthenticatorConfigModel findEvaluatorConfig(

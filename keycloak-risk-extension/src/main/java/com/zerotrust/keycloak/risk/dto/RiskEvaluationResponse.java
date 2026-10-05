@@ -15,8 +15,15 @@ public record RiskEvaluationResponse(
         RiskDecision decision,
         RiskDataStatus dataStatus,
         List<RiskReason> reasons,
-        Instant evaluatedAt
+        Instant evaluatedAt,
+        Long trustGeneration
 ) {
+    public RiskEvaluationResponse(UUID evaluationId, String subjectId, String authenticationSessionId,
+                                  BigDecimal riskScore, RiskLevel riskLevel, RiskDecision decision,
+                                  RiskDataStatus dataStatus, List<RiskReason> reasons, Instant evaluatedAt) {
+        this(evaluationId, subjectId, authenticationSessionId, riskScore, riskLevel, decision,
+                dataStatus, reasons, evaluatedAt, null);
+    }
     public RiskEvaluationResponse {
         Objects.requireNonNull(evaluationId, "evaluationId must not be null");
         Objects.requireNonNull(subjectId, "subjectId must not be null");

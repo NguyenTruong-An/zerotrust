@@ -63,6 +63,9 @@ public class KnownDeviceEntity {
     @Column(name = "revoked_at", columnDefinition = "TIMESTAMP(6)")
     private Instant revokedAt;
 
+    @Column(name = "revocation_reason", length = 32)
+    private String revocationReason;
+
     @Version
     @Column(name = "version", nullable = false)
     private long version;
@@ -91,6 +94,7 @@ public class KnownDeviceEntity {
         requireNotBeforeFirstSeen(trustedAt, "trustedAt");
 
         if (status == DeviceStatus.TRUSTED) {
+            this.trustedAt = trustedAt;
             markSeen(trustedAt);
             return;
         }
@@ -103,6 +107,7 @@ public class KnownDeviceEntity {
     public void revoke(Instant revokedAt) {
         Objects.requireNonNull(revokedAt, "revokedAt must not be null");
         requireNotBeforeFirstSeen(revokedAt, "revokedAt");
+        this.revocationReason = "SECURITY";
 
         if (status == DeviceStatus.REVOKED) {
             markSeen(revokedAt);
@@ -112,6 +117,12 @@ public class KnownDeviceEntity {
         this.revokedAt = revokedAt;
         status = DeviceStatus.REVOKED;
         markSeen(revokedAt);
+    }
+
+    public void revokeForMfaReset(Instant at) {
+        if (status == DeviceStatus.REVOKED) return;
+        revoke(at);
+        this.revocationReason = "MFA_RESET";
     }
 
     private void requireNotBeforeFirstSeen(Instant timestamp, String name) {

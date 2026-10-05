@@ -5,6 +5,8 @@ import org.keycloak.sessions.AuthenticationSessionModel;
 public final class RiskAuthenticationNotes {
 
     public static final String STEP_UP_REQUIRED = "zerotrust.risk.step-up-required";
+    public static final String TRUST_GENERATION = "zerotrust.risk.trust-generation";
+    public static final String ROTATE_DEVICE = "zerotrust.risk.rotate-device";
     public static final String DECISION = "zerotrust.risk.decision";
     public static final String EVALUATION_ID = "zerotrust.risk.evaluation-id";
     public static final String RISK_LEVEL = "zerotrust.risk.level";
@@ -17,6 +19,8 @@ public final class RiskAuthenticationNotes {
     }
 
     public static void clear(AuthenticationSessionModel session) {
+        session.removeAuthNote(TRUST_GENERATION);
+        session.removeAuthNote(ROTATE_DEVICE);
         session.removeAuthNote(STEP_UP_REQUIRED);
         session.removeAuthNote(DECISION);
         session.removeAuthNote(EVALUATION_ID);

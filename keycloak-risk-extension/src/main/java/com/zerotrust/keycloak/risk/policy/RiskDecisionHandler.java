@@ -34,10 +34,12 @@ public final class RiskDecisionHandler {
             context.success();
         } else if (evaluation.decision() == RiskDecision.STEP_UP_MFA) {
             requireStepUp(session);
-            session.setAuthNote(
-                    RiskAuthenticationNotes.TRUST_DEVICE_ELIGIBLE,
-                    Boolean.TRUE.toString()
-            );
+            if (evaluation.trustGeneration() != null && evaluation.trustGeneration() >= 0) {
+                session.setAuthNote(RiskAuthenticationNotes.TRUST_DEVICE_ELIGIBLE, Boolean.TRUE.toString());
+                session.setAuthNote(RiskAuthenticationNotes.TRUST_GENERATION, evaluation.trustGeneration().toString());
+                session.setAuthNote(RiskAuthenticationNotes.ROTATE_DEVICE, Boolean.toString(evaluation.reasons().contains(
+                        com.zerotrust.keycloak.risk.dto.RiskReason.DEVICE_REAUTHENTICATION_REQUIRED)));
+            }
             context.success();
         } else {
             deny(context);

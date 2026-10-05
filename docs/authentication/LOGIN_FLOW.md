@@ -1,10 +1,12 @@
+[Mục lục tài liệu](../README.md) · [Trang dự án](../../README.md)
+
 # Luồng đăng nhập SPA + PKCE
 
 **Trạng thái:** Đã chấp nhận (Accepted)
 
-**Ngày cập nhật:** 2026-09-09
+**Ngày đối chiếu mã:** 2026-10-05
 
-**Nhánh triển khai:** `zerotrust-v3-spa`
+**Phạm vi:** Mã trong working tree; cấu hình realm phải xác minh theo môi trường.
 
 Tài liệu này là nguồn sự thật cho luồng đăng nhập, refresh token và logout của Portal. Kiến trúc hiện tại là SPA dùng Authorization Code Flow + PKCE; Spring Boot chỉ là OAuth2 Resource Server stateless, không còn là BFF.
 
@@ -33,10 +35,11 @@ Phân chia trách nhiệm:
   resource `zerotrust-risk-api` bằng Client Credentials. Role `risk:evaluate`
   chỉ cho phép đánh giá; bước ghi trusted device sau MFA dùng role riêng
   `risk:device:write`. Keycloak Event Listener dùng role `risk:events:write` để
-  ghi `LOGIN_ERROR` vào backend Redis qua Risk API. Cả ba role đã được gán theo
-  least privilege cho cùng service account và dedicated scope. Client này tách
-  biệt hoàn toàn với
-  `zerotrust-provisioner`; chi tiết ở `RISK_API_SECURITY.md`.
+  ghi failure/success events qua Risk API. Realm đích phải cấp đúng role/scope;
+  code không chứng minh live realm đã provisioning. Caller này tách khỏi
+  `zerotrust-provisioner`; Portal reset MFA còn dùng danh tính riêng
+  `zerotrust-portal-risk-admin` với role `risk:device:revoke`.
+  Chi tiết ở [RISK_API_SECURITY](../security/RISK_API_SECURITY.md).
 
 ## 2. Vì sao không có `/auth/login`
 
@@ -46,7 +49,9 @@ Frontend không gửi username/password tới Portal API. Nút đăng nhập g�
 getKeycloak().login({ redirectUri: appRedirectUri() });
 ```
 
-Code nằm trong `frontend/app/page.tsx`. `keycloak-js` tạo authorization request và chuyển trình duyệt trực tiếp tới authorization endpoint của Keycloak. Vì vậy:
+Code login nằm trong [PortalRoute](../../frontend/components/portal-route.tsx);
+[page.tsx](../../frontend/app/page.tsx) chỉ render component đó. `keycloak-js`
+tạo authorization request và chuyển browser tới Keycloak. Vì vậy:
 
 - không cần và không được tạo `POST /auth/login`;
 - Portal API không nhìn thấy mật khẩu hoặc OTP;
@@ -67,6 +72,10 @@ Nếu authorization code bị chặn hoặc bị lấy khỏi URL, kẻ tấn c�
 PKCE không chống XSS. XSS vẫn có thể đọc token đang nằm trong memory hoặc gọi API dưới danh nghĩa người dùng. Vì vậy frontend vẫn cần CSP, kiểm soát dependency, không render HTML không tin cậy và tránh lưu token lâu dài.
 
 ## 4. Luồng login chi tiết theo code
+
+Sơ đồ mô tả nhánh login thành công. Password/MFA sai hoặc Risk DENY thì Keycloak
+không cấp authorization code/token từ lần login đó; xem các nhánh tại
+[CODE_FLOW_WALKTHROUGH](../development/CODE_FLOW_WALKTHROUGH.md).
 
 ```mermaid
 sequenceDiagram
@@ -95,8 +104,8 @@ Code flow:
 
 1. `frontend/lib/keycloak.ts` tạo singleton Keycloak với URL, realm và public client ID.
 2. `initializeKeycloak()` gọi `init` với `onLoad: 'check-sso'`, `pkceMethod: 'S256'` và silent SSO page.
-3. Nếu chưa đăng nhập, `frontend/app/page.tsx` hiển thị màn hình login.
-4. `login()` redirect sang Keycloak. Đoạn redirect nằm ở hàm `login` cuối `page.tsx`, không nằm trong backend.
+3. `PortalRoute.bootstrap()` khởi tạo Keycloak; nếu chưa đăng nhập thì hiển thị màn hình login.
+4. `PortalRoute.login()` redirect sang Keycloak với locale tiếng Việt. User có ADMIN được chuyển `/admin`, STUDENT được chuyển `/student/scores` sau login.
 5. Khi Keycloak redirect về `/`, lời gọi `init()` tự kiểm tra `state`, dùng verifier để đổi code lấy token và xử lý callback.
 6. Frontend lấy `preferred_username` và `realm_access.roles` từ token để hiển thị UI. Đây chỉ là kiểm tra UX; backend luôn kiểm tra role lại.
 7. `frontend/lib/api.ts` gọi `apiFetch()`, refresh nếu cần rồi thêm header `Authorization: Bearer ...`.
@@ -124,6 +133,11 @@ Evaluation. Nó được phát sau một lần MFA thành công, có `HttpOnly`,
 không đăng nhập Portal API, không chứa access/refresh token và không thay đổi mô
 hình Resource Server stateless ở trên.
 
+Cookie chỉ được phát khi registration đủ điều kiện và Risk xác nhận 204 với
+generation hợp lệ; `CONFIGURE_TOTP` còn pending không tạo trust. Server trust
+hết hạn sau 30 ngày từ `trusted_at`, độc lập với TTL cookie. Reset MFA thu hồi
+trust và có thể yêu cầu ID mới; xem [vòng đời MFA](MFA_RESET_LIFECYCLE.md).
+
 ## 6. Refresh token nằm ở đoạn nào
 
 Refresh nằm trong `frontend/lib/api.ts`, hàm `refreshToken()`:
@@ -137,6 +151,10 @@ Trước mỗi API request, token được refresh nếu còn dưới 30 giây. 
 Nếu API trả 401, `apiFetch()` force refresh đúng một lần bằng `updateToken(-1)` rồi retry request đúng một lần. Nếu refresh thất bại, token trong memory bị xóa và UI quay về trạng thái chưa đăng nhập. Không retry vô hạn.
 
 Refresh token rotation, reuse detection và thời hạn SSO phải được cấu hình ở Keycloak. SPA không tự phát hành hoặc tự xác minh refresh token.
+
+Refresh/check-sso có thể không chạy lại password/Risk/MFA. Reset trust/logout
+không khiến Portal vô hiệu ngay mọi access token đã phát: Portal kiểm JWT local
+qua JWKS, không introspect hoặc đọc generation Risk mỗi request.
 
 ## 7. Backend xác minh access token
 
@@ -156,6 +174,9 @@ Quyền hiện tại:
 /api/users/**      -> JWT hợp lệ
 mọi đường dẫn khác -> deny
 ```
+
+Ngoại lệ filter hiện tại: OPTIONS được phép để xử lý CORS và `/error` được phép
+để trả lỗi. Quyền endpoint còn có method security; UI không thay kiểm tra backend.
 
 `/api/users/me` và truy vấn điểm của sinh viên còn kiểm tra liên kết `sub` với Portal DB; tài khoản Portal không `ACTIVE` bị từ chối. Tài khoản quản trị được quản lý trạng thái enabled/disabled tại Keycloak.
 

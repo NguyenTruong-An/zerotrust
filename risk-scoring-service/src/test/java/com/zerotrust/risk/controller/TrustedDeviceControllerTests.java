@@ -102,7 +102,8 @@ class TrustedDeviceControllerTests {
         return """
                 {
                   "subjectId": "keycloak-user-id",
-                  "deviceId": "secure-random-device-identifier"
+                  "deviceId": "secure-random-device-identifier",
+                  "trustGeneration": 0
                 }
                 """;
     }

@@ -1,5 +1,10 @@
 # Keycloak Risk Extension
 
+**Ngày đối chiếu mô tả mã:** 2026-10-05. Lệnh cài đặt là hướng dẫn; phần trạng
+thái tích hợp ghi kết quả lịch sử, không chứng minh image/realm hiện tại.
+Xem [luồng class](../docs/development/CODE_FLOW_WALKTHROUGH.md),
+[kiến trúc](../ARCHITECTURE.md) và [reset MFA](../docs/authentication/MFA_RESET_LIFECYCLE.md).
+
 Keycloak Authentication SPI kết nối Browser Authentication Flow với
 `risk-scoring-service`.
 
@@ -8,7 +13,7 @@ service và không chạy bằng `java -jar`.
 
 ## Phiên bản
 
-Extension compile với Keycloak `26.7.0`, khớp image local hiện tại:
+Extension compile với Keycloak `26.7.0`; image baseline để chạy provider:
 
 ```text
 quay.io/keycloak/keycloak:26.7.0
@@ -96,15 +101,15 @@ startup mà không có lỗi provider, split-package hoặc `ClassNotFoundExcept
 
 ### 6. Xác nhận provider trong Admin Console
 
-Trong realm `DoAn`, vào **Authentication -> Flows** rồi bấm vào tên flow tùy
-chỉnh `zerotrust-browser`. Trang danh sách flow chỉ có thao tác tạo/nhân bản nên
-không hiện nút `Add step`. Flow built-in `browser` cũng không chỉnh sửa trực
-tiếp; nếu chưa có flow tùy chỉnh thì dùng menu ba chấm của `browser` để
-`Duplicate` trước.
+Trong realm `DoAn`, vào **Authentication -> Flows** rồi bấm vào tên flow đang
+dùng `zerotrust-browser-recovery`. Trang danh sách flow chỉ có thao tác tạo/nhân
+bản nên không hiện nút `Add step`. Flow `zerotrust-browser` hiện được giữ làm
+rollback; nếu cả hai flow tùy chỉnh đều chưa có thì script
+`configure-mfa-recovery-flow.ps1` sẽ sao chép flow rollback sang flow recovery.
 
-Trong trang chi tiết `zerotrust-browser`, `Add step` có thể nằm ở hàng nút phía
-trên hoặc trong menu dấu `+` ở cuối dòng flow/subflow, tùy vị trí cần thêm và độ
-rộng màn hình. Khi mở danh sách authenticator, phải có:
+Trong trang chi tiết `zerotrust-browser-recovery`, `Add step` có thể nằm ở hàng
+nút phía trên hoặc trong menu dấu `+` ở cuối dòng flow/subflow, tùy vị trí cần
+thêm và độ rộng màn hình. Khi mở danh sách authenticator, phải có:
 
 ```text
 ZeroTrust Risk Evaluation
@@ -117,20 +122,24 @@ tra lại JAR, file ServiceLoader, phiên bản Keycloak và log khởi động.
 
 ### 7. Tạo hoặc kiểm tra Authentication Flow
 
-Flow `zerotrust-browser` phải có đúng thứ tự:
+Flow `zerotrust-browser-recovery` phải có đúng thứ tự:
 
 ```text
 Username Password Form                         REQUIRED
 ZeroTrust Risk Evaluation                     REQUIRED
 Risk step-up MFA                              CONDITIONAL
   Condition - ZeroTrust step-up required      REQUIRED
-  OTP Form                                    REQUIRED
+  OTP Form                                    ALTERNATIVE
+  Recovery Authentication Code Form           ALTERNATIVE
 ZeroTrust Remember Device after MFA           REQUIRED
 ```
 
 Để thêm execution ở top level, dùng `Add step` của trang chi tiết flow. Để thêm
-condition hoặc OTP vào `Risk step-up MFA`, bấm dấu `+` ở cuối chính dòng subflow
-đó rồi chọn `Add condition` hoặc `Add step`; nút ở top level sẽ thêm sai cấp.
+condition, OTP hoặc Recovery Authentication Code Form vào `Risk step-up MFA`,
+bấm dấu `+` ở cuối chính dòng subflow đó rồi chọn `Add condition` hoặc `Add step`;
+nút ở top level sẽ thêm sai cấp. Hai form MFA phải cùng là `ALTERNATIVE`: khi
+step-up được yêu cầu, người dùng chỉ cần hoàn thành OTP **hoặc** một mã khôi phục.
+Mỗi mã khôi phục chỉ dùng được một lần.
 
 Cấu hình execution `ZeroTrust Risk Evaluation` cho topology local hiện tại:
 
@@ -151,9 +160,30 @@ Monitored login client ID:
   zerotrust-spa
 ```
 
-Sau đó bind `zerotrust-browser` làm Browser Flow của realm `DoAn`. Cấu hình flow
-được lưu trong database Keycloak; cập nhật JAR không yêu cầu tạo lại flow nếu
-provider ID và các config key không đổi.
+Có thể cấu hình và bind tự động bằng script ở thư mục gốc:
+
+```powershell
+.\configure-mfa-recovery-flow.ps1
+```
+
+Script chỉ bind `zerotrust-browser-recovery` sau khi đã xác minh condition, OTP
+và Recovery Code đúng requirement. Nếu flow này chưa tồn tại, script tự sao chép
+từ `zerotrust-browser`. Sau khi bind thành công, script backfill user thường đang
+hoạt động: user thiếu OTP hoặc recovery codes chỉ được gán required action còn
+thiếu; service account bị bỏ qua và credential hiện có không bị thay đổi. Có thể
+bỏ qua bước backfill bằng `-SkipUserBackfill`.
+
+Nếu cần quay lại flow cũ:
+
+```powershell
+.\configure-mfa-recovery-flow.ps1 -Rollback
+```
+
+Rollback trên chỉ đổi Browser Flow; nó không xóa recovery codes hay required
+action đã gán cho user.
+
+Cấu hình flow được lưu trong database Keycloak; cập nhật JAR không yêu cầu tạo
+lại flow nếu provider ID và các config key không đổi.
 
 ### 8. Chạy các service phụ thuộc và thử end-to-end
 
@@ -163,10 +193,28 @@ docker compose up -d risk-db risk-redis
 ```
 
 Logout khỏi SPA và Keycloak hoặc mở cửa sổ riêng tư, rồi login lại. Với extractor
-hiện tại, kết quả bình thường là `STEP_UP_MFA`, nên OTP Form phải xuất hiện. OTP
-đúng thì execution sau MFA gọi endpoint trusted-device; chỉ khi API trả `204`,
-Keycloak mới phát cookie `ZT_DEVICE_ID`. `DENY` hoặc lỗi Risk Service ở bước đánh
-giá với `failureMode=DENY` phải chặn login.
+hiện tại, kết quả bình thường là `STEP_UP_MFA`, nên màn hình MFA phải cho phép
+dùng OTP hoặc Recovery Code. Xác thực đúng bằng một trong hai cách thì execution
+sau MFA gọi endpoint trusted-device; chỉ khi API trả `204`, Keycloak mới phát
+cookie `ZT_DEVICE_ID`. `DENY` hoặc lỗi Risk Service ở bước đánh giá với
+`failureMode=DENY` phải chặn login.
+
+### 9. Luồng khôi phục MFA hoàn chỉnh
+
+- Tài khoản mới do Portal tạo được gán cả `CONFIGURE_TOTP` và
+  `CONFIGURE_RECOVERY_AUTHN_CODES`; user phải quét QR và lưu bộ mã dự phòng.
+- Khi mất thiết bị nhưng còn mã dự phòng, user chọn Recovery Authentication Code
+  ở màn hình MFA. Sau khi đăng nhập, nút hình chìa khóa trên Portal mở Account
+  Console để cấu hình lại OTP và sinh bộ mã dự phòng mới.
+- Khi mất cả thiết bị lẫn mã dự phòng, admin phải xác minh danh tính ngoài hệ
+  thống, vào **Tài khoản**, bấm nút chìa khóa của user và xác nhận reset MFA.
+  Endpoint `POST /api/admin/users/{id}/mfa/reset` chỉ cho role `ADMIN`; nó giữ
+  nguyên mật khẩu; Portal thu hồi trust ở Risk trước, reset OTP/recovery và
+  logout tại Keycloak, rồi xác nhận completion Risk. Lỗi partial/pending báo
+  admin thay vì thành công. Chi tiết: [MFA_RESET_LIFECYCLE](../docs/authentication/MFA_RESET_LIFECYCLE.md).
+- Tài khoản `mfa-recovery-test` được tạo trực tiếp trong Keycloak nên không xuất
+  hiện ở danh sách tài khoản Portal. Muốn kiểm thử nút reset của Portal, hãy dùng
+  một tài khoản sinh viên được tạo từ màn hình quản trị.
 
 ## Đóng gói Keycloak image bền vững
 
@@ -259,7 +307,7 @@ RiskScoringClient client = new HttpRiskScoringClient(
 Execution cần cấu hình Risk Service base URL, realm token endpoint, client ID và
 client secret của `zerotrust-risk-caller`. Trường secret dùng kiểu Password/secret
 trong Keycloak Admin Console. Chi tiết từng giá trị và cấu hình production nằm
-trong `../RISK_API_SECURITY.md`.
+trong `docs/security/RISK_API_SECURITY.md`.
 
 ## Authentication decision flow
 
@@ -297,6 +345,13 @@ extension sinh device ID ngẫu nhiên 256 bit. Nó gọi
 `POST /internal/v1/trusted-devices` bằng cùng service token rồi chỉ phát cookie
 khi API trả `204`.
 
+Contract hiện tại còn giữ `trustGeneration` từ evaluation trong auth-note và
+gửi lại cùng subject/device khi registration. Generation thiếu/cũ hoặc reset
+pending không đủ điều kiện tạo trust. `DEVICE_REAUTHENTICATION_REQUIRED` đánh
+dấu rotation: bỏ ID hết trust/MFA-reset và sinh ID mới. Nếu user còn required
+action `CONFIGURE_TOTP`, registration được bỏ qua; enrollment chưa chứng minh
+MFA thật. Risk outage fallback STEP_UP_MFA không tạo eligibility registration.
+
 Khi Risk Service lỗi, mặc định `failureMode=DENY` để fail-closed. Có thể cấu hình
 `STEP_UP_MFA` cho môi trường chấp nhận fallback sang MFA.
 
@@ -304,13 +359,15 @@ Cookie `ZT_DEVICE_ID` có thời hạn 30 ngày, scope theo realm, `HttpOnly`,
 `SameSite=Lax` và dùng cờ `Secure` khi Keycloak nhận diện secure context. Cookie
 chỉ là định danh ngẫu nhiên; Risk Service lưu HMAC của `subjectId + deviceId`,
 không lưu raw device ID. Nó không phải bằng chứng xác thực và không được dùng thay
-password/MFA.
+password/MFA. Server trust có hạn riêng 30 ngày từ `trusted_at`, không chỉ dựa
+TTL cookie; MFA registration tiếp theo có thể cập nhật mốc trust này.
 
 Nếu thao tác ghi trusted device lỗi sau khi OTP đã đúng, login hiện tại vẫn được
 phép nhưng cookie mới không được phát; lần sau user phải MFA lại. Đây là failure
 mode an toàn cho một chức năng ghi nhớ thiết bị: không hạ mức xác thực và không
 làm Risk Service trở thành single point of failure sau khi MFA đã hoàn tất. Nếu
-API trả `409` vì device đã revoke, extension phát cookie hết hạn để browser bỏ ID
+API trả `409` vì device đã revoke, generation lệch hoặc reset pending, extension
+phát cookie hết hạn để browser bỏ ID
 bị từ chối.
 
 ## Authentication Event Listener
@@ -344,7 +401,11 @@ Service chỉ được log bằng loại lỗi/status an toàn và không thay �
 Failure counter được cập nhật trong Redis bằng Lua/idempotency; success event được
 ghi idempotent trong MySQL; listener không kết nối trực tiếp tới hai data store.
 
-## Trạng thái tích hợp
+## Mốc tích hợp local đã ghi nhận
+
+Các đoạn dưới ghi lại phép thử tháng 09/2026, không xác nhận lần build mới đã
+được copy hoặc realm hiện có caller reset/Flyway V4. Rebuild, kiểm generation
+contract và Browser Flow sau MFA trước khi triển khai bản hiện tại.
 
 JAR chứa ba authenticator factory trong
 `META-INF/services/org.keycloak.authentication.AuthenticatorFactory` và một event
@@ -352,8 +413,10 @@ JAR chứa ba authenticator factory trong
 chép vào `/opt/keycloak/providers/` của container local `keycloak-26.7.0` ngày
   2026-09-17. Checksum JAR local và trong container trùng nhau; log khởi động xác
   nhận Keycloak đã nạp cả bốn provider. Flow riêng
-`zerotrust-browser` đã được bổ sung execution post-MFA ở đúng cấp sau conditional
-OTP và đặt `REQUIRED`; flow vẫn được bind làm Browser Flow của realm `DoAn`.
+`zerotrust-browser-recovery` đã được bổ sung execution post-MFA ở đúng cấp sau
+conditional MFA và đặt `REQUIRED`; flow này đang được bind làm Browser Flow của
+realm `DoAn`. Trong conditional, OTP Form và Recovery Authentication Code Form
+đều là `ALTERNATIVE`.
 
 Phép thử từ container Keycloak đã lấy token Client Credentials và gọi thành công
 Risk API chạy trên host với Risk DB MySQL 8.0.46: token endpoint trả `200`,
@@ -361,14 +424,15 @@ evaluation trả `200` với `STEP_UP_MFA / MEDIUM`; request thiếu token bị 
 `401`.
 
 Luồng đăng nhập end-to-end được xác nhận ngày 2026-09-16: Portal chuyển tới
-Keycloak, risk evaluation yêu cầu OTP, OTP thành công, post-MFA registration trả
-thành công và Portal mở trang `/admin`. Lần đăng nhập thứ hai trên cùng browser
+Keycloak, risk evaluation yêu cầu MFA, OTP thành công, post-MFA registration trả
+thành công và Portal mở trang `/admin`. Recovery code là phương thức thay thế
+trong cùng subflow. Lần đăng nhập thứ hai trên cùng browser
 vẫn chỉ có một row `TRUSTED` trong `known_devices`; `last_seen_at` tiến lên và
 `version` tăng từ 1 lên 2. Điều này xác nhận browser gửi lại cùng
 `ZT_DEVICE_ID` và thao tác đăng ký là idempotent.
 
-Phần bảo vệ service-to-service và cơ chế đăng ký/cookie sau MFA đã hoàn tất trong
-code, flow local và phép thử end-to-end. Realm hiện bật đồng thời
+Theo các phép thử local đã ghi nhận, cơ chế service-to-service và đăng ký/cookie
+đã hoạt động trong flow đó. Realm tại mốc kiểm tra bật đồng thời
 `jboss-logging` và `zerotrust-risk-events`; token caller chứa đủ ba role Risk API.
 Một lần sai mật khẩu thật tạo đúng một event marker, một counter subject và một
 counter IP trong Redis. `expired_code` và lỗi do tài khoản đã tạm khóa không còn
@@ -378,10 +442,12 @@ failure event. Phép thử với ba lần sai mật khẩu đã tạo reason
 `AUTHENTICATION_HISTORY_RISK`; dải high bắt buộc `STEP_UP_MFA` kể cả khi weighted
 score thấp hơn ngưỡng medium. Listener hiện cũng thu `LOGIN` thành công làm dữ
 liệu nguồn cho Temporal Profile. Risk Service hiện đã tính baseline theo thứ/giờ,
-phân biệt cold-start với lỗi dữ liệu và nối Temporal Risk vào extractor. Thiết bị
-CIDR Network Intelligence đã được nối vào Risk Service nhưng mặc định tắt để
-fail-safe cho đến khi canonical client IP và policy mạng được duyệt. Vì vậy local
-hiện tại vẫn có thể trả `INCOMPLETE` và yêu cầu OTP cho device `TRUSTED`. Chưa triển khai
+phân biệt cold-start với lỗi dữ liệu và nối Temporal Risk vào extractor. CIDR +
+Geo-IP local đã được nối vào Risk Service nhưng mặc định tắt để fail-safe
+cho đến khi canonical client IP, file GeoLite và policy mạng/quốc gia được duyệt.
+High-risk CIDR/country luôn bắt buộc MFA; các reason Geo-IP mới đã được đồng bộ vào
+DTO extension để response không lỗi deserialize. Vì vậy local hiện tại vẫn có thể
+trả `INCOMPLETE` và yêu cầu OTP cho device `TRUSTED`. Chưa triển khai
 production cho đến khi endpoint dùng TLS/mạng nội bộ, Keycloak có canonical
 hostname/issuer và các nhánh failure/deny được kiểm thử đầy đủ.
 

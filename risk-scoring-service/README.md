@@ -3,6 +3,11 @@
 Spring Boot service độc lập chịu trách nhiệm đánh giá rủi ro đăng nhập cho
 ZeroTrust Academic Portal.
 
+**Ngày đối chiếu mã:** 2026-10-05. Phần kết quả local có ngày bên dưới là mốc
+lịch sử, không xác nhận runtime hiện tại. Đọc [kiến trúc](../ARCHITECTURE.md),
+[giải thích class](../docs/development/CODE_FLOW_WALKTHROUGH.md) và
+[reset MFA](../docs/authentication/MFA_RESET_LIFECYCLE.md) trước khi triển khai.
+
 ## Yêu cầu
 
 - Java 17
@@ -26,8 +31,9 @@ RISK_DB_PASSWORD
 RISK_DEVICE_FINGERPRINT_PEPPER
 ```
 
-Giá trị local mặc định là MySQL tại `localhost:3306`, user `root` và password
-rỗng. Có thể cấu hình password trước khi chạy:
+Fallback trong application.properties là MySQL `localhost:3306`, user `root`,
+password rỗng. Hướng dẫn Compose dùng `.env` với port 3307 và user `risk_service`;
+không dùng fallback này cho production. Có thể cấu hình secret trước khi chạy:
 
 ```powershell
 $env:RISK_DB_PASSWORD="your-local-mysql-password"
@@ -50,11 +56,11 @@ một trong ba trạng thái `PENDING`, `TRUSTED`, `REVOKED`.
 optimistic locking. `KnownDeviceRepository` hỗ trợ tìm thiết bị theo
 `subject_id + device_fingerprint_hash` và kiểm tra thiết bị có trạng thái
 `TRUSTED`. `DeviceRecognitionService` đã nối repository vào feature extractor để
-phân loại thiết bị thành `MISSING`, `NEW`, `PENDING`, `TRUSTED` hoặc `REVOKED`.
-Các chuyển trạng thái trong entity giữ nguyên thời điểm trust/revoke đầu tiên khi
-nhận lại cùng sự kiện, không chấp nhận thời điểm trước `first_seen_at` và không
-cho phép một thiết bị `REVOKED` tự chuyển lại thành `TRUSTED`. Milestone này mới
-khóa invariant của domain.
+phân loại thành MISSING/NEW/PENDING/TRUSTED/REVOKED/REAUTHENTICATION_REQUIRED.
+Trạng thái lưu DB vẫn là PENDING/TRUSTED/REVOKED. `trust()` cập nhật `trusted_at`
+khi MFA registration thành công lại; server trust hết hạn sau 30 ngày từ mốc này.
+Không chấp nhận thời điểm trước first_seen_at và revoked row không tự trust lại.
+Revoke do SECURITY dẫn DENY; MFA_RESET dẫn MFA/ID mới khi reset đã completion.
 
 Migration `V2__create_authentication_success_events.sql` tạo bảng
 `authentication_success_events`. Bảng lưu `event_id`, subject, client, thời điểm
@@ -64,13 +70,19 @@ tạo dòng trùng. Migration `V3__add_temporal_profile_lookup_index.sql` bổ s
 `(subject_id, client_id, authenticated_at)` cho truy vấn cửa sổ lịch sử của
 Temporal Profile.
 
+Migration `V4__device_trust_revocations.sql` thêm revocation_reason,
+`subject_device_trust` (generation/pending) và `device_trust_revocations` (audit
+operation reset). Đây không phải persistence cho mọi evaluation/decision.
+
 `TrustedDeviceRegistrationService.trustAfterMfa()` hiện thực use case ghi thiết
-bị sau MFA trong một transaction: tính HMAC từ `subjectId + deviceId`, cập nhật
+bị sau MFA trong một transaction: khóa subject/kiểm generation và pending,
+tính HMAC từ `subjectId + deviceId`, cập nhật
 thiết bị đã biết hoặc tạo bản ghi `TRUSTED` mới bằng thời gian UTC do server cấp.
 Raw device ID không được ghi xuống database và device đã `REVOKED` bị từ chối.
 Use case này được expose qua `POST /internal/v1/trusted-devices`; endpoint trả
 `204 No Content` khi thành công và `409 DEVICE_TRUST_REJECTED` nếu fingerprint đã
-bị thu hồi. Keycloak extension đã nối lời gọi này sau conditional OTP và chỉ phát
+bị thu hồi, generation cũ hoặc reset còn pending. Keycloak extension nối sau
+conditional MFA; CONFIGURE_TOTP pending không tạo trust và chỉ phát
 cookie khi API xác nhận thành công.
 
 ## Kiểm thử
@@ -101,19 +113,22 @@ phải nhận `401`. Phép thử tích hợp có token nên đi qua chính exten
 Keycloak để token có issuer nội bộ `http://localhost:8080/realms/DoAn`, giống môi
 trường runtime của extension.
 
-Flow `zerotrust-browser` đã được bind làm Browser Flow của realm `DoAn` ngày
-2026-09-11. Luồng login end-to-end đã được xác nhận ngày 2026-09-16 với tài khoản
-đã cấu hình OTP. Lần đầu tạo một row `TRUSTED`; lần đăng nhập thứ hai trên cùng
-browser vẫn giữ đúng một row, cập nhật `last_seen_at` và tăng `version` từ 1 lên
-2. Fingerprint lưu trong database dài 64 ký tự và không có device ID thô. Kết quả
-này xác nhận cookie thiết bị được tái sử dụng và registration là idempotent.
+Flow `zerotrust-browser-recovery` đã được bind làm Browser Flow của realm `DoAn`
+ngày 2026-09-21; flow `zerotrust-browser` được giữ để rollback. Nhánh step-up cho
+phép OTP hoặc Recovery Authentication Code ở hai execution `ALTERNATIVE`. Luồng
+login end-to-end đã được xác nhận với tài khoản có OTP. Lần đầu tạo một row
+`TRUSTED`; lần đăng nhập thứ hai trên cùng browser vẫn giữ đúng một row, cập nhật
+`last_seen_at` và tăng `version` từ 1 lên 2. Fingerprint lưu trong database dài 64
+ký tự và không có device ID thô. Kết quả này xác nhận cookie thiết bị được tái sử
+dụng và registration là idempotent.
 
-Với mức hoàn thiện feature hiện tại, kết quả runtime bình thường vẫn là
-`STEP_UP_MFA` và màn hình OTP vẫn xuất hiện, kể cả khi device đã `TRUSTED`. Nhánh
-`ALLOW` mới chỉ kiểm thử được ở unit test cho weighted engine; runtime chưa thể
-trả `ALLOW` cho đến khi các nguồn feature bắt buộc có trạng thái `COMPLETE`.
+Với cấu hình mặc định tắt Network provider, evaluation thiếu dữ liệu trả
+`STEP_UP_MFA`, kể cả khi device TRUSTED (trừ nhánh priority DENY). User có thể
+dùng OTP hoặc recovery code chưa dùng. ALLOW cần nguồn bắt buộc COMPLETE, score
+LOW và không có mandatory guardrail. Unit test có kiểm nhánh này; deployment
+thật cần ma trận E2E riêng, không dùng cookie TRUSTED để suy ra ALLOW.
 
-Xác nhận gần nhất ngày 2026-09-21: Risk Service đạt `105/105` test và Keycloak
+Mốc lịch sử ngày 2026-09-21: Risk Service đạt `105/105` test và Keycloak
 extension đạt `68/68` test. Health local trả `UP` và request evaluation không có
 Bearer token bị chặn bằng `401`.
 
@@ -165,14 +180,16 @@ Có thể đổi cổng bằng biến môi trường `RISK_SERVICE_PORT`.
 
 ## Bảo vệ API nội bộ
 
-Risk Service là OAuth2 Resource Server stateless. Cả bốn endpoint nội bộ bắt buộc
+Risk Service là OAuth2 Resource Server stateless. Bốn endpoint evaluation,
+registration và events bắt buộc
 Bearer JWT do realm `DoAn` phát hành và kiểm tra đồng thời chữ ký JWKS, issuer,
 thời hạn, audience `zerotrust-risk-api` và `azp=zerotrust-risk-caller`. Mỗi thao
 tác có client role riêng: `risk:evaluate` cho đánh giá, `risk:device:write` cho
 đăng ký thiết bị tin cậy và `risk:events:write` cho ghi event xác thực thành công
 hoặc thất bại. Các role
-không thay thế cho nhau. Cả ba role đã được tạo/gán trong Keycloak và xuất hiện
-trong service token runtime của `zerotrust-risk-caller`.
+không thay thế cho nhau. Revoke và completion dùng caller riêng
+`zerotrust-portal-risk-admin` với `risk:device:revoke`. Realm đích phải cấp role,
+scope và audience tương ứng; không suy ra provisioning từ code.
 
 `application.properties` fail-closed: nếu không dùng profile `dev`, issuer và
 JWKS phải được truyền bằng `RISK_JWT_ISSUER_URI` và `RISK_JWT_JWK_SET_URI`.
@@ -181,7 +198,7 @@ Profile `prod` bật HTTPS trực tiếp với PKCS12 qua các biến `RISK_TLS_
 
 Service mặc định bind `127.0.0.1`. Khi chạy trong private container network, có
 thể đặt `RISK_BIND_ADDRESS=0.0.0.0`, nhưng không publish endpoint `/internal` ra
-Internet. Hướng dẫn cấu hình đầy đủ nằm trong `../RISK_API_SECURITY.md`.
+Internet. Hướng dẫn cấu hình đầy đủ nằm trong `docs/security/RISK_API_SECURITY.md`.
 
 ## Phạm vi hiện tại
 
@@ -194,6 +211,8 @@ POST /internal/v1/risk/evaluations
 POST /internal/v1/trusted-devices
 POST /internal/v1/authentication-failures
 POST /internal/v1/authentication-successes
+POST /internal/v1/subjects/{subjectId}/trusted-devices/revocations
+POST /internal/v1/subjects/{subjectId}/trusted-devices/revocations/completion
 ```
 
 Request mẫu:
@@ -213,13 +232,14 @@ Caller chỉ được gửi login context thô, không được tự gửi đi�
 định `hardDeny`. Thời điểm tiếp nhận được Risk Service lấy từ clock của server,
 không tin thời gian do caller cung cấp.
 
-Endpoint thiết bị chỉ nhận định danh người dùng và device ID do Keycloak
-extension thu được sau MFA:
+Endpoint thiết bị nhận subject/device ID do Keycloak extension thu sau MFA và
+generation đã nhận từ evaluation; không tự chọn generation mới để né 409:
 
 ```json
 {
   "subjectId": "keycloak-user-id",
-  "deviceId": "secure-random-device-identifier"
+  "deviceId": "secure-random-device-identifier",
+  "trustGeneration": 0
 }
 ```
 
@@ -236,7 +256,7 @@ Counter và deduplication marker tự hết hạn. Keycloak listener chỉ gửi
 `user_temporarily_disabled` không làm tăng counter.
 
 Feature extractor hiện lấy Device Risk và Temporal Risk từ Risk DB,
-Authentication History Risk từ Redis và Network Risk từ policy CIDR nội bộ.
+Authentication History Risk từ Redis và Network Risk từ CIDR + Geo-IP local.
 Counter subject và IP được map riêng vào
 các dải `0/medium/high`, sau đó
 lấy mức cao hơn để tránh tính hai lần cùng một failure event. Baseline development
@@ -255,12 +275,19 @@ hiệu cho medium, cả hai tín hiệu cho high. Chưa đủ số mẫu tạo
 `TEMPORAL_PROFILE_COLD_START`; lỗi database tạo `TEMPORAL_PROFILE_UNAVAILABLE`.
 Cả hai đều fail-safe, không được xem như temporal score thấp.
 
-Network Intelligence dùng danh sách CIDR do operator quản lý ngay trong Risk
-Service, hỗ trợ cả IPv4 và IPv6. Thứ tự ưu tiên là high-risk, elevated-risk,
-trusted rồi default; vì vậy rule rủi ro cao luôn thắng nếu các CIDR chồng lấn.
-Provider không gọi dịch vụ bên ngoài, không lưu IP và không gửi IP cho bên thứ ba.
-Khi bị tắt, nó trả `UNAVAILABLE` để toàn bộ evaluation fail-safe thành
-`INCOMPLETE`, không giả định network score bằng 0.
+Network Intelligence xét CIDR do operator quản lý trước, hỗ trợ IPv4/IPv6 theo thứ
+tự high-risk, elevated-risk, trusted rồi default. Nếu Geo-IP được bật, public IP
+không khớp CIDR được tra bằng GeoLite City và tùy chọn GeoLite ASN local, sau đó
+phân loại theo country code với cùng thứ tự high/elevated/trusted/default. Private,
+loopback, link-local và multicast không được gửi vào Geo-IP provider. City, timezone,
+accuracy radius và ASN chỉ tồn tại trong assessment nội bộ; raw IP/location không
+được persist hoặc ghi log. Provider không gọi web service Geo-IP theo request.
+
+High-risk CIDR/country tạo `HIGH_RISK_NETWORK` và mandatory `STEP_UP_MFA`, kể cả
+khi weighted contribution chỉ là `100 * 0.25 = 25`. Geo-IP bật nhưng database/record
+không available tạo `GEOIP_INTELLIGENCE_UNAVAILABLE`; evaluation trở thành
+`INCOMPLETE` thay vì rơi về default score. Health chuyển DOWN nếu đã bật Geo-IP mà
+City database chưa mở được.
 
 Các giá trị sau là baseline development có thể cấu hình, chưa phải policy chính
 thức:
@@ -279,6 +306,12 @@ RISK_NETWORK_HIGH_SCORE=100
 RISK_NETWORK_TRUSTED_CIDRS=
 RISK_NETWORK_ELEVATED_CIDRS=
 RISK_NETWORK_HIGH_RISK_CIDRS=
+RISK_GEOIP_ENABLED=false
+RISK_GEOIP_CITY_DATABASE_PATH=
+RISK_GEOIP_ASN_DATABASE_PATH=
+RISK_GEOIP_TRUSTED_COUNTRY_CODES=
+RISK_GEOIP_ELEVATED_COUNTRY_CODES=
+RISK_GEOIP_HIGH_RISK_COUNTRY_CODES=
 RISK_TEMPORAL_HISTORY_WINDOW=P90D
 RISK_TEMPORAL_MINIMUM_EVENTS=5
 RISK_TEMPORAL_MAXIMUM_EVENTS=200
@@ -300,6 +333,30 @@ RISK_NETWORK_ELEVATED_CIDRS=198.51.100.0/24
 RISK_NETWORK_HIGH_RISK_CIDRS=192.0.2.128/25
 ```
 
+Để bật Geo-IP sau khi đã xác minh canonical IP, tải GeoLite City/ASN bằng tài
+khoản MaxMind rồi đặt file ngoài Git:
+
+```powershell
+$env:MAXMIND_ACCOUNT_ID='account-id'
+$env:MAXMIND_LICENSE_KEY='license-key'
+.\update-geoip-databases.ps1
+```
+
+Sau đó cấu hình:
+
+```text
+RISK_GEOIP_ENABLED=true
+RISK_GEOIP_CITY_DATABASE_PATH=C:/absolute/path/geoip-data/GeoLite2-City.mmdb
+RISK_GEOIP_ASN_DATABASE_PATH=C:/absolute/path/geoip-data/GeoLite2-ASN.mmdb
+RISK_GEOIP_TRUSTED_COUNTRY_CODES=
+RISK_GEOIP_ELEVATED_COUNTRY_CODES=
+RISK_GEOIP_HIGH_RISK_COUNTRY_CODES=
+```
+
+Country code phải là ISO 3166-1 alpha-2. High thắng elevated, elevated thắng
+trusted nếu policy chồng lấn. Không đưa một quốc gia vào high/deny khi chưa có phê
+duyệt policy; city không được dùng làm hard deny vì Geo-IP chỉ là vị trí ước tính.
+
 Không đưa cả dải private, VPN hoặc NAT dùng chung vào `TRUSTED_CIDRS` chỉ vì đó là
 mạng nội bộ. Một CIDR là tín hiệu dùng chung cho mọi user đi qua egress đó, không
 chứng minh danh tính hay thiết bị. Với production, Keycloak chỉ được tin proxy do
@@ -320,14 +377,17 @@ tiếp tục lấy địa chỉ đã chuẩn hóa qua `ClientConnection.getRemot
     "NETWORK_INTELLIGENCE_UNAVAILABLE",
     "TEMPORAL_PROFILE_COLD_START"
   ],
-  "evaluatedAt": "2026-09-04T08:00:00Z"
+  "evaluatedAt": "2026-09-04T08:00:00Z",
+  "trustGeneration": 0
 }
 ```
 
-Nếu fingerprint có trạng thái `REVOKED`, Risk Service trả `DENY` với lý do
-`REVOKED_DEVICE` trước khi weighted scoring. Thiết bị mới chỉ được nhận diện là
-`NEW`; service chưa tự ghi hoặc tự chuyển thành `TRUSTED`. Việc đăng ký thiết bị
-phải diễn ra sau khi login/MFA thành công ở bước authentication-event tiếp theo.
+Fingerprint REVOKED vì SECURITY (hoặc reason không phải MFA_RESET) trả DENY /
+REVOKED_DEVICE trước scoring. REVOKED vì MFA_RESET hoặc trust hết hạn trả
+DEVICE_REAUTHENTICATION_REQUIRED, bắt buộc MFA và ID mới. MISSING/NEW/PENDING cũng
+có guardrail MFA, không chỉ factor điểm. Snapshot subject reset pending trả
+DENY / MFA_RESET_IN_PROGRESS. Evaluation không tự tạo TRUSTED; đăng ký do
+post-MFA authenticator thực hiện, không do LOGIN event listener.
 
 Trọng số và ngưỡng trong `application.properties` là baseline phục vụ development,
 được đánh dấu `TBD`, không phải chính sách đã được phê duyệt. Có thể ghi đè bằng
@@ -341,8 +401,8 @@ các biến môi trường tương ứng. Trọng số bắt buộc có tổng b
 | User/session/client | Keycloak `AuthenticationFlowContext` | Thật | Gửi ID của user, authentication session và client sang Risk Service |
 | IP/User-Agent | Kết nối và HTTP header mà Keycloak nhận được | Thật, cần cấu hình proxy đúng khi triển khai | Được gửi làm context thô; User-Agent chưa được chấm điểm |
 | Device ID | Cookie `ZT_DEVICE_ID` | Thật | Keycloak sinh ID ngẫu nhiên 256 bit sau MFA, API lưu HMAC và cookie được phát sau HTTP 204 |
-| Device status | HMAC fingerprint và bảng `known_devices` trong MySQL | Thật một phần | Phân loại `MISSING/NEW/PENDING/TRUSTED/REVOKED`; `REVOKED` bị `DENY` |
-| Network intelligence | Policy CIDR IPv4/IPv6 nội bộ, do operator quản lý | Đã tích hợp, mặc định tắt | High-risk thắng khi rule chồng lấn; disabled/IP lỗi tạo `NETWORK_INTELLIGENCE_UNAVAILABLE`; không gửi IP ra ngoài |
+| Device status | HMAC fingerprint và bảng `known_devices` trong MySQL | Có mã | Phân biệt trust còn hạn, security revoke và MFA-reset/expired; state thiếu/mới/pending bắt buộc MFA |
+| Network intelligence | CIDR IPv4/IPv6 + GeoLite City/ASN local | Đã tích hợp, mặc định tắt | CIDR được xét trước; public IP có thể map country; high-risk bắt buộc MFA; Geo-IP lỗi fail-safe; không persist raw IP/location |
 | Temporal profile | Keycloak `LOGIN` -> protected Risk API -> `authentication_success_events` trong MySQL | Dữ liệu thật, đã tích hợp | Baseline theo thứ/giờ trong cửa sổ và timezone cấu hình; trả score `0/medium/high`, phân biệt `COLD_START` với `UNAVAILABLE` |
 | Authentication history | Keycloak credential-related `LOGIN_ERROR` -> protected Risk API -> Redis counter theo subject/IP, HMAC key, TTL và event deduplication | Dữ liệu thật, đã tích hợp | Bỏ qua lỗi kỹ thuật/lockout; lấy mức cao hơn giữa subject/IP; dải high bắt buộc MFA; Redis lỗi tạo `AUTHENTICATION_HISTORY_UNAVAILABLE` |
 | Trọng số/ngưỡng/điểm theo trạng thái device | `application.properties` | Giá trị policy baseline | Là số cấu hình thủ công, chưa được hiệu chỉnh từ dữ liệu thực nghiệm |
@@ -363,6 +423,29 @@ $env:RISK_BLOCKED_IP_ADDRESSES="203.0.113.10,198.51.100.20"
 IP thuộc danh sách này bị `DENY` bởi Priority Security Rule trước khi feature
 extraction và weighted scoring chạy.
 
+Risk chuẩn hóa IP literal cho blocklist và khóa HMAC của failure counter: IPv6
+rút gọn/đầy đủ, hoa/thường và IPv4 có số 0 ở đầu cùng trỏ về một địa chỉ.
+Blocklist được chuẩn hóa khi khởi động; entry sai định dạng khiến service không
+khởi động. Hostname, scope ID và IPv4-mapped IPv6 không được chấp nhận; không
+tra DNS. Chuỗi rỗng trong cấu hình blocklist tiếp tục được bỏ qua.
+
+Khi nâng cấp từ phiên bản chưa chuẩn hóa, khóa counter của IPv6/IPv4 có số 0 ở
+đầu có thể thay đổi. Không thể gộp các khóa HMAC cũ theo mọi cách viết IP mà
+không có địa chỉ gốc. Triển khai đồng bộ các instance Risk để tránh chia counter
+giữa hai phiên bản; counter cũ hết hạn theo `RISK_AUTH_FAILURE_WINDOW`
+(baseline 15 phút). Trong phần cửa sổ còn lại, lịch sử theo IP có thể thiếu;
+counter subject và event deduplication giữ nguyên định dạng khóa.
+
+## Giới hạn kiểm chứng
+
+Mốc 2026-10-05: 182 test Risk đạt sau sửa IP normalization; xem
+[DEVELOPMENT_CHECKS](../docs/development/DEVELOPMENT_CHECKS.md). H2/mock và JWKS
+giả lập không xác nhận MySQL/Redis/Keycloak hoặc TLS production. GeoLite được
+nạp vào memory lúc startup, chưa tự reload hoặc kiểm tuổi file. History query
+không thay purge/retention job.
+
+Phần dưới là ghi nhận local trước đây, không phải xác nhận rollout hiện tại:
+
 OAuth2 service-to-service đã được triển khai trong code và có test cho token
 thiếu, sai chữ ký, sai issuer/audience/caller/role và hết hạn. Endpoint đăng ký
 thiết bị đã có kiểm thử phân quyền riêng, validation, persistence và xung đột khi
@@ -377,7 +460,8 @@ lần. Listener hiện chỉ đếm `invalid_user_credentials`/`user_not_found` 
 `expired_code`/lockout. Counter đã được nối vào feature extractor; phép thử với ba
 lần sai mật khẩu trả reason `AUTHENTICATION_HISTORY_RISK`, còn dải high thêm
 `EXCESSIVE_AUTHENTICATION_FAILURES` và bắt buộc MFA. Flyway V2/V3, đường ghi
-successful-login, truy vấn lịch sử, Temporal Risk và CIDR Network Risk calculator
-đã được triển khai. Bước tiếp theo là chạy ma trận runtime end-to-end cho `ALLOW`,
+successful-login, truy vấn lịch sử, Temporal Risk và CIDR + GeoLite local Network
+Risk calculator đã được triển khai. High-risk network đã có mandatory MFA và
+Geo-IP unavailable đã fail-safe. Bước tiếp theo là chạy ma trận runtime end-to-end cho `ALLOW`,
 `STEP_UP_MFA`, `DENY`, Redis/Risk Service outage và Keycloak brute-force lockout
 trước khi chuyển sang hardening production.

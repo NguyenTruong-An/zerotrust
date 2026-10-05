@@ -10,6 +10,7 @@ import {
   ChevronRight,
   CircleUserRound,
   GraduationCap,
+  KeyRound,
   LogOut,
   Mail,
   MapPin,
@@ -22,6 +23,7 @@ import {
   TriangleAlert,
 } from 'lucide-react';
 import { AuthenticationExpiredError } from '../lib/api';
+import { accountSecurityUrl } from '../lib/keycloak';
 import {
   emptyPage,
   PageResponse,
@@ -232,6 +234,7 @@ export function StudentScoreDashboard({
           <div className="topbar-title"><span>Không gian sinh viên</span><strong>Kết quả học tập</strong></div>
           <div className="topbar-actions">
             <div className="profile"><span className="avatar student-avatar">{initials}</span><div><strong>{accountName}</strong><span>STUDENT</span></div></div>
+            <a aria-label="Bảo mật tài khoản" className="logout-button" href={accountSecurityUrl()} rel="noreferrer" target="_blank" title="Bảo mật tài khoản"><KeyRound aria-hidden="true" size={18} /></a>
             <button aria-label="Đăng xuất" className="logout-button" onClick={onLogout} type="button"><LogOut aria-hidden="true" size={18} /></button>
           </div>
         </header>

@@ -26,15 +26,21 @@ public class DeviceRecognitionService {
         String fingerprintHash = fingerprintHasher.hash(context.subjectId(), context.deviceId());
         DeviceRecognitionStatus status = knownDeviceRepository
                 .findBySubjectIdAndDeviceFingerprintHash(context.subjectId(), fingerprintHash)
-                .map(KnownDeviceEntity::getStatus)
-                .map(this::toRecognitionStatus)
+                .map(device -> recognizeStored(device, context.receivedAt()))
                 .orElse(DeviceRecognitionStatus.NEW);
 
         return new DeviceRecognition(status, fingerprintHash);
     }
 
-    private DeviceRecognitionStatus toRecognitionStatus(DeviceStatus status) {
-        return switch (status) {
+    private DeviceRecognitionStatus recognizeStored(KnownDeviceEntity device, java.time.Instant now) {
+        if (device.getStatus() == DeviceStatus.REVOKED && "MFA_RESET".equals(device.getRevocationReason())) {
+            return DeviceRecognitionStatus.REAUTHENTICATION_REQUIRED;
+        }
+        if (device.getStatus() == DeviceStatus.TRUSTED && (device.getTrustedAt() == null
+                || !now.isBefore(device.getTrustedAt().plus(java.time.Duration.ofDays(30))))) {
+            return DeviceRecognitionStatus.REAUTHENTICATION_REQUIRED;
+        }
+        return switch (device.getStatus()) {
             case PENDING -> DeviceRecognitionStatus.PENDING;
             case TRUSTED -> DeviceRecognitionStatus.TRUSTED;
             case REVOKED -> DeviceRecognitionStatus.REVOKED;

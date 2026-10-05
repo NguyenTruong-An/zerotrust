@@ -15,6 +15,7 @@ public record RiskApiSecurityProperties(
         @NotNull URI jwkSetUri,
         @NotBlank String audience,
         @NotBlank String allowedClientId,
+        @NotBlank @org.springframework.boot.context.properties.bind.DefaultValue("zerotrust-portal-risk-admin") String revokeClientId,
         boolean requireHttps
 ) {
     @AssertTrue(message = "JWT endpoints must be absolute HTTPS URLs; HTTP is only allowed with require-https=false")

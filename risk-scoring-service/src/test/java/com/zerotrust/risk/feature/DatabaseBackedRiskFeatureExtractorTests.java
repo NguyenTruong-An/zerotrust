@@ -5,7 +5,11 @@ import com.zerotrust.risk.domain.AuthenticationHistoryRiskAssessment;
 import com.zerotrust.risk.domain.DeviceRecognition;
 import com.zerotrust.risk.domain.DeviceRecognitionStatus;
 import com.zerotrust.risk.domain.LoginContext;
+import com.zerotrust.risk.domain.GeoIpLocation;
 import com.zerotrust.risk.domain.NetworkRiskAssessment;
+import com.zerotrust.risk.domain.NetworkRiskBand;
+import com.zerotrust.risk.domain.NetworkRiskSource;
+import com.zerotrust.risk.domain.NetworkRiskUnavailableReason;
 import com.zerotrust.risk.domain.RiskDataStatus;
 import com.zerotrust.risk.domain.RiskFeatureExtraction;
 import com.zerotrust.risk.domain.RiskReason;
@@ -90,6 +94,20 @@ class DatabaseBackedRiskFeatureExtractorTests {
         assertThat(result.dataStatus()).isEqualTo(RiskDataStatus.INCOMPLETE);
         assertThat(result.reasons()).contains(RiskReason.NEW_DEVICE);
         assertThat(result.priorityViolation()).isEmpty();
+        assertThat(result.mandatoryStepUpReason()).contains(RiskReason.NEW_DEVICE);
+    }
+
+    @Test
+    void expiredOrResetTrustRequiresMfaWithoutCreatingAHardDeny() {
+        historyRisk("0");
+        temporalRisk("0");
+        networkRisk("0");
+        when(deviceRecognitionService.recognize(context))
+                .thenReturn(new DeviceRecognition(DeviceRecognitionStatus.REAUTHENTICATION_REQUIRED, HASH));
+        var result = extractor.extract(context);
+        assertThat(result.priorityViolation()).isEmpty();
+        assertThat(result.mandatoryStepUpReason()).contains(RiskReason.DEVICE_REAUTHENTICATION_REQUIRED);
+        assertThat(result.reasons()).contains(RiskReason.DEVICE_REAUTHENTICATION_REQUIRED);
     }
 
     @Test
@@ -245,6 +263,75 @@ class DatabaseBackedRiskFeatureExtractorTests {
         assertThat(result.factors().networkRisk()).isEqualByComparingTo("50");
         assertThat(result.reasons()).contains(RiskReason.NETWORK_RISK);
         assertThat(result.reasons()).doesNotContain(RiskReason.NETWORK_INTELLIGENCE_UNAVAILABLE);
+    }
+
+    @Test
+    void highRiskNetworkCreatesMandatoryStepUpGuardrail() {
+        historyRisk("0");
+        temporalRisk("0");
+        when(networkRiskCalculator.calculate(context)).thenReturn(
+                NetworkRiskAssessment.available(
+                        new BigDecimal("100"),
+                        NetworkRiskBand.HIGH,
+                        NetworkRiskSource.CIDR,
+                        null
+                )
+        );
+        when(deviceRecognitionService.recognize(context))
+                .thenReturn(new DeviceRecognition(DeviceRecognitionStatus.TRUSTED, HASH));
+
+        RiskFeatureExtraction result = extractor.extract(context);
+
+        assertThat(result.dataStatus()).isEqualTo(RiskDataStatus.COMPLETE);
+        assertThat(result.mandatoryStepUpReason()).contains(RiskReason.HIGH_RISK_NETWORK);
+        assertThat(result.reasons()).contains(
+                RiskReason.NETWORK_RISK,
+                RiskReason.HIGH_RISK_NETWORK
+        );
+    }
+
+    @Test
+    void geoIpNetworkRiskIsExplainableWithoutExposingTheRawAddress() {
+        historyRisk("0");
+        temporalRisk("0");
+        when(networkRiskCalculator.calculate(context)).thenReturn(
+                NetworkRiskAssessment.available(
+                        new BigDecimal("50"),
+                        NetworkRiskBand.ELEVATED,
+                        NetworkRiskSource.GEOIP,
+                        new GeoIpLocation("US", null, null, 500, null, null)
+                )
+        );
+        when(deviceRecognitionService.recognize(context))
+                .thenReturn(new DeviceRecognition(DeviceRecognitionStatus.TRUSTED, HASH));
+
+        RiskFeatureExtraction result = extractor.extract(context);
+
+        assertThat(result.reasons()).contains(
+                RiskReason.NETWORK_RISK,
+                RiskReason.GEOLOCATION_RISK
+        );
+    }
+
+    @Test
+    void unavailableGeoIpKeepsTheWholeEvaluationIncomplete() {
+        historyRisk("0");
+        temporalRisk("0");
+        when(networkRiskCalculator.calculate(context)).thenReturn(
+                NetworkRiskAssessment.unavailable(
+                        NetworkRiskUnavailableReason.GEOIP_UNAVAILABLE
+                )
+        );
+        when(deviceRecognitionService.recognize(context))
+                .thenReturn(new DeviceRecognition(DeviceRecognitionStatus.TRUSTED, HASH));
+
+        RiskFeatureExtraction result = extractor.extract(context);
+
+        assertThat(result.dataStatus()).isEqualTo(RiskDataStatus.INCOMPLETE);
+        assertThat(result.reasons()).contains(
+                RiskReason.NETWORK_INTELLIGENCE_UNAVAILABLE,
+                RiskReason.GEOIP_INTELLIGENCE_UNAVAILABLE
+        );
     }
 
     @Test

@@ -6,6 +6,7 @@ import com.zerotrust.risk.domain.DeviceRecognition;
 import com.zerotrust.risk.domain.LoginContext;
 import com.zerotrust.risk.domain.NetworkRiskAssessment;
 import com.zerotrust.risk.domain.NetworkRiskStatus;
+import com.zerotrust.risk.domain.NetworkRiskUnavailableReason;
 import com.zerotrust.risk.domain.RiskDataStatus;
 import com.zerotrust.risk.domain.RiskFactors;
 import com.zerotrust.risk.domain.RiskFeatureExtraction;
@@ -43,17 +44,25 @@ public class DatabaseBackedRiskFeatureExtractor implements RiskFeatureExtractor 
         BigDecimal deviceRisk;
 
         switch (device.status()) {
+            case REAUTHENTICATION_REQUIRED -> {
+                deviceRisk = deviceRiskProperties.getNewDevice();
+                reasons.add(RiskReason.DEVICE_REAUTHENTICATION_REQUIRED);
+                mandatoryStepUpReason = Optional.of(RiskReason.DEVICE_REAUTHENTICATION_REQUIRED);
+            }
             case MISSING -> {
                 deviceRisk = deviceRiskProperties.getMissing();
                 reasons.add(RiskReason.DEVICE_IDENTIFIER_MISSING);
+                mandatoryStepUpReason = Optional.of(RiskReason.DEVICE_IDENTIFIER_MISSING);
             }
             case NEW -> {
                 deviceRisk = deviceRiskProperties.getNewDevice();
                 reasons.add(RiskReason.NEW_DEVICE);
+                mandatoryStepUpReason = Optional.of(RiskReason.NEW_DEVICE);
             }
             case PENDING -> {
                 deviceRisk = deviceRiskProperties.getPending();
                 reasons.add(RiskReason.PENDING_DEVICE);
+                mandatoryStepUpReason = Optional.of(RiskReason.PENDING_DEVICE);
             }
             case TRUSTED -> deviceRisk = deviceRiskProperties.getTrusted();
             case REVOKED -> {
@@ -89,8 +98,22 @@ public class DatabaseBackedRiskFeatureExtractor implements RiskFeatureExtractor 
             if (networkRisk.compareTo(BigDecimal.ZERO) > 0) {
                 reasons.add(RiskReason.NETWORK_RISK);
             }
+            if (networkAssessment.usesGeoIp()
+                    && networkRisk.compareTo(BigDecimal.ZERO) > 0) {
+                reasons.add(RiskReason.GEOLOCATION_RISK);
+            }
+            if (networkAssessment.requiresStepUp()) {
+                reasons.add(RiskReason.HIGH_RISK_NETWORK);
+                if (mandatoryStepUpReason.isEmpty()) {
+                    mandatoryStepUpReason = Optional.of(RiskReason.HIGH_RISK_NETWORK);
+                }
+            }
         } else {
             reasons.add(RiskReason.NETWORK_INTELLIGENCE_UNAVAILABLE);
+            if (networkAssessment.unavailableReason()
+                    == NetworkRiskUnavailableReason.GEOIP_UNAVAILABLE) {
+                reasons.add(RiskReason.GEOIP_INTELLIGENCE_UNAVAILABLE);
+            }
         }
 
         TemporalRiskAssessment temporalAssessment = temporalRiskCalculator.calculate(context);

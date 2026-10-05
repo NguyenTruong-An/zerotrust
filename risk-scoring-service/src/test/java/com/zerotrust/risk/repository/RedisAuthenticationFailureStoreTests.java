@@ -100,4 +100,22 @@ class RedisAuthenticationFailureStoreTests {
         assertThat(store.countBySubject("subject-1")).isZero();
         assertThat(store.countBySourceIp("203.0.113.10")).isEqualTo(3L);
     }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void readsTheRecordedCounterUsingAnEquivalentIpv6Address() {
+        when(redisTemplate.execute(any(RedisScript.class), anyList(), any(), any()))
+                .thenReturn(1L);
+        store.recordFailure("event-ipv6", null, "2001:0DB8::1");
+        ArgumentCaptor<List<String>> keys = ArgumentCaptor.forClass(List.class);
+        verify(redisTemplate).execute(
+                any(RedisScript.class), keys.capture(), eq("3600"), eq("900")
+        );
+        String recordedIpKey = keys.getValue().get(1);
+        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        when(valueOperations.get(recordedIpKey)).thenReturn("7");
+
+        assertThat(store.countBySourceIp("2001:db8:0:0:0:0:0:1")).isEqualTo(7L);
+        verify(valueOperations).get(recordedIpKey);
+    }
 }

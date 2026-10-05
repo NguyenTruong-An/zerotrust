@@ -29,3 +29,10 @@ export function initializeKeycloak(): Promise<boolean> {
 export function appRedirectUri(): string {
   return `${window.location.origin}/`;
 }
+
+export function accountSecurityUrl(): string {
+  const baseUrl = (process.env.NEXT_PUBLIC_KEYCLOAK_URL ?? 'http://localhost:8180')
+    .replace(/\/$/, '');
+  const realm = encodeURIComponent(process.env.NEXT_PUBLIC_KEYCLOAK_REALM ?? 'DoAn');
+  return `${baseUrl}/realms/${realm}/account/#/security/signingin`;
+}

@@ -1,4 +1,11 @@
+[Mục lục tài liệu](../README.md) · [Trang dự án](../../README.md)
+
 # Chạy ZeroTrust Portal trên máy local
+
+> Các lệnh bên dưới chạy từ thư mục gốc repository, trừ khi có chỉ dẫn khác.
+
+**Ngày đối chiếu cấu hình:** 2026-10-05. Tên realm/container và URL là baseline
+local; kiểm tra môi trường của bạn trước khi chạy. Compose không dựng cả hệ thống.
 
 Ứng dụng gồm bốn phần cần chạy độc lập:
 
@@ -14,9 +21,10 @@ Keycloak, backend và frontend vẫn được chạy độc lập.
 
 Trong realm `DoAn`, cấu hình client public `zerotrust-spa`, audience mapper
 `zerotrust-api`, realm roles `ADMIN`/`STUDENT` và client service account
-`zerotrust-provisioner` theo mục 10 của `LOGIN_FLOW.md`. Kết nối Risk API dùng hai
-client riêng `zerotrust-risk-api` và `zerotrust-risk-caller` theo
-`RISK_API_SECURITY.md`.
+`zerotrust-provisioner` theo mục 10 của `docs/authentication/LOGIN_FLOW.md`. Kết nối Risk API dùng hai
+client `zerotrust-risk-api`, `zerotrust-risk-caller` và caller reset riêng
+`zerotrust-portal-risk-admin` theo [RISK_API_SECURITY](../security/RISK_API_SECURITY.md)
+và [MFA_RESET_LIFECYCLE](../authentication/MFA_RESET_LIFECYCLE.md).
 
 ## 2. Chạy backend
 
@@ -40,6 +48,14 @@ CORS_ALLOWED_ORIGINS=http://localhost:3000
 
 Nếu dùng URL/realm khác, đặt thêm các biến trong `src/main/resources/application.properties` tương ứng.
 
+Để dùng nút reset MFA, Portal còn cần `PORTAL_RISK_BASE_URL`,
+`PORTAL_RISK_TOKEN_URI`, `PORTAL_RISK_CLIENT_ID`, `PORTAL_RISK_CLIENT_SECRET`.
+HTTP local cần override `PORTAL_RISK_ALLOW_HTTP=true`; production giữ HTTPS.
+Issuer token Portal-risk-admin phải khớp issuer mà Risk chấp nhận, kể cả khi
+SPI xin token từ trong container. Không bỏ kiểm tra issuer để chữa lệch URL.
+Root `.env` không tự được Maven/Spring nạp cho Portal; đặt biến môi trường hoặc
+config import có chủ đích. `run-risk-local.ps1` chỉ nạp cấu hình cho Risk.
+
 ## 3. Chạy frontend
 
 Yêu cầu Node.js từ 22.13.0. Mở terminal khác:
@@ -47,7 +63,7 @@ Yêu cầu Node.js từ 22.13.0. Mở terminal khác:
 ```powershell
 Set-Location frontend
 Copy-Item .env.example .env.local
-npm install
+npm ci
 npm run dev
 ```
 
@@ -72,14 +88,14 @@ docker compose up -d risk-db risk-redis
 .\run-risk-local.ps1
 ```
 
-Máy đã được cấu hình trong phiên hiện tại có `.env` sinh ngẫu nhiên và bị Git bỏ
-qua, nên các lần sau chỉ cần hai lệnh cuối. Risk DB dùng user `risk_service`, lưu
+Nếu máy đã có `.env` hợp lệ thì các lần sau chỉ cần hai lệnh cuối. `.env` bị Git
+bỏ qua; không giả định bản clone mới có secret. Risk DB dùng user `risk_service`, lưu
 dữ liệu trong named volume và chỉ publish `127.0.0.1:3307`. Redis dùng password,
 AOF, named volume và chỉ publish `127.0.0.1:6379`.
 
 Kiểm tra `GET http://localhost:8081/actuator/health`. Chi tiết vì sao issuer dùng
 cổng nội bộ `8080` nhưng JWKS dùng cổng host `8180` nằm trong
-`RISK_API_SECURITY.md`.
+`docs/security/RISK_API_SECURITY.md`.
 
 ## 5. Chạy kiểm thử
 
@@ -137,6 +153,6 @@ Risk Service và Keycloak extension:
   lệnh `java` đang trỏ tới Java 8. Chạy `java -version` và `mvn -version`, rồi đặt
   `JAVA_HOME`/`PATH` về JDK 17 trước khi khởi động service.
 
-Đọc `CODE_FLOW_WALKTHROUGH.md` trước để đi theo toàn bộ call stack từ frontend,
-Keycloak SPI, Risk Service đến API xem điểm. `LOGIN_FLOW.md` tập trung vào PKCE,
+Đọc `docs/development/CODE_FLOW_WALKTHROUGH.md` trước để đi theo toàn bộ call stack từ frontend,
+Keycloak SPI, Risk Service đến API xem điểm. `docs/authentication/LOGIN_FLOW.md` tập trung vào PKCE,
 refresh token, CORS và logout.

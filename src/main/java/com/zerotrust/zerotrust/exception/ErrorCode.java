@@ -7,6 +7,9 @@ import org.springframework.http.HttpStatus;
 @Getter
 @AllArgsConstructor
 public enum ErrorCode {
+    RISK_DEVICE_REVOCATION_FAILED(HttpStatus.SERVICE_UNAVAILABLE, "Device revocation could not be confirmed; MFA reset has not completed"),
+    MFA_RESET_PARTIAL(HttpStatus.SERVICE_UNAVAILABLE, "Devices are revoked but MFA reset has not completed; retry is required"),
+    MFA_RESET_COMPLETION_PENDING(HttpStatus.SERVICE_UNAVAILABLE, "MFA credentials were reset but recovery is still blocked; retry is required"),
     USER_NOT_FOUND(HttpStatus.NOT_FOUND, "User not found"),
     USER_INACTIVE(HttpStatus.FORBIDDEN, "User account is inactive"),
     STUDENT_NOT_FOUND(HttpStatus.NOT_FOUND, "Student not found"),

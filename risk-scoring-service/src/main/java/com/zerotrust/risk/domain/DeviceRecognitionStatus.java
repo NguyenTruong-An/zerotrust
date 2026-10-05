@@ -5,5 +5,6 @@ public enum DeviceRecognitionStatus {
     NEW,
     PENDING,
     TRUSTED,
-    REVOKED
+    REVOKED,
+    REAUTHENTICATION_REQUIRED
 }

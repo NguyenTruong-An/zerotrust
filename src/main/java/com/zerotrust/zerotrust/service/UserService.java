@@ -8,4 +8,5 @@ import java.util.UUID;
 public interface UserService {
     UserResponseDTO getCurrentUser(UUID keycloakUserId);
     List<UserResponseDTO> getAllUsers();
+    void resetMfa(UUID userId);
 }

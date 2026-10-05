@@ -233,4 +233,10 @@ public class AdminController {
         return ResponseEntity.ok(
                 ApiResponse.success(userService.getAllUsers(), "Fetched all users successfully"));
     }
+
+    @PostMapping("/users/{id}/mfa/reset")
+    public ResponseEntity<Void> resetUserMfa(@PathVariable UUID id) {
+        userService.resetMfa(id);
+        return ResponseEntity.noContent().build();
+    }
 }

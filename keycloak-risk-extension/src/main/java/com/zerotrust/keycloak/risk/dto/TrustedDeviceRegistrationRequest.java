@@ -4,9 +4,11 @@ import java.util.Objects;
 
 public record TrustedDeviceRegistrationRequest(
         String subjectId,
-        String deviceId
+        String deviceId,
+        long trustGeneration
 ) {
     public TrustedDeviceRegistrationRequest {
+        if (trustGeneration < 0) throw new IllegalArgumentException("trustGeneration must not be negative");
         subjectId = requireText(subjectId, "subjectId");
         deviceId = requireText(deviceId, "deviceId");
     }

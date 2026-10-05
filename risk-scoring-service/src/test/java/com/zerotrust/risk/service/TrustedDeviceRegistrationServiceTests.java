@@ -19,6 +19,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @DataJpaTest
+@org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase(replace = org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase.Replace.NONE)
 @ActiveProfiles("test")
 class TrustedDeviceRegistrationServiceTests {
 
@@ -28,6 +29,8 @@ class TrustedDeviceRegistrationServiceTests {
 
     @Autowired
     private KnownDeviceRepository repository;
+
+    @Autowired private org.springframework.jdbc.core.JdbcTemplate jdbc;
 
     private DeviceFingerprintHasher fingerprintHasher;
 
@@ -40,7 +43,7 @@ class TrustedDeviceRegistrationServiceTests {
 
     @Test
     void registersANewTrustedDeviceWithoutPersistingTheRawIdentifier() {
-        serviceAt(FIRST_MFA_AT).trustAfterMfa(SUBJECT_ID, DEVICE_ID);
+        serviceAt(FIRST_MFA_AT).trustAfterMfa(SUBJECT_ID, DEVICE_ID, 0);
         repository.flush();
 
         KnownDeviceEntity stored = findDevice();
@@ -52,30 +55,30 @@ class TrustedDeviceRegistrationServiceTests {
     }
 
     @Test
-    void repeatedRegistrationKeepsOneDeviceAndPreservesTheOriginalTrustTime() {
+    void repeatedMfaRenewsServerTrustTimeWithoutDuplicatingDevice() {
         Instant repeatedAt = FIRST_MFA_AT.plusSeconds(60);
 
-        serviceAt(FIRST_MFA_AT).trustAfterMfa(SUBJECT_ID, DEVICE_ID);
+        serviceAt(FIRST_MFA_AT).trustAfterMfa(SUBJECT_ID, DEVICE_ID, 0);
         repository.flush();
-        serviceAt(repeatedAt).trustAfterMfa(SUBJECT_ID, DEVICE_ID);
+        serviceAt(repeatedAt).trustAfterMfa(SUBJECT_ID, DEVICE_ID, 0);
         repository.flush();
 
         KnownDeviceEntity stored = findDevice();
         assertThat(repository.count()).isOne();
-        assertThat(stored.getTrustedAt()).isEqualTo(FIRST_MFA_AT);
+        assertThat(stored.getTrustedAt()).isEqualTo(repeatedAt);
         assertThat(stored.getLastSeenAt()).isEqualTo(repeatedAt);
     }
 
     @Test
     void refusesToTrustARevokedDeviceIdentifier() {
-        serviceAt(FIRST_MFA_AT).trustAfterMfa(SUBJECT_ID, DEVICE_ID);
+        serviceAt(FIRST_MFA_AT).trustAfterMfa(SUBJECT_ID, DEVICE_ID, 0);
         KnownDeviceEntity device = findDevice();
         Instant revokedAt = FIRST_MFA_AT.plusSeconds(60);
         device.revoke(revokedAt);
         repository.flush();
 
         assertThatThrownBy(() -> serviceAt(revokedAt.plusSeconds(60))
-                .trustAfterMfa(SUBJECT_ID, DEVICE_ID))
+                .trustAfterMfa(SUBJECT_ID, DEVICE_ID, 0))
                 .isInstanceOf(DeviceTrustRejectedException.class)
                 .hasMessage("revoked device cannot be trusted");
         assertThat(device.getStatus()).isEqualTo(DeviceStatus.REVOKED);
@@ -90,6 +93,6 @@ class TrustedDeviceRegistrationServiceTests {
 
     private TrustedDeviceRegistrationService serviceAt(Instant instant) {
         Clock clock = Clock.fixed(instant, ZoneOffset.UTC);
-        return new TrustedDeviceRegistrationService(fingerprintHasher, repository, clock);
+        return new TrustedDeviceRegistrationService(fingerprintHasher, repository, clock, new DeviceTrustLifecycle(jdbc, repository, clock));
     }
 }

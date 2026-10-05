@@ -12,6 +12,7 @@ import org.springframework.validation.annotation.Validated;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 @Validated
 @ConfigurationProperties(prefix = "risk.policy.network-risk")
@@ -45,6 +46,15 @@ public class NetworkRiskProperties {
     @NotNull
     private List<String> highRiskCidrs = new ArrayList<>();
 
+    @NotNull
+    private List<String> trustedCountryCodes = new ArrayList<>();
+
+    @NotNull
+    private List<String> elevatedRiskCountryCodes = new ArrayList<>();
+
+    @NotNull
+    private List<String> highRiskCountryCodes = new ArrayList<>();
+
     @AssertTrue(message = "network-risk elevated score must not exceed high score")
     public boolean isScoreOrderValid() {
         return elevatedScore == null
@@ -57,5 +67,22 @@ public class NetworkRiskProperties {
         return defaultScore == null
                 || elevatedScore == null
                 || defaultScore.compareTo(elevatedScore) <= 0;
+    }
+
+    @AssertTrue(message = "network-risk country codes must use ISO 3166-1 alpha-2 format")
+    public boolean isCountryCodeFormatValid() {
+        return validCountryCodes(trustedCountryCodes)
+                && validCountryCodes(elevatedRiskCountryCodes)
+                && validCountryCodes(highRiskCountryCodes);
+    }
+
+    private static boolean validCountryCodes(List<String> values) {
+        return values != null && values.stream().allMatch(value -> {
+            if (value == null) {
+                return false;
+            }
+            String normalized = value.trim().toUpperCase(Locale.ROOT);
+            return normalized.matches("[A-Z]{2}");
+        });
     }
 }

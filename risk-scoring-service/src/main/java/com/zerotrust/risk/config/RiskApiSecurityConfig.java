@@ -57,6 +57,14 @@ public class RiskApiSecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(requests -> requests
                         .requestMatchers(HttpMethod.GET, "/actuator/health").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/internal/v1/subjects/*/trusted-devices/revocations",
+                                "/internal/v1/subjects/*/trusted-devices/revocations/completion")
+                        .access((authentication, context) -> new AuthorizationDecision(
+                                authentication.get() instanceof JwtAuthenticationToken token
+                                        && properties.revokeClientId().equals(token.getToken().getClaimAsString("azp"))
+                                        && token.getAuthorities().stream().anyMatch(authority ->
+                                        RiskJwtAuthenticationConverter.DEVICE_REVOKE_AUTHORITY.equals(authority.getAuthority()))
+                        ))
                         .requestMatchers(HttpMethod.POST, "/internal/v1/risk/evaluations")
                         .access((authentication, context) -> new AuthorizationDecision(
                                 isAuthorizedServiceToken(

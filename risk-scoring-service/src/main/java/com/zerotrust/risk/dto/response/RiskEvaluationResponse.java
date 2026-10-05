@@ -21,9 +21,10 @@ public record RiskEvaluationResponse(
         RiskDecision decision,
         RiskDataStatus dataStatus,
         List<RiskReason> reasons,
-        Instant evaluatedAt
+        Instant evaluatedAt,
+        long trustGeneration
 ) {
-    public static RiskEvaluationResponse from(RiskEvaluationRequest request, RiskEvaluation evaluation) {
+    public static RiskEvaluationResponse from(RiskEvaluationRequest request, RiskEvaluation evaluation, long generation) {
         return new RiskEvaluationResponse(
                 evaluation.evaluationId(),
                 request.subjectId(),
@@ -33,7 +34,8 @@ public record RiskEvaluationResponse(
                 evaluation.decision(),
                 evaluation.dataStatus(),
                 evaluation.reasons(),
-                evaluation.evaluatedAt()
+                evaluation.evaluatedAt(),
+                generation
         );
     }
 }

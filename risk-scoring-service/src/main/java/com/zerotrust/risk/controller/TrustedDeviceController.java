@@ -19,7 +19,7 @@ public class TrustedDeviceController {
 
     @PostMapping
     public ResponseEntity<Void> register(@Valid @RequestBody TrustedDeviceRegistrationRequest request) {
-        registrationService.trustAfterMfa(request.subjectId(), request.deviceId());
+        registrationService.trustAfterMfa(request.subjectId(), request.deviceId(), request.trustGeneration());
         return ResponseEntity.noContent().build();
     }
 }

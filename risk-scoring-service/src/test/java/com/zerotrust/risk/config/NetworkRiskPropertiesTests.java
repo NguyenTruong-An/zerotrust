@@ -6,6 +6,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -50,6 +51,16 @@ class NetworkRiskPropertiesTests {
         assertThat(validator.validate(properties))
                 .anyMatch(violation -> violation.getMessage()
                         .contains("default score must not exceed elevated score"));
+    }
+
+    @Test
+    void rejectsInvalidCountryCode() {
+        NetworkRiskProperties properties = validProperties();
+        properties.setHighRiskCountryCodes(List.of("Vietnam"));
+
+        assertThat(validator.validate(properties))
+                .anyMatch(violation -> violation.getMessage()
+                        .contains("ISO 3166-1 alpha-2"));
     }
 
     private NetworkRiskProperties validProperties() {

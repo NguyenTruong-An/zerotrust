@@ -68,7 +68,7 @@ class RiskApiSecurityTests {
              "clientId":"zerotrust-spa","ipAddress":"203.0.113.10"}
             """;
     private static final String TRUSTED_DEVICE_BODY = """
-            {"subjectId":"student-1","deviceId":"device-1"}
+            {"subjectId":"student-1","deviceId":"device-1","trustGeneration":0}
             """;
     private static final String AUTHENTICATION_FAILURE_BODY = """
             {"eventId":"event-1","subjectId":"student-1","sourceIp":"203.0.113.10"}
@@ -106,11 +106,13 @@ class RiskApiSecurityTests {
     @AfterAll static void stop() { JWKS.stop(0); }
     @Autowired MockMvc mvc;
     @MockitoBean RiskEvaluationService service;
+    @MockitoBean com.zerotrust.risk.service.DeviceTrustLifecycle lifecycle;
     @MockitoBean TrustedDeviceRegistrationService registrationService;
     @MockitoBean AuthenticationFailureService authenticationFailureService;
     @MockitoBean AuthenticationSuccessService authenticationSuccessService;
 
     @BeforeEach void evaluation() {
+        when(lifecycle.snapshot(any())).thenReturn(new com.zerotrust.risk.service.DeviceTrustLifecycle.Snapshot(0, false));
         when(service.evaluate(any())).thenReturn(new RiskEvaluation(UUID.randomUUID(), null,
                 RiskLevel.HIGH, RiskDecision.DENY, RiskDataStatus.NOT_EVALUATED,
                 List.of(RiskReason.BLOCKED_IP_ADDRESS), Instant.now()));
@@ -211,7 +213,7 @@ class RiskApiSecurityTests {
         call(eventsWriteToken).andExpect(status().isForbidden());
         callTrustedDevice(eventsWriteToken).andExpect(status().isForbidden());
 
-        verify(registrationService).trustAfterMfa("student-1", "device-1");
+        verify(registrationService).trustAfterMfa("student-1", "device-1", 0);
         verify(authenticationFailureService).recordFailure(
                 "event-1",
                 "student-1",

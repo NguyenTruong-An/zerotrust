@@ -16,11 +16,13 @@ public final class RiskJwtAuthenticationConverter implements Converter<Jwt, Abst
     public static final String EVALUATE_AUTHORITY = "risk:evaluate";
     public static final String DEVICE_WRITE_AUTHORITY = "risk:device:write";
     public static final String EVENTS_WRITE_AUTHORITY = "risk:events:write";
+    public static final String DEVICE_REVOKE_AUTHORITY = "risk:device:revoke";
 
     private static final Set<String> SUPPORTED_AUTHORITIES = Set.of(
             EVALUATE_AUTHORITY,
             DEVICE_WRITE_AUTHORITY,
-            EVENTS_WRITE_AUTHORITY
+            EVENTS_WRITE_AUTHORITY,
+            DEVICE_REVOKE_AUTHORITY
     );
 
     private final String resourceClientId;

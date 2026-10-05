@@ -22,4 +22,6 @@ public interface IdentityProviderGateway {
     void restoreUserProfileQuietly(
             UUID userId,
             IdentityUserProfileSnapshot profile);
+
+    void resetMfa(UUID userId);
 }

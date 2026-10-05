@@ -2409,6 +2409,17 @@ a:focus-visible {
   background: #f2f9f8;
 }
 
+.admin-row-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.admin-row-actions button:disabled:hover {
+  border-color: #d5e0e3;
+  color: #5d6e78;
+  background: #fff;
+}
+
 .admin-row-actions .admin-danger-icon {
   color: #ad3d49;
 }

@@ -78,7 +78,7 @@ class HttpRiskScoringClientTest {
                       "riskLevel": "MEDIUM",
                       "decision": "STEP_UP_MFA",
                       "dataStatus": "INCOMPLETE",
-                      "reasons": ["NEW_DEVICE", "NETWORK_INTELLIGENCE_UNAVAILABLE", "TEMPORAL_PROFILE_COLD_START", "EXCESSIVE_AUTHENTICATION_FAILURES"],
+                      "reasons": ["NEW_DEVICE", "GEOLOCATION_RISK", "HIGH_RISK_NETWORK", "EXCESSIVE_AUTHENTICATION_FAILURES"],
                       "evaluatedAt": "2026-09-04T08:00:00Z"
                     }
                     """);
@@ -95,6 +95,8 @@ class HttpRiskScoringClientTest {
                 RiskReason.EXCESSIVE_AUTHENTICATION_FAILURES,
                 response.reasons().get(3)
         );
+        assertEquals(RiskReason.GEOLOCATION_RISK, response.reasons().get(1));
+        assertEquals(RiskReason.HIGH_RISK_NETWORK, response.reasons().get(2));
 
         @SuppressWarnings("unchecked")
         Map<String, Object> requestJson = JsonSerialization.valueFromString(body.get(), Map.class);
@@ -324,7 +326,7 @@ class HttpRiskScoringClientTest {
             respondNoContent(exchange);
         });
 
-        client().register(new TrustedDeviceRegistrationRequest("user-1", "device-123"));
+        client().register(new TrustedDeviceRegistrationRequest("user-1", "device-123", 0));
 
         assertEquals("POST", method.get());
         assertEquals("Bearer service-token", authorization.get());
@@ -361,7 +363,7 @@ class HttpRiskScoringClientTest {
         };
 
         client(RiskScoringClientConfig.defaults(serviceUri()), tokenProvider).register(
-                new TrustedDeviceRegistrationRequest("user-1", "device-123")
+                new TrustedDeviceRegistrationRequest("user-1", "device-123", 0)
         );
 
         assertEquals(2, calls.get());
@@ -382,7 +384,7 @@ class HttpRiskScoringClientTest {
                 () -> client().register(new TrustedDeviceRegistrationRequest(
                         "user-1",
                         "revoked-device"
-                ))
+                , 0))
         );
 
         assertEquals(RiskScoringClientException.FailureType.HTTP_ERROR, exception.failureType());

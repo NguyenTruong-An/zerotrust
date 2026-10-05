@@ -15,7 +15,7 @@ class KnownDeviceEntityTests {
     private static final Instant FIRST_SEEN_AT = Instant.parse("2026-09-14T01:00:00Z");
 
     @Test
-    void repeatedTrustPreservesTheOriginalTrustTimeAndAdvancesLastSeen() {
+    void repeatedMfaRenewsTrustTimeAndAdvancesLastSeen() {
         KnownDeviceEntity device = newDevice();
         Instant firstTrust = FIRST_SEEN_AT.plusSeconds(60);
         Instant repeatedTrust = FIRST_SEEN_AT.plusSeconds(120);
@@ -24,7 +24,7 @@ class KnownDeviceEntityTests {
         device.trust(repeatedTrust);
 
         assertThat(device.getStatus()).isEqualTo(DeviceStatus.TRUSTED);
-        assertThat(device.getTrustedAt()).isEqualTo(firstTrust);
+        assertThat(device.getTrustedAt()).isEqualTo(repeatedTrust);
         assertThat(device.getLastSeenAt()).isEqualTo(repeatedTrust);
         assertThat(device.getRevokedAt()).isNull();
     }

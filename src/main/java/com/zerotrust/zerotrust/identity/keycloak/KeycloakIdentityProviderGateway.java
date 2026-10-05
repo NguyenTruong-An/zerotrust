@@ -45,4 +45,9 @@ public class KeycloakIdentityProviderGateway implements IdentityProviderGateway 
             IdentityUserProfileSnapshot profile) {
         userClient.restoreUserProfileQuietly(userId, profile);
     }
+
+    @Override
+    public void resetMfa(UUID userId) {
+        userClient.resetMfa(userId);
+    }
 }

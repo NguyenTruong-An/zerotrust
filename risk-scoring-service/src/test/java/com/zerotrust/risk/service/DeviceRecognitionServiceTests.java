@@ -98,4 +98,27 @@ class DeviceRecognitionServiceTests {
                 NOW
         );
     }
+
+    @Test
+    void serverExpiresTrustAtThirtyDaysEvenWhenCookieIsReplayed() {
+        String hash = hasher.hash(SUBJECT_ID, DEVICE_ID);
+        Instant trusted = NOW.minus(java.time.Duration.ofDays(30));
+        KnownDeviceEntity device = new KnownDeviceEntity(SUBJECT_ID, hash, trusted);
+        device.trust(trusted);
+        when(repository.findBySubjectIdAndDeviceFingerprintHash(SUBJECT_ID, hash)).thenReturn(Optional.of(device));
+        assertThat(service.recognize(context(DEVICE_ID)).status()).isEqualTo(DeviceRecognitionStatus.REAUTHENTICATION_REQUIRED);
+        device.trust(NOW);
+        assertThat(service.recognize(context(DEVICE_ID)).status()).isEqualTo(DeviceRecognitionStatus.TRUSTED);
+    }
+
+    @Test
+    void mfaResetRevocationAllowsReauthenticationWhileSecurityRevocationStaysDenied() {
+        String hash = hasher.hash(SUBJECT_ID, DEVICE_ID);
+        KnownDeviceEntity device = new KnownDeviceEntity(SUBJECT_ID, hash, NOW.minusSeconds(120));
+        device.revokeForMfaReset(NOW.minusSeconds(60));
+        when(repository.findBySubjectIdAndDeviceFingerprintHash(SUBJECT_ID, hash)).thenReturn(Optional.of(device));
+        assertThat(service.recognize(context(DEVICE_ID)).status()).isEqualTo(DeviceRecognitionStatus.REAUTHENTICATION_REQUIRED);
+        device.revoke(NOW);
+        assertThat(service.recognize(context(DEVICE_ID)).status()).isEqualTo(DeviceRecognitionStatus.REVOKED);
+    }
 }

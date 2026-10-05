@@ -10,6 +10,7 @@ import {
   CheckCircle2,
   ClipboardCheck,
   LayoutDashboard,
+  KeyRound,
   LogOut,
   Menu,
   Plus,
@@ -21,6 +22,7 @@ import {
 } from 'lucide-react';
 import { AuthenticationExpiredError } from '../lib/api';
 import { adminRequest, PageResponse, Student } from '../lib/admin-api';
+import { accountSecurityUrl } from '../lib/keycloak';
 import { ClassesPanel, SubjectsPanel, UsersPanel } from './admin-catalogs';
 import { ScoresPanel } from './admin-scores';
 import { StudentsPanel } from './admin-students';
@@ -128,6 +130,7 @@ export function AdminPortal({ username, view, onAuthenticationExpired, onLogout 
           <div className="topbar-title"><span>Không gian quản trị</span><strong>{VIEW_TITLES[view]}</strong></div>
           <div className="topbar-actions">
             <div className="profile"><span className="avatar">{username.slice(0, 2).toUpperCase() || 'AD'}</span><div><strong>{username}</strong><span>ADMIN</span></div></div>
+            <a aria-label="Bảo mật tài khoản" className="logout-button" href={accountSecurityUrl()} rel="noreferrer" target="_blank" title="Bảo mật tài khoản"><KeyRound aria-hidden="true" size={18} /></a>
             <button aria-label="Đăng xuất" className="logout-button" onClick={onLogout} type="button"><LogOut aria-hidden="true" size={18} /></button>
           </div>
         </header>
@@ -140,7 +143,7 @@ export function AdminPortal({ username, view, onAuthenticationExpired, onLogout 
           {view === 'classes' && <ClassesPanel onAuthenticationExpired={onAuthenticationExpired} onChanged={markChanged} onNotify={notify} />}
           {view === 'subjects' && <SubjectsPanel onAuthenticationExpired={onAuthenticationExpired} onChanged={markChanged} onNotify={notify} />}
           {view === 'scores' && <ScoresPanel initialStudent={scoreStudent} onAuthenticationExpired={onAuthenticationExpired} onNotify={notify} />}
-          {view === 'users' && <UsersPanel onAuthenticationExpired={onAuthenticationExpired} />}
+          {view === 'users' && <UsersPanel onAuthenticationExpired={onAuthenticationExpired} onNotify={notify} />}
         </div>
       </section>
     </main>

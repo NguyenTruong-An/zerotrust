@@ -39,6 +39,7 @@ class RiskApiHttpsSecurityTests {
 
     @MockitoBean
     private RiskEvaluationService riskEvaluationService;
+    @MockitoBean private com.zerotrust.risk.service.DeviceTrustLifecycle lifecycle;
 
     @Test
     void refusesPlainHttpBeforeAuthenticationOrControllerExecution() throws Exception {

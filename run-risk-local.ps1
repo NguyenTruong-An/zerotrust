@@ -30,6 +30,12 @@ $allowedVariables = @(
     'RISK_NETWORK_TRUSTED_CIDRS',
     'RISK_NETWORK_ELEVATED_CIDRS',
     'RISK_NETWORK_HIGH_RISK_CIDRS',
+    'RISK_GEOIP_ENABLED',
+    'RISK_GEOIP_CITY_DATABASE_PATH',
+    'RISK_GEOIP_ASN_DATABASE_PATH',
+    'RISK_GEOIP_TRUSTED_COUNTRY_CODES',
+    'RISK_GEOIP_ELEVATED_COUNTRY_CODES',
+    'RISK_GEOIP_HIGH_RISK_COUNTRY_CODES',
     'RISK_TEMPORAL_HISTORY_WINDOW',
     'RISK_TEMPORAL_MINIMUM_EVENTS',
     'RISK_TEMPORAL_MAXIMUM_EVENTS',
@@ -44,6 +50,10 @@ $allowedVariables = @(
     'RISK_REDIS_PASSWORD',
     'RISK_REDIS_SSL',
     'RISK_BIND_ADDRESS',
+    'RISK_SERVICE_PORT',
+    'RISK_JWT_AUDIENCE',
+    'RISK_JWT_ALLOWED_CLIENT_ID',
+    'RISK_JWT_REVOKE_CLIENT_ID',
     'RISK_JWT_ISSUER_URI',
     'RISK_JWT_JWK_SET_URI'
 )
@@ -87,6 +97,18 @@ if (-not $values.ContainsKey('SPRING_PROFILES_ACTIVE')) {
 
 foreach ($entry in $values.GetEnumerator()) {
     [Environment]::SetEnvironmentVariable($entry.Key, $entry.Value, 'Process')
+}
+
+$servicePort = 8081
+if ($env:RISK_SERVICE_PORT) {
+    if (-not [int]::TryParse($env:RISK_SERVICE_PORT, [ref]$servicePort) -or $servicePort -lt 1 -or $servicePort -gt 65535) {
+        throw 'RISK_SERVICE_PORT must be an integer from 1 to 65535.'
+    }
+}
+$listeners = @(Get-NetTCPConnection -LocalPort $servicePort -State Listen -ErrorAction SilentlyContinue)
+if ($listeners.Count -gt 0) {
+    $processIds = ($listeners.OwningProcess | Sort-Object -Unique) -join ', '
+    throw "Port $servicePort is already in use (PID: $processIds). Check the existing Risk Service before starting another instance. To use a different port, set RISK_SERVICE_PORT in .env and update the callers accordingly."
 }
 
 & (Join-Path $repositoryRoot 'mvnw.cmd') `
