@@ -14,9 +14,12 @@ import org.junit.jupiter.api.Test;
 import org.keycloak.authentication.AuthenticationFlowContext;
 import org.keycloak.models.AuthenticatorConfigModel;
 import org.keycloak.models.RealmModel;
+import org.keycloak.models.RequiredActionProviderModel;
+import org.keycloak.models.SubjectCredentialManager;
 import org.keycloak.models.UserModel;
 import org.keycloak.sessions.AuthenticationSessionModel;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -172,11 +175,22 @@ class TrustedDeviceRegistrationAuthenticatorTest {
     @Test
     void doesNotTrustBeforeRequiredMfaEnrollmentCompletes() {
         Fixture fixture = new Fixture(true);
-        when(fixture.user.getRequiredActionsStream()).thenReturn(java.util.stream.Stream.of("CONFIGURE_TOTP"));
+        when(fixture.user.getRequiredActionsStream()).thenAnswer(ignored -> java.util.stream.Stream.of("CONFIGURE_TOTP"));
+        when(fixture.user.credentialManager()).thenReturn(mock(SubjectCredentialManager.class));
+        RequiredActionProviderModel enrollment = new RequiredActionProviderModel();
+        enrollment.setAlias("CONFIGURE_TOTP");
+        enrollment.setProviderId("CONFIGURE_TOTP");
+        enrollment.setEnabled(true);
+        when(fixture.realm.getRequiredActionProviderByAlias("CONFIGURE_TOTP")).thenReturn(enrollment);
+        when(fixture.authenticationSession.getAuthNote(RiskAuthenticationNotes.STEP_UP_REQUIRED)).thenReturn("true");
         when(fixture.authenticationSession.getAuthNote(RiskAuthenticationNotes.ROTATE_DEVICE)).thenReturn("true");
+
+        assertFalse(RiskStepUpCondition.INSTANCE.matchCondition(fixture.context));
         fixture.authenticator.authenticate(fixture.context);
+
         verifyNoInteractions(fixture.client);
         verify(fixture.cookieWriter).expire(fixture.context);
+        verify(fixture.cookieWriter, never()).issue(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.anyString());
         verify(fixture.context).success();
     }
 

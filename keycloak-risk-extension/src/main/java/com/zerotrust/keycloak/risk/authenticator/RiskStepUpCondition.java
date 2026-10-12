@@ -5,22 +5,45 @@ import org.keycloak.authentication.AuthenticationFlowContext;
 import org.keycloak.authentication.authenticators.conditional.ConditionalAuthenticator;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.RealmModel;
+import org.keycloak.models.RequiredActionProviderModel;
 import org.keycloak.models.UserModel;
 
 public final class RiskStepUpCondition implements ConditionalAuthenticator {
 
     public static final RiskStepUpCondition INSTANCE = new RiskStepUpCondition();
+    private static final String CONFIGURE_TOTP = UserModel.RequiredAction.CONFIGURE_TOTP.name();
 
     private RiskStepUpCondition() {
     }
 
     @Override
     public boolean matchCondition(AuthenticationFlowContext context) {
-        return Boolean.parseBoolean(
+        boolean stepUpRequired = Boolean.parseBoolean(
                 context.getAuthenticationSession().getAuthNote(
                         RiskAuthenticationNotes.STEP_UP_REQUIRED
                 )
         );
+        if (!stepUpRequired) {
+            return false;
+        }
+
+        UserModel user = context.getUser();
+        RealmModel realm = context.getRealm();
+        if (user == null || realm == null
+                || user.getRequiredActionsStream().noneMatch(CONFIGURE_TOTP::equals)) {
+            return true;
+        }
+        RequiredActionProviderModel enrollment = realm.getRequiredActionProviderByAlias(CONFIGURE_TOTP);
+        if (enrollment == null || !enrollment.isEnabled()
+                || !CONFIGURE_TOTP.equals(enrollment.getProviderId())) {
+            return true;
+        }
+
+        // After reset neither ALTERNATIVE MFA method is configured, so Keycloak cannot
+        // finish this subflow. Mandatory TOTP enrollment runs after the browser flow;
+        // device registration also skips users with this pending required action.
+        return user.credentialManager().isConfiguredFor("otp")
+                || user.credentialManager().isConfiguredFor("recovery-authn-codes");
     }
 
     @Override
@@ -39,7 +62,7 @@ public final class RiskStepUpCondition implements ConditionalAuthenticator {
             RealmModel realm,
             UserModel user
     ) {
-        // The OTP execution inside the conditional subflow handles user setup.
+        // Enrollment must already be a mandatory user action before deferring MFA.
     }
 
     @Override

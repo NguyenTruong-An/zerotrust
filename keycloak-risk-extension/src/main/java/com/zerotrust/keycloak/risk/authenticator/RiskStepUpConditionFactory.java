@@ -50,7 +50,7 @@ public final class RiskStepUpConditionFactory implements ConditionalAuthenticato
 
     @Override
     public String getHelpText() {
-        return "Runs the conditional MFA subflow when risk evaluation requires step-up.";
+        return "Requires MFA after risk step-up; users without MFA credentials and with mandatory TOTP enrollment complete that required action instead.";
     }
 
     @Override
