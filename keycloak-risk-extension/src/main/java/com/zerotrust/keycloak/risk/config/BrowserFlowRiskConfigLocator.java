@@ -45,6 +45,9 @@ public final class BrowserFlowRiskConfigLocator {
                 .getAuthenticationExecutionsStream(flowId)
                 .sorted(Comparator.comparingInt(AuthenticationExecutionModel::getPriority))
                 .toList()) {
+            if (execution.isDisabled()) {
+                continue;
+            }
             if (execution.isAuthenticatorFlow()) {
                 AuthenticatorConfigModel nested = find(
                         realm,
