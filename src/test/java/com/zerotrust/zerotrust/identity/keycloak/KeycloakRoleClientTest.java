@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -59,6 +60,7 @@ class KeycloakRoleClientTest {
                 "DoAn",
                 "test-client",
                 "test-secret",
+                Duration.ofSeconds(1),
                 Duration.ofSeconds(1),
                 Duration.ofSeconds(1),
                 2,
@@ -99,6 +101,28 @@ class KeycloakRoleClientTest {
                 .isInstanceOf(WebException.class)
                 .extracting(exception -> ((WebException) exception).getErrorCode())
                 .isEqualTo(ErrorCode.IDENTITY_ROLE_NOT_FOUND);
+        verify(response).close();
+    }
+
+    @Test
+    void doesNotReportMissingRealmRoleWhenTheAssignmentEndpointReturnsNotFound() {
+        UUID userId = UUID.randomUUID();
+        RoleRepresentation studentRole = new RoleRepresentation();
+        studentRole.setName("STUDENT");
+        stubRoleLookup();
+        when(roleResource.toRepresentation()).thenReturn(studentRole);
+        when(realmResource.users()).thenReturn(usersResource);
+        when(usersResource.get(userId.toString())).thenReturn(userResource);
+        when(userResource.roles()).thenReturn(roleMappingResource);
+        when(roleMappingResource.realmLevel()).thenReturn(roleScopeResource);
+        when(response.getStatus()).thenReturn(Response.Status.NOT_FOUND.getStatusCode());
+        when(response.getStatusInfo()).thenReturn(Response.Status.NOT_FOUND);
+        doThrow(new WebApplicationException(response)).when(roleScopeResource).add(List.of(studentRole));
+
+        assertThatThrownBy(() -> client.assignRealmRole(userId, "STUDENT"))
+                .isInstanceOf(WebException.class)
+                .extracting(exception -> ((WebException) exception).getErrorCode())
+                .isEqualTo(ErrorCode.IDENTITY_RESPONSE_INVALID);
         verify(response).close();
     }
 

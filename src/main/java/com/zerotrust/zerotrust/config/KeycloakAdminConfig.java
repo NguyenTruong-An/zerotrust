@@ -21,6 +21,7 @@ public class KeycloakAdminConfig {
                 .connectionPoolSize(properties.connectionPoolSize())
                 .connectTimeout(properties.connectTimeout().toMillis(), TimeUnit.MILLISECONDS)
                 .readTimeout(properties.readTimeout().toMillis(), TimeUnit.MILLISECONDS)
+                .connectionCheckoutTimeout(properties.connectionCheckoutTimeout().toMillis(), TimeUnit.MILLISECONDS)
                 .build()
                 .register(JacksonProvider.class, 100);
 

@@ -6,10 +6,15 @@ import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.Response;
 import org.springframework.stereotype.Component;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 
 @Component
 public class KeycloakExceptionMapper {
+    private static final int MAX_ERROR_BODY_BYTES = 8 * 1024;
+
     public WebException mapCreateFailure(Response response) {
         int status = response.getStatus();
         if (status == Response.Status.CONFLICT.getStatusCode()) {
@@ -87,8 +92,19 @@ public class KeycloakExceptionMapper {
 
     private String readResponseBody(Response response) {
         try {
-            return response.hasEntity() ? response.readEntity(String.class) : "";
-        } catch (RuntimeException ignored) {
+            if (!response.hasEntity()) {
+                return "";
+            }
+            try (InputStream stream = response.readEntity(InputStream.class)) {
+                if (stream == null) {
+                    return "";
+                }
+                byte[] body = stream.readNBytes(MAX_ERROR_BODY_BYTES + 1);
+                return body.length <= MAX_ERROR_BODY_BYTES
+                        ? new String(body, StandardCharsets.UTF_8)
+                        : "";
+            }
+        } catch (IOException | RuntimeException ignored) {
             return "";
         }
     }

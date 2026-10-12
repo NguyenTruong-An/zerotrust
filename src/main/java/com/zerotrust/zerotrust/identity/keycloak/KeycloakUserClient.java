@@ -17,8 +17,8 @@ import org.keycloak.representations.idm.CredentialRepresentation;
 import org.keycloak.representations.idm.UserRepresentation;
 import org.springframework.stereotype.Component;
 
-import java.util.List;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
@@ -39,19 +39,8 @@ public class KeycloakUserClient {
     private final KeycloakExceptionMapper exceptionMapper;
 
     public ProvisionedIdentityUser createUser(CreateIdentityUserCommand command) {
-        UsersResource users = users();
-
-        try (Response response = users.create(toUserRepresentation(command))) {
-            if (response.getStatus() != Response.Status.CREATED.getStatusCode()) {
-                throw exceptionMapper.mapCreateFailure(response);
-            }
-            try {
-                String createdId = CreatedResponseUtil.getCreatedId(response);
-                return new ProvisionedIdentityUser(UUID.fromString(createdId));
-            } catch (RuntimeException ex) {
-                deleteUserByUsernameQuietly(users, command.username());
-                throw exceptionMapper.invalidResponse();
-            }
+        try {
+            return createUser(users(), command);
         } catch (ProcessingException ex) {
             throw exceptionMapper.providerUnavailable();
         } catch (WebApplicationException ex) {
@@ -67,6 +56,7 @@ public class KeycloakUserClient {
         try {
             users().get(provisionedUser.userId().toString()).remove();
         } catch (RuntimeException cleanupException) {
+            closeFailureResponse(cleanupException);
             log.error(
                     "Failed to roll back Keycloak user {}",
                     provisionedUser.userId(),
@@ -119,6 +109,7 @@ public class KeycloakUserClient {
             user.setEmailVerified(profile.emailVerified());
             userResource.update(user);
         } catch (RuntimeException cleanupException) {
+            closeFailureResponse(cleanupException);
             log.error("Failed to roll back Keycloak profile for user {}", userId, cleanupException);
         }
     }
@@ -150,6 +141,27 @@ public class KeycloakUserClient {
 
     private UsersResource users() {
         return keycloak.realm(properties.realm()).users();
+    }
+
+    private ProvisionedIdentityUser createUser(UsersResource users, CreateIdentityUserCommand command) {
+        boolean rollbackRequired = false;
+        try (Response response = users.create(toUserRepresentation(command))) {
+            if (response.getStatus() != Response.Status.CREATED.getStatusCode()) {
+                throw exceptionMapper.mapCreateFailure(response);
+            }
+            try {
+                String createdId = CreatedResponseUtil.getCreatedId(response);
+                return new ProvisionedIdentityUser(UUID.fromString(createdId));
+            } catch (RuntimeException invalidResponse) {
+                rollbackRequired = true;
+                throw exceptionMapper.invalidResponse();
+            }
+        } finally {
+            // The creation response is closed before rollback needs another pooled connection.
+            if (rollbackRequired) {
+                deleteUserByUsernameQuietly(users, command.username());
+            }
+        }
     }
 
     private UserRepresentation toUserRepresentation(CreateIdentityUserCommand command) {
@@ -195,7 +207,23 @@ public class KeycloakUserClient {
                         exactMatches.size());
             }
         } catch (RuntimeException cleanupException) {
+            closeFailureResponse(cleanupException);
             log.error("Failed to roll back Keycloak user with username {}", username, cleanupException);
+        }
+    }
+
+    private void closeFailureResponse(RuntimeException failure) {
+        if (!(failure instanceof WebApplicationException exception)) {
+            return;
+        }
+        Response response = exception.getResponse();
+        if (response == null) {
+            return;
+        }
+        try {
+            response.close();
+        } catch (RuntimeException closeFailure) {
+            log.warn("Failed to close Keycloak rollback response: reason={}", closeFailure.getClass().getSimpleName());
         }
     }
 }

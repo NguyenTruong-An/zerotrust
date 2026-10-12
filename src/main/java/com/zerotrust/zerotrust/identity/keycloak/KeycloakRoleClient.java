@@ -22,9 +22,7 @@ public class KeycloakRoleClient {
     public void assignRealmRole(UUID userId, String roleName) {
         try {
             RealmResource realm = keycloak.realm(properties.realm());
-            RoleRepresentation role = realm.roles()
-                    .get(roleName)
-                    .toRepresentation();
+            RoleRepresentation role = findRealmRole(realm, roleName);
             realm.users()
                     .get(userId.toString())
                     .roles()
@@ -32,6 +30,14 @@ public class KeycloakRoleClient {
                     .add(List.of(role));
         } catch (ProcessingException ex) {
             throw exceptionMapper.providerUnavailable();
+        } catch (WebApplicationException ex) {
+            throw exceptionMapper.mapClientFailure(ex);
+        }
+    }
+
+    private RoleRepresentation findRealmRole(RealmResource realm, String roleName) {
+        try {
+            return realm.roles().get(roleName).toRepresentation();
         } catch (WebApplicationException ex) {
             throw exceptionMapper.mapRoleFailure(ex, roleName);
         }

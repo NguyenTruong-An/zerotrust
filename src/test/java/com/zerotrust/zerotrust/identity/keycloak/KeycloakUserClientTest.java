@@ -20,18 +20,24 @@ import org.keycloak.representations.idm.UserRepresentation;
 import org.keycloak.representations.idm.CredentialRepresentation;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.io.ByteArrayInputStream;
+import java.io.InputStream;
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -60,6 +66,7 @@ class KeycloakUserClientTest {
                 "DoAn",
                 "test-client",
                 "test-secret",
+                Duration.ofSeconds(1),
                 Duration.ofSeconds(1),
                 Duration.ofSeconds(1),
                 2,
@@ -120,6 +127,36 @@ class KeycloakUserClientTest {
                 .extracting(exception -> ((WebException) exception).getErrorCode())
                 .isEqualTo(ErrorCode.IDENTITY_RESPONSE_INVALID);
         verify(userResource).remove();
+        InOrder calls = inOrder(response, usersResource, userResource);
+        calls.verify(response).close();
+        calls.verify(usersResource).searchByUsername(request.username(), true);
+        calls.verify(userResource).remove();
+    }
+
+    @Test
+    void invalidLocationStillRollsBackWhenClosingTheCreationResponseFails() {
+        stubUsersResource();
+        CreateIdentityUserCommand request = validRequest();
+        UUID userId = UUID.randomUUID();
+        UserRepresentation createdUser = new UserRepresentation();
+        createdUser.setId(userId.toString());
+        createdUser.setUsername(request.username());
+        when(response.getStatus()).thenReturn(Response.Status.CREATED.getStatusCode());
+        when(response.getStatusInfo()).thenReturn(Response.Status.CREATED);
+        when(response.getLocation()).thenReturn(null);
+        when(usersResource.create(any())).thenReturn(response);
+        when(usersResource.searchByUsername(request.username(), true)).thenReturn(List.of(createdUser));
+        when(usersResource.get(userId.toString())).thenReturn(userResource);
+        doThrow(new ProcessingException("response close failed")).when(response).close();
+
+        assertThatThrownBy(() -> client.createUser(request))
+                .isInstanceOf(WebException.class)
+                .extracting(exception -> ((WebException) exception).getErrorCode())
+                .isEqualTo(ErrorCode.IDENTITY_RESPONSE_INVALID);
+        InOrder calls = inOrder(response, usersResource, userResource);
+        calls.verify(response).close();
+        calls.verify(usersResource).searchByUsername(request.username(), true);
+        calls.verify(userResource).remove();
     }
 
     @Test
@@ -127,7 +164,8 @@ class KeycloakUserClientTest {
         stubUsersResource();
         when(response.getStatus()).thenReturn(Response.Status.CONFLICT.getStatusCode());
         when(response.hasEntity()).thenReturn(true);
-        when(response.readEntity(String.class)).thenReturn("User exists with same email");
+        when(response.readEntity(InputStream.class)).thenReturn(
+                new ByteArrayInputStream("User exists with same email".getBytes(StandardCharsets.UTF_8)));
         when(usersResource.create(any())).thenReturn(response);
 
         assertThatThrownBy(() -> client.createUser(validRequest()))
@@ -146,6 +184,94 @@ class KeycloakUserClientTest {
                 .isInstanceOf(WebException.class)
                 .extracting(exception -> ((WebException) exception).getErrorCode())
                 .isEqualTo(ErrorCode.IDENTITY_PROVIDER_UNAVAILABLE);
+    }
+
+    @Test
+    void mapsConnectionFailureWhileResolvingTheUsersResource() {
+        when(keycloak.realm("DoAn")).thenThrow(new ProcessingException("client initialization failed"));
+
+        assertThatThrownBy(() -> client.createUser(validRequest()))
+                .isInstanceOf(WebException.class)
+                .extracting(exception -> ((WebException) exception).getErrorCode())
+                .isEqualTo(ErrorCode.IDENTITY_PROVIDER_UNAVAILABLE);
+    }
+
+    @Test
+    void mapsAndClosesRejectedServiceAccountResponseWhileResolvingTheUsersResource() {
+        when(response.getStatus()).thenReturn(Response.Status.FORBIDDEN.getStatusCode());
+        when(response.getStatusInfo()).thenReturn(Response.Status.FORBIDDEN);
+        WebApplicationException forbidden = new WebApplicationException(response);
+        when(keycloak.realm("DoAn")).thenThrow(forbidden);
+
+        assertThatThrownBy(() -> client.createUser(validRequest()))
+                .isInstanceOf(WebException.class)
+                .extracting(exception -> ((WebException) exception).getErrorCode())
+                .isEqualTo(ErrorCode.IDENTITY_PROVIDER_FORBIDDEN);
+        verify(response).close();
+    }
+
+    @Test
+    void closesFailureResponseWhenDeletingAProvisionedUserDuringRollback() {
+        stubUsersResource();
+        UUID userId = UUID.randomUUID();
+        when(usersResource.get(userId.toString())).thenReturn(userResource);
+        when(response.getStatusInfo()).thenReturn(Response.Status.INTERNAL_SERVER_ERROR);
+        doThrow(new WebApplicationException(response)).when(userResource).remove();
+
+        assertThatCode(() -> client.deleteUserQuietly(new ProvisionedIdentityUser(userId)))
+                .doesNotThrowAnyException();
+        verify(response).close();
+    }
+
+    @Test
+    void responseCloseFailureDoesNotEscapeTheQuietRollback() {
+        stubUsersResource();
+        UUID userId = UUID.randomUUID();
+        when(usersResource.get(userId.toString())).thenReturn(userResource);
+        when(response.getStatusInfo()).thenReturn(Response.Status.INTERNAL_SERVER_ERROR);
+        doThrow(new WebApplicationException(response)).when(userResource).remove();
+        doThrow(new ProcessingException("response close failed")).when(response).close();
+
+        assertThatCode(() -> client.deleteUserQuietly(new ProvisionedIdentityUser(userId)))
+                .doesNotThrowAnyException();
+        verify(response).close();
+    }
+
+    @Test
+    void closesFailureResponseWhenRestoringAProfileDuringRollback() {
+        stubUsersResource();
+        UUID userId = UUID.randomUUID();
+        when(usersResource.get(userId.toString())).thenReturn(userResource);
+        when(response.getStatusInfo()).thenReturn(Response.Status.INTERNAL_SERVER_ERROR);
+        WebApplicationException failure = new WebApplicationException(response);
+        when(userResource.toRepresentation()).thenThrow(failure);
+        IdentityUserProfileSnapshot snapshot = new IdentityUserProfileSnapshot(
+                "An", "Nguyen", "student01@example.com", true);
+
+        assertThatCode(() -> client.restoreUserProfileQuietly(userId, snapshot)).doesNotThrowAnyException();
+        verify(response).close();
+    }
+
+    @Test
+    void closesRollbackFailureResponseAndPreservesTheInvalidCreationResponse() {
+        stubUsersResource();
+        CreateIdentityUserCommand request = validRequest();
+        when(response.getStatus()).thenReturn(Response.Status.CREATED.getStatusCode());
+        when(response.getStatusInfo()).thenReturn(Response.Status.CREATED);
+        when(response.getLocation()).thenReturn(null);
+        when(usersResource.create(any())).thenReturn(response);
+        Response rollbackResponse = org.mockito.Mockito.mock(Response.class);
+        when(rollbackResponse.getStatusInfo()).thenReturn(Response.Status.INTERNAL_SERVER_ERROR);
+        WebApplicationException rollbackFailure = new WebApplicationException(rollbackResponse);
+        when(usersResource.searchByUsername(request.username(), true))
+                .thenThrow(rollbackFailure);
+
+        assertThatThrownBy(() -> client.createUser(request))
+                .isInstanceOf(WebException.class)
+                .extracting(exception -> ((WebException) exception).getErrorCode())
+                .isEqualTo(ErrorCode.IDENTITY_RESPONSE_INVALID);
+        verify(response).close();
+        verify(rollbackResponse).close();
     }
 
     @Test
