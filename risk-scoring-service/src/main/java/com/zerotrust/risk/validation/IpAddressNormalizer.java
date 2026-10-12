@@ -15,13 +15,18 @@ public final class IpAddressNormalizer {
     }
 
     public static String normalize(String value) {
+        return parseLiteral(value).getHostAddress();
+    }
+
+    /** Parses only literals accepted by the API; hostnames, scope IDs and mapped IPv6 stay rejected. */
+    public static InetAddress parseLiteral(String value) {
         if (value == null || value.isEmpty() || value.length() > 45) {
             throw invalidAddress();
         }
 
         try {
             if (value.indexOf(':') < 0) {
-                return InetAddress.getByAddress(parseIpv4(value)).getHostAddress();
+                return InetAddress.getByAddress(parseIpv4(value));
             }
             if (!IPV6_CHARACTERS.matcher(value).matches()) {
                 throw invalidAddress();
@@ -36,7 +41,7 @@ public final class IpAddressNormalizer {
                 // Preserve the API's rejection of IPv4-mapped IPv6 addresses.
                 throw invalidAddress();
             }
-            return address.getHostAddress();
+            return address;
         } catch (UnknownHostException exception) {
             throw invalidAddress();
         }

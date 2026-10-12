@@ -1,8 +1,7 @@
 package com.zerotrust.risk.service;
 
-import java.net.Inet6Address;
-import java.net.InetAddress;
-import java.net.UnknownHostException;
+import com.zerotrust.risk.validation.IpAddressNormalizer;
+
 import java.util.Arrays;
 
 final class IpCidr {
@@ -53,55 +52,7 @@ final class IpCidr {
         if (value == null || value.isBlank()) {
             throw new IllegalArgumentException("IP address must not be blank");
         }
-        String candidate = value.trim();
-        if (candidate.indexOf(':') >= 0) {
-            return parseIpv6(candidate);
-        }
-        return parseIpv4(candidate);
-    }
-
-    private static byte[] parseIpv4(String value) {
-        if (!value.matches("[0-9.]+")) {
-            throw new IllegalArgumentException("Invalid IPv4 address: " + value);
-        }
-        String[] octets = value.split("\\.", -1);
-        if (octets.length != 4) {
-            throw new IllegalArgumentException("Invalid IPv4 address: " + value);
-        }
-
-        byte[] address = new byte[4];
-        for (int index = 0; index < octets.length; index++) {
-            String octet = octets[index];
-            if (octet.isEmpty() || octet.length() > 3) {
-                throw new IllegalArgumentException("Invalid IPv4 address: " + value);
-            }
-            int parsed;
-            try {
-                parsed = Integer.parseInt(octet);
-            } catch (NumberFormatException exception) {
-                throw new IllegalArgumentException("Invalid IPv4 address: " + value, exception);
-            }
-            if (parsed > 255) {
-                throw new IllegalArgumentException("Invalid IPv4 address: " + value);
-            }
-            address[index] = (byte) parsed;
-        }
-        return address;
-    }
-
-    private static byte[] parseIpv6(String value) {
-        if (!value.matches("[0-9a-fA-F:]+")) {
-            throw new IllegalArgumentException("Invalid IPv6 address: " + value);
-        }
-        try {
-            InetAddress address = InetAddress.getByName(value);
-            if (!(address instanceof Inet6Address)) {
-                throw new IllegalArgumentException("Invalid IPv6 address: " + value);
-            }
-            return address.getAddress();
-        } catch (UnknownHostException exception) {
-            throw new IllegalArgumentException("Invalid IPv6 address: " + value, exception);
-        }
+        return IpAddressNormalizer.parseLiteral(value.trim()).getAddress();
     }
 
     private static byte[] mask(byte[] address, int prefixLength) {
