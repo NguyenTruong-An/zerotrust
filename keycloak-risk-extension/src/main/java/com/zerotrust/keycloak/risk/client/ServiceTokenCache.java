@@ -62,5 +62,10 @@ public final class ServiceTokenCache {
             }
             Objects.requireNonNull(expiresAt, "expiresAt must not be null");
         }
+
+        @Override
+        public String toString() {
+            return "CachedToken[accessToken=***, expiresAt=" + expiresAt + "]";
+        }
     }
 }

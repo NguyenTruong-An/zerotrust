@@ -9,6 +9,8 @@ import org.apache.http.impl.client.HttpClients;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -26,6 +28,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -159,6 +162,67 @@ class ClientCredentialsTokenProviderTest {
                 RiskScoringClientException.FailureType.INVALID_RESPONSE,
                 exception.failureType()
         );
+    }
+
+    @Test
+    void excludesRawTokenResponseFromExceptionDiagnostics() {
+        server.createContext(TOKEN_PATH, exchange -> respond(exchange, 200,
+                "{\"access_token\":\"private-token-value\",\"token_type\":\"Bearer\",\"expires_in\":"));
+
+        RiskScoringClientException exception = assertThrows(RiskScoringClientException.class,
+                () -> provider(new MutableClock(START), new ServiceTokenCache()).accessToken());
+
+        assertEquals(RiskScoringClientException.FailureType.INVALID_RESPONSE, exception.failureType());
+        assertFalse(exception.toString().contains("private-token-value"));
+        assertNull(exception.getCause());
+    }
+
+    @Test
+    void hidesCachedTokenFromDiagnosticOutput() {
+        ServiceTokenCache.CachedToken token = new ServiceTokenCache.CachedToken(
+                "private-token-value", START.plusSeconds(300));
+
+        assertEquals("private-token-value", token.accessToken());
+        assertFalse(token.toString().contains("private-token-value"));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"300.5", "300.0000000000000001", "18446744073709551916",
+            "0", "-1", "\"300\"", "9223372036854775807"})
+    void rejectsInvalidExpiryWithoutCachingToken(String expiresIn) {
+        AtomicInteger calls = new AtomicInteger();
+        server.createContext(TOKEN_PATH, exchange -> {
+            int call = calls.incrementAndGet();
+            respond(exchange, 200, call == 1
+                    ? "{\"access_token\":\"invalid-token\",\"token_type\":\"Bearer\",\"expires_in\":"
+                            + expiresIn + "}"
+                    : "{\"access_token\":\"valid-token\",\"token_type\":\"Bearer\",\"expires_in\":300}");
+        });
+        ClientCredentialsTokenProvider provider = provider(new MutableClock(START), new ServiceTokenCache());
+
+        RiskScoringClientException exception = assertThrows(RiskScoringClientException.class, provider::accessToken);
+
+        assertEquals(RiskScoringClientException.FailureType.INVALID_RESPONSE, exception.failureType());
+        assertEquals("valid-token", provider.accessToken());
+        assertEquals("valid-token", provider.accessToken());
+        assertEquals(2, calls.get());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"300", "300.0", "3e2"})
+    void acceptsExactWholeNumberExpiry(String expiresIn) {
+        AtomicInteger calls = new AtomicInteger();
+        server.createContext(TOKEN_PATH, exchange -> {
+            calls.incrementAndGet();
+            respond(exchange, 200,
+                    "{\"access_token\":\"valid-token\",\"token_type\":\"Bearer\",\"expires_in\":"
+                            + expiresIn + "}");
+        });
+        ClientCredentialsTokenProvider provider = provider(new MutableClock(START), new ServiceTokenCache());
+
+        assertEquals("valid-token", provider.accessToken());
+        assertEquals("valid-token", provider.accessToken());
+        assertEquals(1, calls.get());
     }
 
     private ClientCredentialsTokenProvider provider(Clock clock, ServiceTokenCache cache) {

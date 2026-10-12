@@ -2,7 +2,9 @@ package com.zerotrust.keycloak.risk.client;
 
 import com.zerotrust.keycloak.risk.config.RiskScoringClientConfig;
 import com.zerotrust.keycloak.risk.config.ServiceTokenConfig;
-import org.apache.http.Header;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.ObjectReader;
 import org.apache.http.HttpEntity;
 import org.apache.http.NameValuePair;
 import org.apache.http.client.config.RequestConfig;
@@ -14,24 +16,27 @@ import org.apache.http.message.BasicNameValuePair;
 import org.keycloak.connections.httpclient.HttpClientProvider;
 import org.keycloak.util.JsonSerialization;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.InterruptedIOException;
+import java.math.BigDecimal;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
 public final class ClientCredentialsTokenProvider implements ServiceTokenProvider {
 
-    private static final int BUFFER_SIZE = 4 * 1024;
-    private static final int MAX_TOKEN_RESPONSE_BYTES = 16 * 1024;
+    private static final BoundedJsonResponseReader RESPONSE_READER = new BoundedJsonResponseReader(
+            16 * 1024,
+            "Token endpoint returned a non-JSON response",
+            "Token endpoint response exceeds the size limit");
+    private static final ObjectReader TOKEN_JSON_READER = JsonSerialization.mapper
+            .readerFor(new TypeReference<Map<String, Object>>() {})
+            .with(DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS);
 
     private final CloseableHttpClient httpClient;
     private final ServiceTokenConfig tokenConfig;
@@ -120,8 +125,7 @@ public final class ClientCredentialsTokenProvider implements ServiceTokenProvide
             if (entity == null) {
                 throw invalidTokenResponse("Token endpoint returned an empty response", null);
             }
-            verifyJsonContentType(entity);
-            return parseToken(readBody(entity));
+            return parseToken(RESPONSE_READER.read(entity));
         } catch (RiskScoringClientException exception) {
             throw exception;
         } catch (InterruptedIOException exception) {
@@ -147,55 +151,9 @@ public final class ClientCredentialsTokenProvider implements ServiceTokenProvide
         return URLEncoder.encode(value, StandardCharsets.UTF_8);
     }
 
-    private static void verifyJsonContentType(HttpEntity entity) {
-        Header header = entity.getContentType();
-        String value = header == null ? "" : header.getValue().toLowerCase(Locale.ROOT);
-        int parametersStart = value.indexOf(';');
-        String mediaType = parametersStart >= 0
-                ? value.substring(0, parametersStart).trim()
-                : value.trim();
-        if (!("application/json".equals(mediaType) || mediaType.endsWith("+json"))) {
-            throw invalidTokenResponse("Token endpoint returned a non-JSON response", null);
-        }
-    }
-
-    private static String readBody(HttpEntity entity) {
-        long contentLength = entity.getContentLength();
-        if (contentLength > MAX_TOKEN_RESPONSE_BYTES) {
-            throw tokenResponseTooLarge();
-        }
-
-        try (InputStream input = entity.getContent();
-             ByteArrayOutputStream output = new ByteArrayOutputStream(initialCapacity(
-                     contentLength
-             ))) {
-            byte[] buffer = new byte[BUFFER_SIZE];
-            int totalBytes = 0;
-            int bytesRead;
-            while ((bytesRead = input.read(buffer)) != -1) {
-                if (bytesRead > MAX_TOKEN_RESPONSE_BYTES - totalBytes) {
-                    throw tokenResponseTooLarge();
-                }
-                output.write(buffer, 0, bytesRead);
-                totalBytes += bytesRead;
-            }
-            return output.toString(StandardCharsets.UTF_8);
-        } catch (RiskScoringClientException exception) {
-            throw exception;
-        } catch (InterruptedIOException exception) {
-            if (Thread.currentThread().isInterrupted()) {
-                throw RiskScoringClientException.interrupted(exception);
-            }
-            throw RiskScoringClientException.timeout(exception);
-        } catch (IOException exception) {
-            throw RiskScoringClientException.connection(exception);
-        }
-    }
-
-    @SuppressWarnings("unchecked")
     private ServiceTokenCache.CachedToken parseToken(String body) {
         try {
-            Map<String, Object> values = JsonSerialization.readValue(body, Map.class);
+            Map<String, Object> values = TOKEN_JSON_READER.readValue(body);
             String accessToken = requiredString(values.get("access_token"), "access_token");
             String tokenType = requiredString(values.get("token_type"), "token_type");
             if (!"bearer".equalsIgnoreCase(tokenType)) {
@@ -205,7 +163,8 @@ public final class ClientCredentialsTokenProvider implements ServiceTokenProvide
             Instant expiresAt = clock.instant().plusSeconds(expiresInSeconds);
             return new ServiceTokenCache.CachedToken(accessToken, expiresAt);
         } catch (IOException | RuntimeException exception) {
-            throw invalidTokenResponse("Token endpoint returned an invalid token response", exception);
+            // Parser exceptions can contain credential-bearing response excerpts.
+            throw invalidTokenResponse("Token endpoint returned an invalid token response", null);
         }
     }
 
@@ -220,25 +179,11 @@ public final class ClientCredentialsTokenProvider implements ServiceTokenProvide
         if (!(value instanceof Number number)) {
             throw new IllegalArgumentException(fieldName + " must be a number");
         }
-        long result = number.longValue();
+        long result = new BigDecimal(number.toString()).longValueExact();
         if (result <= 0) {
             throw new IllegalArgumentException(fieldName + " must be positive");
         }
         return result;
-    }
-
-    private static int initialCapacity(long contentLength) {
-        if (contentLength <= 0) {
-            return BUFFER_SIZE;
-        }
-        return (int) Math.min(contentLength, MAX_TOKEN_RESPONSE_BYTES);
-    }
-
-    private static RiskScoringClientException tokenResponseTooLarge() {
-        return invalidTokenResponse(
-                "Token endpoint response exceeds the size limit",
-                null
-        );
     }
 
     private static RiskScoringClientException invalidTokenResponse(
