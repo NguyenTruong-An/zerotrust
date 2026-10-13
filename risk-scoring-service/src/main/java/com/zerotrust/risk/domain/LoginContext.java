@@ -13,7 +13,7 @@ public record LoginContext(
         Instant receivedAt
 ) {
     public LoginContext {
-        Objects.requireNonNull(subjectId, "subjectId must not be null");
+        subjectId = SubjectIdentifierNormalizer.normalize(subjectId);
         Objects.requireNonNull(authenticationSessionId, "authenticationSessionId must not be null");
         Objects.requireNonNull(clientId, "clientId must not be null");
         Objects.requireNonNull(ipAddress, "ipAddress must not be null");

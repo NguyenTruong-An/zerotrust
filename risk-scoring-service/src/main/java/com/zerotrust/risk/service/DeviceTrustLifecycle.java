@@ -1,5 +1,6 @@
 package com.zerotrust.risk.service;
 
+import com.zerotrust.risk.domain.SubjectIdentifierNormalizer;
 import com.zerotrust.risk.entity.KnownDeviceEntity;
 import com.zerotrust.risk.entity.DeviceStatus;
 import com.zerotrust.risk.exception.DeviceTrustRejectedException;
@@ -24,6 +25,7 @@ public class DeviceTrustLifecycle {
 
     @Transactional
     public long generation(String subjectId) {
+        subjectId = SubjectIdentifierNormalizer.normalize(subjectId);
         return lockGeneration(subjectId);
     }
 
@@ -31,6 +33,7 @@ public class DeviceTrustLifecycle {
 
     @Transactional
     public Snapshot snapshot(String subjectId) {
+        subjectId = SubjectIdentifierNormalizer.normalize(subjectId);
         long generation = lockGeneration(subjectId);
         return new Snapshot(generation, pending(subjectId) != null);
     }
@@ -38,6 +41,7 @@ public class DeviceTrustLifecycle {
     // Caller must retain this subject lock until device registration commits.
     @Transactional(propagation = Propagation.MANDATORY)
     public void requireGeneration(String subjectId, long expected) {
+        subjectId = SubjectIdentifierNormalizer.normalize(subjectId);
         if (expected < 0 || lockGeneration(subjectId) != expected || pending(subjectId) != null) {
             throw new DeviceTrustRejectedException();
         }
@@ -45,6 +49,7 @@ public class DeviceTrustLifecycle {
 
     @Transactional
     public void revoke(String subjectId, UUID operationId, String requestedBy) {
+        subjectId = SubjectIdentifierNormalizer.normalize(subjectId);
         long generation = lockGeneration(subjectId);
         var previous = jdbc.queryForList(
                 "SELECT subject_id, requested_by FROM device_trust_revocations WHERE operation_id = ?",
@@ -77,6 +82,7 @@ public class DeviceTrustLifecycle {
 
     @Transactional
     public void complete(String subjectId, UUID operationId, String requestedBy) {
+        subjectId = SubjectIdentifierNormalizer.normalize(subjectId);
         lockGeneration(subjectId);
         var rows = jdbc.queryForList("SELECT requested_by, completed_at FROM device_trust_revocations WHERE operation_id = ? AND subject_id = ?",
                 operationId.toString(), subjectId);

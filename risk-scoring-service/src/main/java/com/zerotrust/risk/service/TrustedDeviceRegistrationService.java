@@ -1,5 +1,6 @@
 package com.zerotrust.risk.service;
 
+import com.zerotrust.risk.domain.SubjectIdentifierNormalizer;
 import com.zerotrust.risk.entity.KnownDeviceEntity;
 import com.zerotrust.risk.repository.KnownDeviceRepository;
 import lombok.RequiredArgsConstructor;
@@ -24,7 +25,7 @@ public class TrustedDeviceRegistrationService {
      */
     @Transactional
     public void trustAfterMfa(String subjectId, String deviceId, long generation) {
-        String normalizedSubjectId = subjectId.trim();
+        String normalizedSubjectId = SubjectIdentifierNormalizer.normalize(subjectId);
         lifecycle.requireGeneration(normalizedSubjectId, generation);
         String fingerprintHash = fingerprintHasher.hash(normalizedSubjectId, deviceId);
         Instant trustedAt = clock.instant();
