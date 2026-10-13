@@ -61,7 +61,7 @@ public class DeviceTrustLifecycle {
                 next, operationId.toString(), subjectId);
         Instant now = clock.instant();
         int count = 0;
-        for (KnownDeviceEntity device : devices.findAllBySubjectId(subjectId)) {
+        for (KnownDeviceEntity device : devices.findCurrentForRevocation(subjectId)) {
             if (device.getStatus() != DeviceStatus.REVOKED) {
                 device.revokeForMfaReset(now);
                 count++;

@@ -6,7 +6,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.Optional;
 
-public interface KnownDeviceRepository extends JpaRepository<KnownDeviceEntity, Long> {
+public interface KnownDeviceRepository extends JpaRepository<KnownDeviceEntity, Long>, KnownDeviceRevocationRepository {
 
     java.util.List<KnownDeviceEntity> findAllBySubjectId(String subjectId);
 
