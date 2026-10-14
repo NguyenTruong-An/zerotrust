@@ -21,12 +21,8 @@ public class RedisAuthenticationFailureStore implements AuthenticationFailureSto
                     end
                     local function incrementable(value)
                         if value == '0' then return true end
-                        local digits, limit = value, '9223372036854775806'
-                        if value:sub(1, 1) == '-' then
-                            digits, limit = value:sub(2), '9223372036854775808'
-                        end
-                        -- Match Redis integer syntax/range, retaining signed negative INCR semantics.
-                        return digits:match('^[1-9][0-9]*$') and within(digits, limit)
+                        -- Failure counters are nonnegative; MAX cannot be incremented safely.
+                        return value:match('^[1-9][0-9]*$') and within(value, '9223372036854775806')
                     end
                     -- EX/EXPIRE use a signed64 absolute millisecond deadline, not just signed64 seconds.
                     -- Subtract decimal strings; only individual digits and microseconds use Lua numbers.

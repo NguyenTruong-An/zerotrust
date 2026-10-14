@@ -47,7 +47,7 @@ abstract class RedisAuditSupport {
         scenario = info.getDisplayName();
         properties = new AuthenticationHistoryProperties();
         properties.setPepper(PEPPER);
-        properties.setKeyPrefix("qa01c2:fix05:" + RUN + ":" + UUID.randomUUID().toString().replace("-", ""));
+        properties.setKeyPrefix("qa01c2:fix06:" + RUN + ":" + UUID.randomUUID().toString().replace("-", ""));
         properties.setFailureWindow(Duration.ofSeconds(60));
         properties.setEventDeduplicationTtl(Duration.ofSeconds(120));
         resources = DefaultClientResources.builder().ioThreadPoolSize(2).computationThreadPoolSize(2).build();
