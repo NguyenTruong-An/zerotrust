@@ -2,6 +2,7 @@ package com.zerotrust.risk.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zerotrust.risk.security.RiskJwtAuthenticationConverter;
+import jakarta.servlet.DispatcherType;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.context.annotation.Bean;
@@ -56,6 +57,9 @@ public class RiskApiSecurityConfig {
                 .requestCache(cache -> cache.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(requests -> requests
+                        // Permit only container error rendering; direct requests still use default deny.
+                        .requestMatchers(request -> request.getDispatcherType() == DispatcherType.ERROR
+                                && "/error".equals(request.getServletPath())).permitAll()
                         .requestMatchers(HttpMethod.GET, "/actuator/health").permitAll()
                         .requestMatchers(HttpMethod.POST, "/internal/v1/subjects/*/trusted-devices/revocations",
                                 "/internal/v1/subjects/*/trusted-devices/revocations/completion")
