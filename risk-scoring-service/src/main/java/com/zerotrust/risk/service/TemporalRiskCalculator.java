@@ -11,7 +11,6 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.time.Instant;
 import java.time.ZonedDateTime;
 import java.util.List;
@@ -23,7 +22,6 @@ public class TemporalRiskCalculator {
 
     private static final Logger LOGGER = Logger.getLogger(TemporalRiskCalculator.class);
     private static final BigDecimal ZERO = BigDecimal.ZERO;
-    private static final int FREQUENCY_SCALE = 6;
     private static final int HOURS_PER_DAY = 24;
 
     private final AuthenticationSuccessEventRepository eventRepository;
@@ -68,10 +66,10 @@ public class TemporalRiskCalculator {
                 ) <= properties.getHourTolerance())
                 .count();
 
-        boolean unusualDay = frequency(matchingDays, history.size())
-                .compareTo(properties.getMinimumDayFrequency()) < 0;
-        boolean unusualHour = frequency(matchingHours, history.size())
-                .compareTo(properties.getMinimumHourFrequency()) < 0;
+        boolean unusualDay = isBelowMinimumFrequency(
+                matchingDays, history.size(), properties.getMinimumDayFrequency());
+        boolean unusualHour = isBelowMinimumFrequency(
+                matchingHours, history.size(), properties.getMinimumHourFrequency());
 
         if (unusualDay && unusualHour) {
             return TemporalRiskAssessment.available(properties.getHighScore());
@@ -82,12 +80,12 @@ public class TemporalRiskCalculator {
         return TemporalRiskAssessment.available(ZERO);
     }
 
-    private static BigDecimal frequency(long matches, int sampleSize) {
-        return BigDecimal.valueOf(matches).divide(
-                BigDecimal.valueOf(sampleSize),
-                FREQUENCY_SCALE,
-                RoundingMode.HALF_UP
-        );
+    private static boolean isBelowMinimumFrequency(
+            long matches, int sampleSize, BigDecimal minimumFrequency
+    ) {
+        // Available profiles have a positive sample size; compare without rounding the ratio.
+        return BigDecimal.valueOf(matches).compareTo(
+                minimumFrequency.multiply(BigDecimal.valueOf(sampleSize))) < 0;
     }
 
     private static int circularHourDistance(int firstHour, int secondHour) {
