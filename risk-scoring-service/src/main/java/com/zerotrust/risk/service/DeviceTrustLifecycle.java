@@ -84,9 +84,11 @@ public class DeviceTrustLifecycle {
     public void complete(String subjectId, UUID operationId, String requestedBy) {
         subjectId = SubjectIdentifierNormalizer.normalize(subjectId);
         lockGeneration(subjectId);
-        var rows = jdbc.queryForList("SELECT requested_by, completed_at FROM device_trust_revocations WHERE operation_id = ? AND subject_id = ?",
-                operationId.toString(), subjectId);
-        if (rows.isEmpty() || !requestedBy.equals(rows.get(0).get("requested_by"))) {
+        var rows = jdbc.queryForList("SELECT subject_id, requested_by, completed_at FROM device_trust_revocations WHERE operation_id = ?",
+                operationId.toString());
+        if (rows.isEmpty()
+                || !subjectId.equals(rows.get(0).get("subject_id"))
+                || !requestedBy.equals(rows.get(0).get("requested_by"))) {
             throw new DeviceTrustRejectedException();
         }
         if (rows.get(0).get("completed_at") != null) return;
