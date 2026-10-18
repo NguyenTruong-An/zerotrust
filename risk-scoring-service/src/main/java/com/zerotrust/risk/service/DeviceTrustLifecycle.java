@@ -1,6 +1,7 @@
 package com.zerotrust.risk.service;
 
 import com.zerotrust.risk.domain.SubjectIdentifierNormalizer;
+import com.zerotrust.risk.domain.DeviceTrustTimestamp;
 import com.zerotrust.risk.entity.KnownDeviceEntity;
 import com.zerotrust.risk.entity.DeviceStatus;
 import com.zerotrust.risk.exception.DeviceTrustRejectedException;
@@ -64,7 +65,7 @@ public class DeviceTrustLifecycle {
         long next = Math.addExact(generation, 1);
         jdbc.update("UPDATE subject_device_trust SET generation = ?, pending_operation_id = ? WHERE subject_id = ?",
                 next, operationId.toString(), subjectId);
-        Instant now = clock.instant();
+        Instant now = DeviceTrustTimestamp.canonical(clock.instant());
         int count = 0;
         for (KnownDeviceEntity device : devices.findCurrentForRevocation(subjectId)) {
             if (device.getStatus() != DeviceStatus.REVOKED) {
@@ -95,7 +96,7 @@ public class DeviceTrustLifecycle {
         if (!operationId.toString().equals(pending(subjectId))) throw new DeviceTrustRejectedException();
         jdbc.update("UPDATE subject_device_trust SET pending_operation_id = NULL WHERE subject_id = ?", subjectId);
         jdbc.update("UPDATE device_trust_revocations SET completed_at = ? WHERE operation_id = ?",
-                Timestamp.from(clock.instant()), operationId.toString());
+                Timestamp.from(DeviceTrustTimestamp.canonical(clock.instant())), operationId.toString());
     }
 
     private String pending(String subjectId) {

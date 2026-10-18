@@ -1,5 +1,6 @@
 package com.zerotrust.risk.entity;
 
+import com.zerotrust.risk.domain.DeviceTrustTimestamp;
 import com.zerotrust.risk.exception.DeviceTrustRejectedException;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -73,13 +74,14 @@ public class KnownDeviceEntity {
     public KnownDeviceEntity(String subjectId, String deviceFingerprintHash, Instant firstSeenAt) {
         this.subjectId = requireText(subjectId, "subjectId");
         this.deviceFingerprintHash = requireSha256Hex(deviceFingerprintHash);
-        this.firstSeenAt = Objects.requireNonNull(firstSeenAt, "firstSeenAt must not be null");
-        this.lastSeenAt = firstSeenAt;
+        this.firstSeenAt = DeviceTrustTimestamp.canonical(Objects.requireNonNull(firstSeenAt, "firstSeenAt must not be null"));
+        this.lastSeenAt = this.firstSeenAt;
         this.status = DeviceStatus.PENDING;
     }
 
     public void markSeen(Instant seenAt) {
         Objects.requireNonNull(seenAt, "seenAt must not be null");
+        seenAt = DeviceTrustTimestamp.canonical(seenAt);
         if (seenAt.isAfter(lastSeenAt)) {
             lastSeenAt = seenAt;
         }
@@ -87,6 +89,7 @@ public class KnownDeviceEntity {
 
     public void trust(Instant trustedAt) {
         Objects.requireNonNull(trustedAt, "trustedAt must not be null");
+        trustedAt = DeviceTrustTimestamp.canonical(trustedAt);
 
         if (status == DeviceStatus.REVOKED) {
             throw new DeviceTrustRejectedException();
@@ -106,6 +109,7 @@ public class KnownDeviceEntity {
 
     public void revoke(Instant revokedAt) {
         Objects.requireNonNull(revokedAt, "revokedAt must not be null");
+        revokedAt = DeviceTrustTimestamp.canonical(revokedAt);
         requireNotBeforeFirstSeen(revokedAt, "revokedAt");
         this.revocationReason = "SECURITY";
 
