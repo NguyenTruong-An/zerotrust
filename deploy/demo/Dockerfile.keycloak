@@ -1,0 +1,12 @@
+FROM eclipse-temurin:17.0.10_7-jdk-jammy@sha256:58aead1bf67b0009ce2acb496b7b6220ae0275ae9ade5989e0077c67bb7fbd14 AS spi
+WORKDIR /source
+COPY . .
+RUN --mount=type=cache,target=/root/.m2 chmod +x mvnw && ./mvnw --batch-mode --no-transfer-progress -f keycloak-risk-extension/pom.xml -DskipTests package
+FROM quay.io/keycloak/keycloak:26.7.0@sha256:0f198be292568439d700cdbfb893e69a6009bb43a94a06a945b1d3d506c76b13 AS build
+COPY --from=spi --chown=keycloak:keycloak /source/keycloak-risk-extension/target/keycloak-risk-extension.jar /opt/keycloak/providers/
+COPY --chown=keycloak:keycloak keycloak-theme/zerotrust /opt/keycloak/themes/zerotrust
+RUN /opt/keycloak/bin/kc.sh build --db=mysql --health-enabled=true
+FROM quay.io/keycloak/keycloak:26.7.0@sha256:0f198be292568439d700cdbfb893e69a6009bb43a94a06a945b1d3d506c76b13
+COPY --from=build /opt/keycloak/ /opt/keycloak/
+COPY deploy/demo/keycloak-entry.sh /opt/demo-entry.sh
+ENTRYPOINT ["/bin/bash","/opt/demo-entry.sh"]

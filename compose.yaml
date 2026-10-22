@@ -1,45 +1,150 @@
+name: zerotrust-demo
+x-runtime: &runtime
+  restart: on-failure:2
+  networks: [demo]
+  labels: {app.owner: zerotrust-demo}
+  logging: {driver: json-file, options: {max-size: 10m, max-file: '3'}}
+  stop_grace_period: 35s
+  mem_limit: 640m
+x-java-health: &java-health
+  interval: 10s
+  timeout: 5s
+  retries: 20
+  start_period: 60s
 services:
-  risk-db:
-    image: mysql:8.0.46
-    container_name: zerotrust-risk-db
-    restart: unless-stopped
-    environment:
-      MYSQL_DATABASE: risk_db
-      MYSQL_USER: risk_service
-      MYSQL_PASSWORD: ${RISK_DB_PASSWORD:?Set RISK_DB_PASSWORD in .env}
-      MYSQL_ROOT_PASSWORD: ${RISK_DB_ROOT_PASSWORD:?Set RISK_DB_ROOT_PASSWORD in .env}
-    ports:
-      - "127.0.0.1:3307:3306"
-    volumes:
-      - risk-db-data:/var/lib/mysql
+  init:
+    build: {context: ., dockerfile: deploy/demo/Dockerfile.tools}
+    image: zerotrust-demo-tools:894e7fc
+    command: [prepare]
+    volumes: [./.local-demo:/state]
+    labels: {app.owner: zerotrust-demo}
+    mem_limit: 512m
+    network_mode: none
+  mysql:
+    <<: *runtime
+    image: mysql:8.0.46@sha256:7dcddc01f13bab2f15cde676d44d01f61fc9f99fe7785e86196dfc07d358ae2b
+    mem_limit: 768m
+    depends_on: {init: {condition: service_completed_successfully}}
+    environment: {MYSQL_ROOT_PASSWORD_FILE: /run/demo/root-password}
+    entrypoint: [bash, -ec, 'cp /run/demo/10-demo.sql /docker-entrypoint-initdb.d/10-demo.sql; chown mysql:mysql /docker-entrypoint-initdb.d/10-demo.sql; exec docker-entrypoint.sh mysqld --defaults-extra-file=/run/demo/server.cnf']
+    volumes: [mysql-data:/var/lib/mysql, ./.local-demo/mysql:/run/demo:ro]
     healthcheck:
-      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -p$$MYSQL_ROOT_PASSWORD --silent"]
+      test: [CMD-SHELL, "mysql --defaults-extra-file=/run/demo/client.cnf --batch --skip-column-names -e 'SELECT 1' | grep -q 1"]
       interval: 5s
-      timeout: 3s
-      retries: 20
-      start_period: 20s
-
-  risk-redis:
-    image: redis:7.4.7-alpine
-    container_name: zerotrust-risk-redis
-    restart: unless-stopped
-    environment:
-      RISK_REDIS_PASSWORD: ${RISK_REDIS_PASSWORD:?Set RISK_REDIS_PASSWORD in .env}
-    command:
-      - sh
-      - -c
-      - exec redis-server --appendonly yes --requirepass "$${RISK_REDIS_PASSWORD}"
-    ports:
-      - "127.0.0.1:6379:6379"
-    volumes:
-      - risk-redis-data:/data
+      timeout: 5s
+      retries: 30
+      start_period: 40s
+  redis:
+    <<: *runtime
+    image: redis:7.4.7-alpine@sha256:02f2cc4882f8bf87c79a220ac958f58c700bdec0dfb9b9ea61b62fb0e8f1bfcf
+    mem_limit: 128m
+    depends_on: {init: {condition: service_completed_successfully}}
+    command: [redis-server, /run/demo/redis.conf]
+    volumes: [redis-data:/data, ./.local-demo/redis:/run/demo:ro]
     healthcheck:
-      test: ["CMD-SHELL", "redis-cli -a \"$$RISK_REDIS_PASSWORD\" ping | grep -q PONG"]
+      test: [CMD-SHELL, 'REDISCLI_AUTH="$$(cat /run/demo/redis-password)" redis-cli --tls --cacert /run/demo/ca.crt -h redis ping | grep -q PONG']
       interval: 5s
-      timeout: 3s
+      timeout: 5s
       retries: 20
-      start_period: 10s
-
+  migrate:
+    image: zerotrust-demo-risk:894e7fc
+    build: {context: ., dockerfile: deploy/demo/Dockerfile.java, args: {MODULE: risk-scoring-service}}
+    depends_on: {mysql: {condition: service_healthy}}
+    entrypoint: [java, '@/run/demo/jvm.args', -cp, '/app/tools:/app/unpacked/BOOT-INF/classes:/app/unpacked/BOOT-INF/lib/*', Migrate]
+    volumes: [./.local-demo/migrate:/run/demo:ro]
+    networks: [demo]
+    labels: {app.owner: zerotrust-demo}
+    mem_limit: 384m
+  keycloak:
+    <<: *runtime
+    image: zerotrust-demo-keycloak:894e7fc
+    build: {context: ., dockerfile: deploy/demo/Dockerfile.keycloak}
+    mem_limit: 768m
+    depends_on: {mysql: {condition: service_healthy}}
+    ports: ['127.0.0.1:8444:8444']
+    volumes: [./.local-demo/keycloak:/run/demo:ro]
+    environment: {KC_HTTP_MANAGEMENT_SCHEME: http}
+    healthcheck:
+      test: [CMD, bash, -ec, 'exec 3<>/dev/tcp/127.0.0.1/9000; printf "GET /health/ready HTTP/1.0\r\n\r\n" >&3; read -r first <&3; [[ "$$first" == *"200"* ]]']
+      <<: *java-health
+  risk:
+    <<: *runtime
+    image: zerotrust-demo-risk:894e7fc
+    build: {context: ., dockerfile: deploy/demo/Dockerfile.java, args: {MODULE: risk-scoring-service}}
+    depends_on: {migrate: {condition: service_completed_successfully}, keycloak: {condition: service_healthy}, redis: {condition: service_healthy}}
+    volumes: [./.local-demo/risk:/run/demo:ro]
+    healthcheck:
+      test: [CMD, java, '@/run/demo/jvm.args', -cp, /app/tools, Health, 'https://risk:8443/actuator/health', '200']
+      <<: *java-health
+  backend:
+    <<: *runtime
+    image: zerotrust-demo-backend:894e7fc
+    build: {context: ., dockerfile: deploy/demo/Dockerfile.java, args: {MODULE: .}}
+    depends_on: {risk: {condition: service_healthy}, keycloak: {condition: service_healthy}}
+    volumes: [./.local-demo/backend:/run/demo:ro]
+    healthcheck:
+      test: [CMD, java, '@/run/demo/jvm.args', -cp, /app/tools, Health, 'https://backend:8443/api/students/me', '401']
+      <<: *java-health
+  frontend:
+    <<: *runtime
+    image: zerotrust-demo-frontend:894e7fc
+    build: {context: ., dockerfile: deploy/demo/Dockerfile.frontend}
+    mem_limit: 384m
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:3000/').then(r=>process.exit(r.status===200?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+  gateway:
+    <<: *runtime
+    image: zerotrust-demo-gateway:894e7fc
+    build: {context: ., dockerfile: deploy/demo/Dockerfile.java, args: {MODULE: gateway}}
+    depends_on: {backend: {condition: service_healthy}, frontend: {condition: service_healthy}, crl: {condition: service_healthy}}
+    ports: ['127.0.0.1:8443:8443']
+    volumes: [./.local-demo/gateway:/run/demo:ro]
+    healthcheck:
+      test: [CMD, java, '@/run/demo/jvm.args', -cp, /app/tools, Health, 'https://gateway:8443/', '200']
+      <<: *java-health
+  crl:
+    <<: *runtime
+    image: zerotrust-demo-tools:894e7fc
+    depends_on: {init: {condition: service_completed_successfully}}
+    entrypoint: [/opt/tools/bin/python, -m, http.server, '8080', --bind, 0.0.0.0, --directory, /public-ca]
+    user: '10001:10001'
+    read_only: true
+    cap_drop: [ALL]
+    environment: {PYTHONDONTWRITEBYTECODE: '1'}
+    ports: ['127.0.0.1:8445:8080']
+    volumes: [./.local-demo/public-ca:/public-ca:ro]
+    mem_limit: 64m
+    healthcheck:
+      test: [CMD, /opt/tools/bin/python, -c, "import urllib.request; assert urllib.request.urlopen('http://127.0.0.1:8080/ca.crl').status==200"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+  tools:
+    image: zerotrust-demo-tools:894e7fc
+    profiles: [tools]
+    entrypoint: [/opt/tools/bin/python]
+    command: [/tools/verify.py, normal]
+    volumes: [./.local-demo:/state]
+    networks: {demo: {ipv4_address: 172.30.80.100}}
+    labels: {app.owner: zerotrust-demo}
+    mem_limit: 384m
+  high:
+    image: zerotrust-demo-tools:894e7fc
+    profiles: [tools]
+    entrypoint: [/opt/tools/bin/python]
+    command: [/tools/verify.py, high]
+    volumes: [./.local-demo:/state]
+    networks: {demo: {ipv4_address: 172.30.80.200}}
+    labels: {app.owner: zerotrust-demo}
+    mem_limit: 384m
+networks:
+  demo:
+    labels: {app.owner: zerotrust-demo}
+    ipam: {config: [{subnet: 172.30.80.0/24}]}
 volumes:
-  risk-db-data:
-  risk-redis-data:
+  mysql-data: {name: zerotrust-demo-mysql-final, labels: {app.owner: zerotrust-demo}}
+  redis-data: {name: zerotrust-demo-redis-final, labels: {app.owner: zerotrust-demo}}

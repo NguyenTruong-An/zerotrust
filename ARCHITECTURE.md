@@ -2,7 +2,7 @@
 
 **Trạng thái quyết định:** Kiến trúc đích đã chấp nhận (Accepted).
 
-**Ngày đối chiếu mã và cập nhật diễn giải:** 2026-10-05.
+**Ngày đối chiếu ranh giới:** 2026-10-05. Packaging Development/Demo ngày22/10/2026 được mô tả tại [kiến trúc runtime](docs/architecture/SYSTEM.md); các quyết định bảo mật bên dưới giữ nguyên.
 
 **Phạm vi:** Trách nhiệm dịch vụ, hiện trạng repository và các quyết định còn mở.
 
@@ -36,14 +36,13 @@ Chạy local theo [LOCAL_SETUP](docs/operations/LOCAL_SETUP.md). Mục lục ở
 | Keycloak SPI | Java 17, Keycloak 26.7.0, chạy trong Keycloak; [POM](keycloak-risk-extension/pom.xml) |
 | Risk Service | Java 17, Spring Boot 3.5.7, scoring/history/device trust; [POM](risk-scoring-service/pom.xml) |
 | Portal DB | Người dùng, sinh viên, lớp, môn, điểm; [entity](src/main/java/com/zerotrust/zerotrust/entity/) |
-| Risk DB | Thiết bị, event thành công, generation, audit revoke; [Flyway V1–V4](risk-scoring-service/src/main/resources/db/migration/) |
+| Risk DB | Thiết bị, event thành công, generation, audit revoke; [Flyway V1–V5](risk-scoring-service/src/main/resources/db/migration/) |
 | Redis Risk | Counter thất bại và marker chống trùng; [failure store](risk-scoring-service/src/main/java/com/zerotrust/risk/repository/RedisAuthenticationFailureStore.java) |
 | GeoLite local | City/ASN `.mmdb` tùy chọn; [provider](risk-scoring-service/src/main/java/com/zerotrust/risk/service/MaxMindGeoIpProvider.java) |
 
-Ba POM độc lập, wrapper gốc dùng `-f`; không có parent reactor chung.
+Bốn POM độc lập (Portal, Risk, SPI, Gateway), wrapper gốc dùng `-f`; không có parent reactor chung.
 Portal dùng Keycloak admin-client **26.0.11**, khác phiên bản SPI **26.7.0**.
-Frontend dùng React/TypeScript, cấu trúc route Next và script `vinext`; không
-mặc định lệnh chạy là `next dev`.
+Frontend dùng Next.js/React/TypeScript. Candidate Development/Demo dùng scripts Next và standalone Docker build.
 
 ## 3. Sơ đồ hiện trạng trong mã
 
@@ -63,8 +62,7 @@ flowchart LR
 ```
 
 Sơ đồ biểu diễn đường gọi, không xác nhận các tiến trình đang chạy.
-[compose.yaml](compose.yaml) chỉ dựng Risk DB MySQL và Redis. Keycloak, Portal DB
-và các ứng dụng chạy riêng. SPI không kết nối trực tiếp Risk DB/Redis.
+[compose.yaml](compose.yaml) trong candidate Development/Demo dựng đủ7 dịch vụ, cùng init/migration jobs. Xem [SYSTEM](docs/architecture/SYSTEM.md) cho Gateway và topology runtime; các khẳng định khảo sát trước packaging trong mục này là mốc lịch sử. SPI không kết nối trực tiếp Risk DB/Redis.
 Portal gọi Risk khi reset MFA, không gọi Risk mỗi lần xem điểm.
 
 ## 4. Kiến trúc đích đã chốt

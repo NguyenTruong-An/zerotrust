@@ -37,3 +37,5 @@ application-local.properties
 *.log
 *.mmdb
 /geoip-data/
+/.local-demo/
+/output/

@@ -1,0 +1,7 @@
+FROM eclipse-temurin:17.0.10_7-jdk-jammy@sha256:58aead1bf67b0009ce2acb496b7b6220ae0275ae9ade5989e0077c67bb7fbd14
+RUN apt-get update && apt-get install -y --no-install-recommends python3 python3-pip python3-venv && rm -rf /var/lib/apt/lists/* && \
+    python3 -m venv /opt/tools && /opt/tools/bin/pip install --no-cache-dir cryptography==44.0.3 PyMySQL==1.1.1
+WORKDIR /tools
+COPY deploy/demo/ /tools/
+COPY database/ /source/database/
+ENTRYPOINT ["/opt/tools/bin/python","/tools/bootstrap.py"]

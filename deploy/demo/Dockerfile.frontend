@@ -1,0 +1,15 @@
+FROM node:24.16.0-bookworm-slim@sha256:ca520832af80fa37a57c14077ed0fcdd83b5aefccc356059fdc3a9a05b78ae1f AS build
+WORKDIR /app
+COPY frontend/package*.json ./
+RUN --mount=type=cache,target=/root/.npm npm ci --no-audit --no-fund
+COPY frontend/ ./
+ENV NEXT_TELEMETRY_DISABLED=1 NEXT_PUBLIC_KEYCLOAK_URL=https://localhost:8444 NEXT_PUBLIC_KEYCLOAK_REALM=zerotrust-demo NEXT_PUBLIC_KEYCLOAK_CLIENT_ID=zerotrust-spa
+RUN npm run check && npx next build
+FROM node:24.16.0-bookworm-slim@sha256:ca520832af80fa37a57c14077ed0fcdd83b5aefccc356059fdc3a9a05b78ae1f
+WORKDIR /app
+ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 HOSTNAME=0.0.0.0 PORT=3000
+COPY --from=build --chown=node:node /app/.next/standalone ./
+COPY --from=build --chown=node:node /app/.next/static ./.next/static
+COPY --from=build --chown=node:node /app/public ./public
+USER node
+CMD ["node","server.js"]

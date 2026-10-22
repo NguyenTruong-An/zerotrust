@@ -1,12 +1,18 @@
 # Tài liệu ZeroTrust Portal
 
+## Development/Demo hiện tại
+
+[Setup từ đầu](setup/DEVELOPMENT_DEMO.md) · [Kiến trúc runtime](architecture/SYSTEM.md) · [Runbook](demo/DEMO_RUNBOOK.md) · [Troubleshooting](setup/TROUBLESHOOTING.md) · [Bảo vệ/giới hạn](security/DEMO_SECURITY.md) · [Completion và cleanup](demo/COMPLETION_REPORT.md).
+
+`docs/qa-audit`, `docs/qa-fixes`, `docs/qa-postfix`, các evidence và review theo ngày là lịch sử được giữ nguyên ở nơi đang có. Một số QA evidence chỉ có trong original dirty checkout, không nằm trong baseline clone và không copy vào candidate. Không dùng các cổng/volume/secret trong lịch sử để khởi động Demo mới. [Archive policy](archive/README.md).
+
 [← Trang dự án](../README.md)
 
 ## Nên đọc theo thứ tự nào?
 
 1. **Hiểu đề tài:** [Kiến trúc](../ARCHITECTURE.md) — sơ đồ mã hiện có và kiến trúc đích, ranh giới, phần đã chốt/còn thiếu.
 2. **Hiểu đăng nhập:** [Login, PKCE và phiên](authentication/LOGIN_FLOW.md), rồi [Reset MFA và thiết bị tin cậy](authentication/MFA_RESET_LIFECYCLE.md).
-3. **Chạy thử:** [Thiết lập local](operations/LOCAL_SETUP.md).
+3. **Chạy thử:** [Development/Demo setup](setup/DEVELOPMENT_DEMO.md).
 4. **Đọc mã và kiểm thử:** [Giải thích class theo luồng](development/CODE_FLOW_WALKTHROUGH.md) — frontend, SPI, scoring/history/device và học vụ Portal; [Các bước kiểm tra](development/DEVELOPMENT_CHECKS.md).
    Bộ kịch bản thực hành: [Kế hoạch kiểm thử và pentest](testing/TEST_PLAN.md), [40 ca chức năng](testing/FUNCTIONAL_SCENARIOS.md), [24 ca pentest cơ bản](testing/BASIC_PENTEST.md).
 5. **Đánh giá giới hạn:** [Rà soát ngày 02/10/2026](reviews/ADAPTIVE_AUTH_REVIEW_2026-10-02.md), [Đối chiếu bảo mật](security/SECURITY_REFERENCE_REVIEW.md).
@@ -26,7 +32,7 @@
 | Thực hiện kiểm thử và pentest cơ bản | [TEST_PLAN](testing/TEST_PLAN.md), [FUNCTIONAL_SCENARIOS](testing/FUNCTIONAL_SCENARIOS.md), [BASIC_PENTEST](testing/BASIC_PENTEST.md) |
 | Tự thực hiện pentest sâu về luồng và trạng thái | [ADVANCED_PENTEST](testing/ADVANCED_PENTEST.md) — 6 kịch bản chi tiết, chưa thực hiện |
 | Ghi kết quả, finding và kiểm thử lại | [REPORT_TEMPLATE](testing/REPORT_TEMPLATE.md) |
-| Khởi động các dịch vụ trên máy local | [LOCAL_SETUP](operations/LOCAL_SETUP.md) |
+| Khởi động các dịch vụ trên máy local | [DEVELOPMENT_DEMO](setup/DEVELOPMENT_DEMO.md) |
 | Xem kết quả kiểm chứng và thiếu sót đã ghi nhận | [ADAPTIVE_AUTH_REVIEW_2026-10-02](reviews/ADAPTIVE_AUTH_REVIEW_2026-10-02.md) |
 | Xem thay đổi và giới hạn của Geo-IP | [GEOIP_PRODUCTION_CHANGELOG](reviews/GEOIP_PRODUCTION_CHANGELOG.md) |
 
@@ -39,6 +45,10 @@ docs/
 ├── security/           # Quyền truy cập, riêng tư, đối chiếu bảo mật
 ├── development/        # Đọc mã, kiểm thử và CI
 ├── testing/            # Kịch bản chức năng, pentest và mẫu báo cáo
+├── setup/              # Development/Demo và troubleshooting hiện tại
+├── architecture/       # Topology Development/Demo
+├── demo/               # Runbook và completion report
+├── archive/            # Hướng dẫn lịch sử và chính sách bảo toàn
 ├── operations/         # Cấu hình và chạy hệ thống
 └── reviews/            # Báo cáo, kết quả kiểm chứng theo thời điểm
 ```
