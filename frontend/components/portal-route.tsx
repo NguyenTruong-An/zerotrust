@@ -14,6 +14,7 @@ import {
 import { AdminPortal, ADMIN_VIEW_PATHS } from './admin-portal';
 import type { AdminView } from './admin-portal';
 import { StudentScoreDashboard } from './student-score-dashboard';
+import { TeacherDashboard } from './teacher-dashboard';
 import { AuthenticationExpiredError } from '../lib/api';
 import { appRedirectUri, getKeycloak, initializeKeycloak } from '../lib/keycloak';
 
@@ -22,8 +23,8 @@ type Identity = {
   roles: string[];
 };
 
-type AccessState = 'checking' | 'admin' | 'student' | 'unauthenticated' | 'forbidden' | 'offline';
-type PortalArea = 'root' | 'admin' | 'student';
+type AccessState = 'checking' | 'admin' | 'student' | 'teacher' | 'unauthenticated' | 'forbidden' | 'offline';
+type PortalArea = 'root' | 'admin' | 'student' | 'teacher';
 
 const ADMIN_PATH_VIEWS = Object.fromEntries(
   Object.entries(ADMIN_VIEW_PATHS).map(([view, path]) => [path, view]),
@@ -95,7 +96,7 @@ function ForbiddenScreen({ onLogout }: { onLogout: () => void }) {
     <main className="access-page"><div className="access-dialog">
       <span className="access-mark"><ShieldCheck aria-hidden="true" size={23} /></span>
       <p className="eyebrow">ZeroTrust Academic Portal</p><h1>Chưa có quyền truy cập</h1>
-      <p>Access token hiện tại không có role ADMIN hoặc STUDENT. Hãy sử dụng tài khoản phù hợp.</p>
+      <p>Access token hiện tại không có role ADMIN, TEACHER hoặc STUDENT. Hãy sử dụng tài khoản phù hợp.</p>
       <button className="login-button" onClick={onLogout} type="button">Đăng xuất <LogOut aria-hidden="true" size={18} /></button>
     </div></main>
   );
@@ -121,6 +122,9 @@ export function PortalRoute({ area }: { area: PortalArea }) {
 
         const loggedInIdentity = currentIdentity();
         setIdentity(loggedInIdentity);
+        if (loggedInIdentity.roles.includes('TEACHER') && !loggedInIdentity.roles.includes('ADMIN')) {
+          setAccessState('teacher'); return;
+        }
         if (loggedInIdentity.roles.includes('STUDENT') && !loggedInIdentity.roles.includes('ADMIN')) {
           setAccessState('student'); return;
         }
@@ -154,6 +158,9 @@ export function PortalRoute({ area }: { area: PortalArea }) {
       router.replace('/student/scores');
       return;
     }
+    if (accessState === 'teacher' && area !== 'teacher') {
+      router.replace('/teacher'); return;
+    }
     if (accessState === 'admin' && area === 'admin' && !adminView) {
       router.replace('/admin');
     }
@@ -183,6 +190,9 @@ export function PortalRoute({ area }: { area: PortalArea }) {
   if (accessState === 'forbidden') return <ForbiddenScreen onLogout={logout} />;
   if (accessState === 'student' && area === 'student' && identity) {
     return <StudentScoreDashboard username={identity.username} onAuthenticationExpired={authenticationExpired} onLogout={logout} />;
+  }
+  if (accessState === 'teacher' && area === 'teacher' && identity) {
+    return <TeacherDashboard username={identity.username} onAuthenticationExpired={authenticationExpired} onLogout={logout} />;
   }
   if (accessState === 'admin' && area === 'admin' && adminView && identity) {
     return <AdminPortal username={identity.username} view={adminView} onAuthenticationExpired={authenticationExpired} onLogout={logout} />;

@@ -26,8 +26,9 @@ import { accountSecurityUrl } from '../lib/keycloak';
 import { ClassesPanel, SubjectsPanel, UsersPanel } from './admin-catalogs';
 import { ScoresPanel } from './admin-scores';
 import { StudentsPanel } from './admin-students';
+import { AdminTeaching } from './admin-teaching';
 
-export type AdminView = 'overview' | 'students' | 'classes' | 'subjects' | 'scores' | 'users';
+export type AdminView = 'overview' | 'students' | 'classes' | 'subjects' | 'scores' | 'users' | 'teaching';
 
 export const ADMIN_VIEW_PATHS: Record<AdminView, string> = {
   overview: '/admin',
@@ -36,6 +37,7 @@ export const ADMIN_VIEW_PATHS: Record<AdminView, string> = {
   subjects: '/admin/subjects',
   scores: '/admin/scores',
   users: '/admin/users',
+  teaching: '/admin/teaching',
 };
 
 type AdminPortalProps = {
@@ -58,6 +60,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'subjects', icon: BookOpen, label: 'Môn học' },
   { id: 'scores', icon: ClipboardCheck, label: 'Điểm số' },
   { id: 'users', icon: UserCog, label: 'Tài khoản' },
+  { id: 'teaching', icon: CalendarDays, label: 'Giảng dạy và lịch' },
 ];
 
 const VIEW_TITLES: Record<AdminView, string> = {
@@ -67,6 +70,7 @@ const VIEW_TITLES: Record<AdminView, string> = {
   subjects: 'Danh mục môn học',
   scores: 'Quản lý điểm',
   users: 'Tài khoản người dùng',
+  teaching: 'Giảng viên, phân công và lịch học',
 };
 
 function formatNumber(value: number | null): string {
@@ -144,6 +148,7 @@ export function AdminPortal({ username, view, onAuthenticationExpired, onLogout 
           {view === 'subjects' && <SubjectsPanel onAuthenticationExpired={onAuthenticationExpired} onChanged={markChanged} onNotify={notify} />}
           {view === 'scores' && <ScoresPanel initialStudent={scoreStudent} onAuthenticationExpired={onAuthenticationExpired} onNotify={notify} />}
           {view === 'users' && <UsersPanel onAuthenticationExpired={onAuthenticationExpired} onNotify={notify} />}
+          {view === 'teaching' && <AdminTeaching onAuthenticationExpired={onAuthenticationExpired} />}
         </div>
       </section>
     </main>
