@@ -1,8 +1,7 @@
 package com.zerotrust.zerotrust.model.request;
 
-import jakarta.validation.constraints.DecimalMax;
-import jakarta.validation.constraints.DecimalMin;
-import jakarta.validation.constraints.Digits;
+import com.fasterxml.jackson.annotation.JsonAnySetter;
+import com.zerotrust.zerotrust.model.validation.ScoreValue;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Pattern;
@@ -30,18 +29,26 @@ public class UpdateScoreRequestDTO {
             message = "Academic year must use the format YYYY-YYYY")
     private String academicYear;
 
-    @DecimalMin(value = "0.0", message = "Attendance score must be at least 0")
-    @DecimalMax(value = "10.0", message = "Attendance score must not exceed 10")
-    @Digits(integer = 2, fraction = 2, message = "Attendance score must have at most 2 decimal places")
+    @ScoreValue(
+            minMessage = "Attendance score must be at least 0",
+            maxMessage = "Attendance score must not exceed 10",
+            precisionMessage = "Attendance score must have at most 2 decimal places")
     private BigDecimal attendanceScore;
 
-    @DecimalMin(value = "0.0", message = "Midterm score must be at least 0")
-    @DecimalMax(value = "10.0", message = "Midterm score must not exceed 10")
-    @Digits(integer = 2, fraction = 2, message = "Midterm score must have at most 2 decimal places")
+    @ScoreValue(
+            minMessage = "Midterm score must be at least 0",
+            maxMessage = "Midterm score must not exceed 10",
+            precisionMessage = "Midterm score must have at most 2 decimal places")
     private BigDecimal midtermScore;
 
-    @DecimalMin(value = "0.0", message = "Final score must be at least 0")
-    @DecimalMax(value = "10.0", message = "Final score must not exceed 10")
-    @Digits(integer = 2, fraction = 2, message = "Final score must have at most 2 decimal places")
+    @ScoreValue(
+            minMessage = "Final score must be at least 0",
+            maxMessage = "Final score must not exceed 10",
+            precisionMessage = "Final score must have at most 2 decimal places")
     private BigDecimal finalScore;
+
+    @JsonAnySetter
+    private void rejectUnsupportedField(String fieldName, Object value) {
+        throw new IllegalArgumentException("Only subject, score values, semester and academic year can be updated");
+    }
 }

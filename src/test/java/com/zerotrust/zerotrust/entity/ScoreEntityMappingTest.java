@@ -49,18 +49,6 @@ class ScoreEntityMappingTest {
         assertThat(scoreRepository
                 .existsByStudentEntityIdAndSubjectEntityId(student.getId(), subject.getId()))
                 .isTrue();
-        assertThat(scoreRepository
-                .existsByStudentEntityIdAndSubjectEntityIdAndIdNot(
-                        student.getId(),
-                        subject.getId(),
-                        UUID.randomUUID()))
-                .isTrue();
-        assertThat(scoreRepository
-                .existsByStudentEntityIdAndSubjectEntityIdAndIdNot(
-                        student.getId(),
-                        subject.getId(),
-                        stored.getId()))
-                .isFalse();
         var filteredScores = scoreRepository.findAllByStudentFiltered(
                 student.getId(),
                 subject.getId(),

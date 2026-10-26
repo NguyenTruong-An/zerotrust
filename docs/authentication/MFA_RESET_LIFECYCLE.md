@@ -144,6 +144,16 @@ Cookie ZT_DEVICE_ID có TTL riêng 30 ngày, là định danh chứ không phả
 enrollment, một lần login MFA thành công tiếp theo mới có thể tạo trust.
 Fallback MFA khi Risk unavailable không có eligibility/generation để tạo trust.
 
+Bổ sung mã ngày 2026-10-09: nếu user không còn cả credential `otp` lẫn
+`recovery-authn-codes`, đã có user required action `CONFIGURE_TOTP`, và provider
+`CONFIGURE_TOTP` chuẩn đang enabled, `RiskStepUpCondition` chuyển user sang
+required action đăng ký lại thay vì chạy hai MFA execution ALTERNATIVE chưa
+được cấu hình. User còn OTP hoặc recovery vẫn phải xác thực bằng factor hiện
+có. Thiếu required action/provider, provider disabled hoặc alias trỏ sang
+provider khác không được đi nhánh này. Risk DENY vẫn chặn trước đó; registration
+vẫn bỏ qua user đang chờ enrollment. Mã mới phải được nạp vào Keycloak trước
+khi có hiệu lực runtime; xem [implementation](../../keycloak-risk-extension/src/main/java/com/zerotrust/keycloak/risk/authenticator/RiskStepUpCondition.java).
+
 ## 6. Lỗi, phục hồi và giới hạn
 
 | Mã lỗi Portal (HTTP 503) | Trạng thái biết được | Cách xử lý |
@@ -180,6 +190,20 @@ Portal cần `PORTAL_RISK_BASE_URL`, `PORTAL_RISK_TOKEN_URI`,
 `RISK_JWT_REVOKE_CLIENT_ID` khớp. HTTP chỉ cho local khi
 `PORTAL_RISK_ALLOW_HTTP=true`. Root `.env` phải được launcher nạp, Spring không
 tự đọc file này cho mọi tiến trình. Xem [LOCAL_SETUP](../operations/LOCAL_SETUP.md).
+
+Client Portal giới hạn JSON response từ token endpoint ở **64 KiB**, kiểm tra
+HTTP `200`, `access_token` không rỗng, `token_type=Bearer` và `expires_in` là số
+nguyên dương trong phạm vi `long`. Body lỗi của token endpoint/Risk không được
+đọc vào exception; response được đóng sau khi xử lý. Revoke/completion chỉ
+chấp nhận `204`; `401` xóa token bị từ chối khỏi cache và chỉ retry một lần với
+cùng operation. Các lỗi khác không tự retry, vì timeout không chứng minh remote
+chưa commit. Cache tính từ lúc bắt đầu request token, làm mới trước hạn 30 giây
+và tối đa lưu một giờ; token đã hết thời gian sử dụng khi nhận response bị từ chối.
+
+`PORTAL_RISK_CONNECT_TIMEOUT` mặc định `3s`, `PORTAL_RISK_READ_TIMEOUT` mặc định
+`5s`. Cả hai phải từ `1ms` đến `2147483647ms`; số 0, âm, dưới một millisecond hoặc
+vượt giới hạn làm Portal không khởi động. Chưa cấu hình credential Risk vẫn cho
+phép Portal khởi động; thao tác reset báo lỗi cấu hình khi được gọi.
 
 Sao lưu DB, triển khai [Flyway V4](../../risk-scoring-service/src/main/resources/db/migration/V4__device_trust_revocations.sql),
 SPI hỗ trợ generation, provisioning client riêng rồi Portal/frontend tương ứng.

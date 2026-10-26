@@ -1,0 +1,5 @@
+param([ValidateSet('check','start','stop','inventory','risk')][string]$Action = 'check')
+$ErrorActionPreference = 'Stop'
+$demoScript = Join-Path $PSScriptRoot 'demo_runtime.py'
+& python $demoScript $Action
+if ($LASTEXITCODE -ne 0) { throw 'QA02C demo check failed. See docs/demo/DEMO_RUNBOOK.md.' }

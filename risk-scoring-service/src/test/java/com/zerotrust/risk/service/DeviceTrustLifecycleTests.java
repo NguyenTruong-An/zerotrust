@@ -3,11 +3,15 @@ package com.zerotrust.risk.service;
 import com.zerotrust.risk.entity.DeviceStatus;
 import com.zerotrust.risk.entity.KnownDeviceEntity;
 import com.zerotrust.risk.exception.DeviceTrustRejectedException;
+import com.zerotrust.risk.repository.DeviceTrustStateRepository;
 import com.zerotrust.risk.repository.KnownDeviceRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
+import org.springframework.test.util.AopTestUtils;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -17,6 +21,9 @@ import java.util.UUID;
 import java.util.concurrent.*;
 
 import static org.assertj.core.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 
 @SpringBootTest
 @ActiveProfiles("test")
@@ -27,6 +34,7 @@ class DeviceTrustLifecycleTests {
     @Autowired DeviceFingerprintHasher hasher;
     @Autowired PlatformTransactionManager transactions;
     @Autowired JdbcTemplate jdbc;
+    @MockitoSpyBean DeviceTrustStateRepository stateRepository;
 
     private final java.util.List<String> subjects = new java.util.ArrayList<>();
 
@@ -84,6 +92,49 @@ class DeviceTrustLifecycleTests {
         assertThat(devices.findAllBySubjectId(subject).get(0).getRevocationReason()).isEqualTo("SECURITY");
         lifecycle.complete(subject, second, "admin-1");
         assertThat(lifecycle.snapshot(subject).resetPending()).isFalse();
+    }
+
+    @Test
+    void rejectsOperationReuseByAnotherSubjectOrRequesterWithoutChangingTrustState() {
+        String subject = newSubject();
+        String otherSubject = newSubject();
+        UUID operation = UUID.randomUUID();
+        lifecycle.revoke(subject, operation, "admin-1");
+
+        assertThatThrownBy(() -> lifecycle.revoke(otherSubject, operation, "admin-1"))
+                .isInstanceOf(DeviceTrustRejectedException.class);
+        assertThatThrownBy(() -> lifecycle.revoke(subject, operation, "other-admin"))
+                .isInstanceOf(DeviceTrustRejectedException.class);
+        assertThatThrownBy(() -> lifecycle.complete(otherSubject, operation, "admin-1"))
+                .isInstanceOf(DeviceTrustRejectedException.class);
+        assertThat(lifecycle.snapshot(otherSubject)).isEqualTo(new DeviceTrustLifecycle.Snapshot(0, false));
+        assertThat(lifecycle.snapshot(subject)).isEqualTo(new DeviceTrustLifecycle.Snapshot(1, true));
+
+        lifecycle.complete(subject, operation, "admin-1");
+        assertThat(lifecycle.snapshot(subject)).isEqualTo(new DeviceTrustLifecycle.Snapshot(1, false));
+    }
+
+    @Test
+    void auditFailureRollsBackGenerationPendingStateAndFlushedDeviceRevocation() {
+        String subject = newSubject();
+        UUID operation = UUID.randomUUID();
+        registration.trustAfterMfa(subject, "trusted-device", 0);
+        DeviceTrustStateRepository repositorySpy = AopTestUtils.getUltimateTargetObject(stateRepository);
+        doThrow(new DataAccessResourceFailureException("audit write unavailable"))
+                .when(repositorySpy).recordRevocation(eq(operation), eq(subject), eq("admin-1"),
+                        eq(1L), eq(1), any(Instant.class));
+
+        assertThatThrownBy(() -> lifecycle.revoke(subject, operation, "admin-1"))
+                .isInstanceOf(DataAccessResourceFailureException.class);
+
+        assertThat(lifecycle.snapshot(subject)).isEqualTo(new DeviceTrustLifecycle.Snapshot(0, false));
+        assertThat(devices.findAllBySubjectId(subject)).singleElement().satisfies(device -> {
+            assertThat(device.getStatus()).isEqualTo(DeviceStatus.TRUSTED);
+            assertThat(device.getRevokedAt()).isNull();
+            assertThat(device.getRevocationReason()).isNull();
+        });
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM device_trust_revocations WHERE operation_id = ?",
+                Integer.class, operation.toString())).isZero();
     }
 
     @Test

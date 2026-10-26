@@ -1,0 +1,918 @@
+{
+  "name": "zerotrust-legacy-integration-20261026",
+  "services": {
+    "school": {
+      "restart": "no",
+      "profiles": [
+        "legacy"
+      ],
+      "networks": [
+        "core"
+      ],
+      "labels": {
+        "app.owner": "zerotrust-legacy-integration-20261026"
+      },
+      "stop_grace_period": "35s",
+      "logging": {
+        "driver": "json-file",
+        "options": {
+          "max-size": "5m",
+          "max-file": "2"
+        }
+      },
+      "container_name": "zerotrust-legacy-integration-20261026-school",
+      "image": "mysql:9.1.0@sha256:0255b469f0135a0236d672d60e3154ae2f4538b146744966d96440318cc822c6",
+      "mem_limit": "768m",
+      "entrypoint": [
+        "docker-entrypoint.sh"
+      ],
+      "command": [
+        "mysqld",
+        "--defaults-extra-file=/run/demo/server.cnf",
+        "--lower-case-table-names=1"
+      ],
+      "environment": {
+        "MYSQL_ROOT_PASSWORD_FILE": "/run/demo/root-password"
+      },
+      "volumes": [
+        {
+          "type": "volume",
+          "source": "school-data",
+          "target": "/var/lib/mysql",
+          "volume": {
+            "nocopy": true
+          }
+        },
+        {
+          "type": "bind",
+          "source": "${LEGACY_STATE_DIR:?Set LEGACY_STATE_DIR to the prepared private runtime directory}/school",
+          "target": "/run/demo",
+          "read_only": true
+        }
+      ],
+      "healthcheck": {
+        "test": [
+          "CMD-SHELL",
+          "umask 077; cp /run/demo/client.cnf /tmp/legacy-client.cnf; chmod 600 /tmp/legacy-client.cnf; mysql --defaults-extra-file=/tmp/legacy-client.cnf --batch --skip-column-names -e \"SELECT 1\" | grep -q 1"
+        ],
+        "interval": "10s",
+        "timeout": "5s",
+        "retries": 24,
+        "start_period": "60s"
+      }
+    },
+    "risk-db": {
+      "restart": "no",
+      "profiles": [
+        "legacy"
+      ],
+      "networks": [
+        "core"
+      ],
+      "labels": {
+        "app.owner": "zerotrust-legacy-integration-20261026"
+      },
+      "stop_grace_period": "35s",
+      "logging": {
+        "driver": "json-file",
+        "options": {
+          "max-size": "5m",
+          "max-file": "2"
+        }
+      },
+      "container_name": "zerotrust-legacy-integration-20261026-risk-db",
+      "image": "mysql:8.0.46@sha256:7dcddc01f13bab2f15cde676d44d01f61fc9f99fe7785e86196dfc07d358ae2b",
+      "mem_limit": "768m",
+      "entrypoint": [
+        "docker-entrypoint.sh"
+      ],
+      "command": [
+        "mysqld",
+        "--defaults-extra-file=/run/demo/server.cnf"
+      ],
+      "environment": {
+        "MYSQL_ROOT_PASSWORD_FILE": "/run/demo/root-password"
+      },
+      "volumes": [
+        {
+          "type": "volume",
+          "source": "risk-db-data",
+          "target": "/var/lib/mysql",
+          "volume": {
+            "nocopy": true
+          }
+        },
+        {
+          "type": "bind",
+          "source": "${LEGACY_STATE_DIR:?Set LEGACY_STATE_DIR to the prepared private runtime directory}/risk-db",
+          "target": "/run/demo",
+          "read_only": true
+        }
+      ],
+      "healthcheck": {
+        "test": [
+          "CMD-SHELL",
+          "umask 077; cp /run/demo/client.cnf /tmp/legacy-client.cnf; chmod 600 /tmp/legacy-client.cnf; mysql --defaults-extra-file=/tmp/legacy-client.cnf --batch --skip-column-names -e \"SELECT 1\" | grep -q 1"
+        ],
+        "interval": "10s",
+        "timeout": "5s",
+        "retries": 24,
+        "start_period": "60s"
+      }
+    },
+    "keycloak-db": {
+      "restart": "no",
+      "profiles": [
+        "legacy"
+      ],
+      "networks": [
+        "core"
+      ],
+      "labels": {
+        "app.owner": "zerotrust-legacy-integration-20261026"
+      },
+      "stop_grace_period": "35s",
+      "logging": {
+        "driver": "json-file",
+        "options": {
+          "max-size": "5m",
+          "max-file": "2"
+        }
+      },
+      "container_name": "zerotrust-legacy-integration-20261026-keycloak-db",
+      "image": "mysql:8.4.13@sha256:76f0358884cb92d9a086d24e5671c38048d3fef40f2588703d73eb55392d6b69",
+      "mem_limit": "640m",
+      "entrypoint": [
+        "docker-entrypoint.sh"
+      ],
+      "command": [
+        "mysqld",
+        "--defaults-extra-file=/run/demo/server.cnf",
+        "--sql-generate-invisible-primary-key=OFF"
+      ],
+      "environment": {
+        "MYSQL_ROOT_PASSWORD_FILE": "/run/demo/root-password"
+      },
+      "volumes": [
+        {
+          "type": "volume",
+          "source": "keycloak-db-data",
+          "target": "/var/lib/mysql",
+          "volume": {
+            "nocopy": true
+          }
+        },
+        {
+          "type": "bind",
+          "source": "${LEGACY_STATE_DIR:?Set LEGACY_STATE_DIR to the prepared private runtime directory}/keycloak-db",
+          "target": "/run/demo",
+          "read_only": true
+        }
+      ],
+      "healthcheck": {
+        "test": [
+          "CMD-SHELL",
+          "umask 077; cp /run/demo/client.cnf /tmp/legacy-client.cnf; chmod 600 /tmp/legacy-client.cnf; mysql --defaults-extra-file=/tmp/legacy-client.cnf --batch --skip-column-names -e \"SELECT 1\" | grep -q 1"
+        ],
+        "interval": "10s",
+        "timeout": "5s",
+        "retries": 24,
+        "start_period": "60s"
+      }
+    },
+    "redis": {
+      "command": [
+        "redis-server",
+        "/run/demo/redis.conf"
+      ],
+      "entrypoint": null,
+      "healthcheck": {
+        "test": [
+          "CMD-SHELL",
+          "REDISCLI_AUTH=\"$$(cat /run/demo/redis-password)\" redis-cli --tls --cacert /run/demo/ca.crt -h redis ping | grep -q PONG"
+        ],
+        "timeout": "5s",
+        "interval": "5s",
+        "retries": 20
+      },
+      "image": "redis:7.4.7-alpine@sha256:02f2cc4882f8bf87c79a220ac958f58c700bdec0dfb9b9ea61b62fb0e8f1bfcf",
+      "mem_limit": "134217728",
+      "stop_grace_period": "35s",
+      "restart": "no",
+      "profiles": [
+        "legacy"
+      ],
+      "networks": [
+        "core"
+      ],
+      "labels": {
+        "app.owner": "zerotrust-legacy-integration-20261026"
+      },
+      "logging": {
+        "driver": "json-file",
+        "options": {
+          "max-size": "5m",
+          "max-file": "2"
+        }
+      },
+      "container_name": "zerotrust-legacy-integration-20261026-redis",
+      "volumes": [
+        {
+          "type": "volume",
+          "source": "redis-data",
+          "target": "/data",
+          "volume": {
+            "nocopy": true
+          }
+        },
+        {
+          "type": "bind",
+          "source": "${LEGACY_STATE_DIR:?Set LEGACY_STATE_DIR to the prepared private runtime directory}/redis",
+          "target": "/run/demo",
+          "read_only": true
+        }
+      ]
+    },
+    "risk": {
+      "build": {
+        "context": ".",
+        "dockerfile": "deploy/demo/Dockerfile.java",
+        "args": {
+          "MODULE": "risk-scoring-service"
+        }
+      },
+      "command": null,
+      "entrypoint": null,
+      "healthcheck": {
+        "test": [
+          "CMD",
+          "java",
+          "@/run/demo/jvm.args",
+          "-cp",
+          "/app/tools",
+          "Health",
+          "https://risk:8443/actuator/health",
+          "200"
+        ],
+        "timeout": "5s",
+        "interval": "10s",
+        "retries": 20,
+        "start_period": "1m0s"
+      },
+      "image": "zerotrust-legacy-risk:20261026-candidate",
+      "mem_limit": "671088640",
+      "stop_grace_period": "35s",
+      "restart": "no",
+      "profiles": [
+        "legacy"
+      ],
+      "networks": [
+        "core"
+      ],
+      "labels": {
+        "app.owner": "zerotrust-legacy-integration-20261026"
+      },
+      "logging": {
+        "driver": "json-file",
+        "options": {
+          "max-size": "5m",
+          "max-file": "2"
+        }
+      },
+      "container_name": "zerotrust-legacy-integration-20261026-risk",
+      "volumes": [
+        {
+          "type": "bind",
+          "source": "${LEGACY_STATE_DIR:?Set LEGACY_STATE_DIR to the prepared private runtime directory}/risk",
+          "target": "/run/demo",
+          "read_only": true
+        }
+      ],
+      "env_file": [
+        "${LEGACY_STATE_DIR:?Set LEGACY_STATE_DIR to the prepared private runtime directory}/risk/legacy-policy.env"
+      ],
+      "environment": {
+        "SPRING_FLYWAY_ENABLED": "false"
+      },
+      "depends_on": {
+        "risk-db": {
+          "condition": "service_healthy"
+        },
+        "redis": {
+          "condition": "service_healthy"
+        },
+        "keycloak": {
+          "condition": "service_healthy"
+        }
+      }
+    },
+    "backend": {
+      "build": {
+        "context": ".",
+        "dockerfile": "deploy/demo/Dockerfile.java",
+        "args": {
+          "MODULE": "."
+        }
+      },
+      "command": null,
+      "entrypoint": null,
+      "healthcheck": {
+        "test": [
+          "CMD",
+          "java",
+          "@/run/demo/jvm.args",
+          "-cp",
+          "/app/tools",
+          "Health",
+          "https://backend:8443/api/students/me",
+          "401"
+        ],
+        "timeout": "5s",
+        "interval": "10s",
+        "retries": 20,
+        "start_period": "1m0s"
+      },
+      "image": "zerotrust-legacy-backend:20261026-candidate",
+      "mem_limit": "671088640",
+      "stop_grace_period": "35s",
+      "restart": "no",
+      "profiles": [
+        "legacy"
+      ],
+      "networks": [
+        "core"
+      ],
+      "labels": {
+        "app.owner": "zerotrust-legacy-integration-20261026"
+      },
+      "logging": {
+        "driver": "json-file",
+        "options": {
+          "max-size": "5m",
+          "max-file": "2"
+        }
+      },
+      "container_name": "zerotrust-legacy-integration-20261026-backend",
+      "volumes": [
+        {
+          "type": "bind",
+          "source": "${LEGACY_STATE_DIR:?Set LEGACY_STATE_DIR to the prepared private runtime directory}/backend",
+          "target": "/run/demo",
+          "read_only": true
+        }
+      ],
+      "depends_on": {
+        "school": {
+          "condition": "service_healthy"
+        },
+        "risk": {
+          "condition": "service_healthy"
+        },
+        "keycloak": {
+          "condition": "service_healthy"
+        }
+      }
+    },
+    "frontend": {
+      "build": {
+        "context": ".",
+        "dockerfile": "deploy/demo/Dockerfile.frontend",
+        "args": {
+          "KEYCLOAK_URL": "https://localhost:28444",
+          "KEYCLOAK_REALM": "DoAn",
+          "KEYCLOAK_CLIENT_ID": "zerotrust-spa"
+        }
+      },
+      "command": null,
+      "entrypoint": null,
+      "healthcheck": {
+        "test": [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/').then(r=>process.exit(r.status===200?0:1)).catch(()=>process.exit(1))"
+        ],
+        "timeout": "5s",
+        "interval": "10s",
+        "retries": 20,
+        "start_period": "30s"
+      },
+      "image": "zerotrust-legacy-frontend:20261026-candidate",
+      "mem_limit": "402653184",
+      "stop_grace_period": "35s",
+      "restart": "no",
+      "profiles": [
+        "legacy"
+      ],
+      "networks": [
+        "core"
+      ],
+      "labels": {
+        "app.owner": "zerotrust-legacy-integration-20261026"
+      },
+      "logging": {
+        "driver": "json-file",
+        "options": {
+          "max-size": "5m",
+          "max-file": "2"
+        }
+      },
+      "container_name": "zerotrust-legacy-integration-20261026-frontend"
+    },
+    "gateway": {
+      "build": {
+        "context": ".",
+        "dockerfile": "deploy/demo/Dockerfile.java",
+        "args": {
+          "MODULE": "gateway"
+        }
+      },
+      "command": null,
+      "entrypoint": null,
+      "healthcheck": {
+        "test": [
+          "CMD",
+          "java",
+          "@/run/demo/jvm.args",
+          "-cp",
+          "/app/tools",
+          "Health",
+          "https://gateway:8443/",
+          "200"
+        ],
+        "timeout": "5s",
+        "interval": "10s",
+        "retries": 20,
+        "start_period": "1m0s"
+      },
+      "image": "zerotrust-legacy-gateway:20261026-candidate",
+      "mem_limit": "671088640",
+      "stop_grace_period": "35s",
+      "restart": "no",
+      "profiles": [
+        "legacy"
+      ],
+      "networks": [
+        "core",
+        "edge"
+      ],
+      "labels": {
+        "app.owner": "zerotrust-legacy-integration-20261026"
+      },
+      "logging": {
+        "driver": "json-file",
+        "options": {
+          "max-size": "5m",
+          "max-file": "2"
+        }
+      },
+      "container_name": "zerotrust-legacy-integration-20261026-gateway",
+      "volumes": [
+        {
+          "type": "bind",
+          "source": "${LEGACY_STATE_DIR:?Set LEGACY_STATE_DIR to the prepared private runtime directory}/gateway",
+          "target": "/run/demo",
+          "read_only": true
+        }
+      ],
+      "ports": [
+        "127.0.0.1:28443:8443"
+      ],
+      "depends_on": {
+        "backend": {
+          "condition": "service_healthy"
+        },
+        "frontend": {
+          "condition": "service_healthy"
+        },
+        "crl": {
+          "condition": "service_healthy"
+        }
+      }
+    },
+    "crl": {
+      "cap_drop": [
+        "ALL"
+      ],
+      "command": null,
+      "entrypoint": [
+        "/opt/tools/bin/python",
+        "-m",
+        "http.server",
+        "8080",
+        "--bind",
+        "0.0.0.0",
+        "--directory",
+        "/public-ca"
+      ],
+      "environment": {
+        "PYTHONDONTWRITEBYTECODE": "1"
+      },
+      "healthcheck": {
+        "test": [
+          "CMD",
+          "/opt/tools/bin/python",
+          "-c",
+          "import urllib.request; assert urllib.request.urlopen('http://127.0.0.1:8080/ca.crl').status==200"
+        ],
+        "timeout": "3s",
+        "interval": "10s",
+        "retries": 10
+      },
+      "image": "zerotrust-legacy-tools:20261026-candidate",
+      "mem_limit": "67108864",
+      "read_only": true,
+      "stop_grace_period": "35s",
+      "user": "10001:10001",
+      "restart": "no",
+      "profiles": [
+        "legacy"
+      ],
+      "networks": [
+        "core",
+        "edge"
+      ],
+      "labels": {
+        "app.owner": "zerotrust-legacy-integration-20261026"
+      },
+      "logging": {
+        "driver": "json-file",
+        "options": {
+          "max-size": "5m",
+          "max-file": "2"
+        }
+      },
+      "container_name": "zerotrust-legacy-integration-20261026-crl",
+      "build": {
+        "context": ".",
+        "dockerfile": "deploy/demo/Dockerfile.tools"
+      },
+      "volumes": [
+        {
+          "type": "bind",
+          "source": "${LEGACY_STATE_DIR:?Set LEGACY_STATE_DIR to the prepared private runtime directory}/public-ca",
+          "target": "/public-ca",
+          "read_only": true
+        }
+      ],
+      "ports": [
+        "127.0.0.1:28445:8080"
+      ]
+    },
+    "keycloak": {
+      "restart": "no",
+      "profiles": [
+        "legacy"
+      ],
+      "networks": [
+        "core",
+        "edge"
+      ],
+      "labels": {
+        "app.owner": "zerotrust-legacy-integration-20261026"
+      },
+      "stop_grace_period": "35s",
+      "logging": {
+        "driver": "json-file",
+        "options": {
+          "max-size": "5m",
+          "max-file": "2"
+        }
+      },
+      "container_name": "zerotrust-legacy-integration-20261026-keycloak",
+      "image": "zerotrust-legacy-keycloak:20261026-candidate",
+      "build": {
+        "context": ".",
+        "dockerfile": "deploy/demo/Dockerfile.keycloak"
+      },
+      "entrypoint": [
+        "/opt/keycloak/bin/kc.sh"
+      ],
+      "command": [
+        "--config-file=/run/demo/keycloak.conf",
+        "start",
+        "--optimized"
+      ],
+      "mem_limit": "768m",
+      "volumes": [
+        {
+          "type": "bind",
+          "source": "${LEGACY_STATE_DIR:?Set LEGACY_STATE_DIR to the prepared private runtime directory}/keycloak",
+          "target": "/run/demo",
+          "read_only": true
+        }
+      ],
+      "environment": {
+        "KC_HTTP_MANAGEMENT_SCHEME": "http",
+        "JAVA_OPTS_APPEND": "@/run/demo/jvm.args -Xmx384m"
+      },
+      "ports": [
+        "127.0.0.1:28444:28444"
+      ],
+      "extra_hosts": {
+        "host.docker.internal": "127.0.0.1"
+      },
+      "healthcheck": {
+        "test": [
+          "CMD",
+          "bash",
+          "-ec",
+          "exec 3<>/dev/tcp/127.0.0.1/9000; printf \"GET /health/ready HTTP/1.0\\r\\n\\r\\n\" >&3; read -r first <&3; [[ \"$$first\" == *\"200\"* ]]"
+        ],
+        "timeout": "5s",
+        "interval": "10s",
+        "retries": 20,
+        "start_period": "1m0s"
+      },
+      "depends_on": {
+        "keycloak-db": {
+          "condition": "service_healthy"
+        }
+      }
+    },
+    "school-migrate": {
+      "restart": "no",
+      "profiles": [
+        "migration"
+      ],
+      "networks": [
+        "core"
+      ],
+      "labels": {
+        "app.owner": "zerotrust-legacy-integration-20261026"
+      },
+      "stop_grace_period": "35s",
+      "logging": {
+        "driver": "json-file",
+        "options": {
+          "max-size": "5m",
+          "max-file": "2"
+        }
+      },
+      "container_name": "zerotrust-legacy-integration-20261026-school-migrate",
+      "mem_limit": "512m",
+      "read_only": true,
+      "image": "zerotrust-legacy-tools:20261026-candidate",
+      "build": {
+        "context": ".",
+        "dockerfile": "deploy/demo/Dockerfile.tools"
+      },
+      "entrypoint": [
+        "/opt/tools/bin/python"
+      ],
+      "command": [
+        "/candidate/scripts/legacy/school_migrate.py",
+        "apply",
+        "--config",
+        "/run/demo/migration.private.json",
+        "--baseline",
+        "/run/demo/baseline.private.json",
+        "--migration",
+        "/candidate/database/migrations/school/V20261026_01__legacy_teacher_schedule.sql",
+        "--approval",
+        "/approval/owner-approval.private.json"
+      ],
+      "volumes": [
+        {
+          "type": "bind",
+          "source": "${LEGACY_STATE_DIR:?Set LEGACY_STATE_DIR to the prepared private runtime directory}/school",
+          "target": "/run/demo",
+          "read_only": true
+        },
+        {
+          "type": "bind",
+          "source": ".",
+          "target": "/candidate",
+          "read_only": true
+        },
+        {
+          "type": "bind",
+          "source": "${LEGACY_STATE_DIR:?Set LEGACY_STATE_DIR to the prepared private runtime directory}/approval",
+          "target": "/approval",
+          "read_only": true
+        }
+      ]
+    },
+    "risk-migrate": {
+      "restart": "no",
+      "profiles": [
+        "migration"
+      ],
+      "networks": [
+        "core"
+      ],
+      "labels": {
+        "app.owner": "zerotrust-legacy-integration-20261026"
+      },
+      "stop_grace_period": "35s",
+      "logging": {
+        "driver": "json-file",
+        "options": {
+          "max-size": "5m",
+          "max-file": "2"
+        }
+      },
+      "container_name": "zerotrust-legacy-integration-20261026-risk-migrate",
+      "mem_limit": "512m",
+      "read_only": true,
+      "image": "zerotrust-legacy-risk:20261026-candidate",
+      "entrypoint": [
+        "java",
+        "@/run/demo/jvm.args",
+        "-cp",
+        "/app/tools:/app/unpacked/BOOT-INF/classes:/app/unpacked/BOOT-INF/lib/*",
+        "MigrateLegacyRisk",
+        "/run/demo/migration.properties"
+      ],
+      "volumes": [
+        {
+          "type": "bind",
+          "source": "${LEGACY_STATE_DIR:?Set LEGACY_STATE_DIR to the prepared private runtime directory}/migrate",
+          "target": "/run/demo",
+          "read_only": true
+        }
+      ]
+    },
+    "keycloak-import": {
+      "restart": "no",
+      "profiles": [
+        "migration"
+      ],
+      "networks": [
+        "core"
+      ],
+      "labels": {
+        "app.owner": "zerotrust-legacy-integration-20261026"
+      },
+      "stop_grace_period": "35s",
+      "logging": {
+        "driver": "json-file",
+        "options": {
+          "max-size": "5m",
+          "max-file": "2"
+        }
+      },
+      "container_name": "zerotrust-legacy-integration-20261026-keycloak-import",
+      "mem_limit": "512m",
+      "read_only": false,
+      "image": "zerotrust-legacy-keycloak-import:20261026-candidate",
+      "build": {
+        "context": ".",
+        "dockerfile": "deploy/legacy/Dockerfile.keycloak-import",
+        "secrets": [
+          "legacy-provider",
+          "legacy-theme"
+        ]
+      },
+      "entrypoint": [
+        "/opt/keycloak/bin/kc.sh"
+      ],
+      "command": [
+        "--config-file=/run/demo/keycloak.conf",
+        "import",
+        "--optimized",
+        "--dir",
+        "/imports",
+        "--override",
+        "true"
+      ],
+      "environment": {
+        "JAVA_OPTS_APPEND": "@/run/demo/jvm.args -Xmx384m"
+      },
+      "volumes": [
+        {
+          "type": "bind",
+          "source": "${LEGACY_STATE_DIR:?Set LEGACY_STATE_DIR to the prepared private runtime directory}/keycloak",
+          "target": "/run/demo",
+          "read_only": true
+        },
+        {
+          "type": "bind",
+          "source": "${LEGACY_STATE_DIR:?Set LEGACY_STATE_DIR to the prepared private runtime directory}/migration-inputs/keycloak/original-export",
+          "target": "/imports",
+          "read_only": true
+        },
+        {
+          "type": "bind",
+          "source": "${LEGACY_STATE_DIR:?Set LEGACY_STATE_DIR to the prepared private runtime directory}/evidence",
+          "target": "/evidence"
+        }
+      ]
+    },
+    "keycloak-export": {
+      "restart": "no",
+      "profiles": [
+        "migration"
+      ],
+      "networks": [
+        "core"
+      ],
+      "labels": {
+        "app.owner": "zerotrust-legacy-integration-20261026"
+      },
+      "stop_grace_period": "35s",
+      "logging": {
+        "driver": "json-file",
+        "options": {
+          "max-size": "5m",
+          "max-file": "2"
+        }
+      },
+      "container_name": "zerotrust-legacy-integration-20261026-keycloak-export",
+      "mem_limit": "512m",
+      "read_only": false,
+      "image": "zerotrust-legacy-keycloak-import:20261026-candidate",
+      "build": {
+        "context": ".",
+        "dockerfile": "deploy/legacy/Dockerfile.keycloak-import",
+        "secrets": [
+          "legacy-provider",
+          "legacy-theme"
+        ]
+      },
+      "entrypoint": [
+        "/opt/keycloak/bin/kc.sh"
+      ],
+      "command": [
+        "--config-file=/run/demo/keycloak.conf",
+        "export",
+        "--optimized",
+        "--dir",
+        "/evidence/keycloak-post-import",
+        "--users",
+        "realm_file"
+      ],
+      "environment": {
+        "JAVA_OPTS_APPEND": "@/run/demo/jvm.args -Xmx384m"
+      },
+      "volumes": [
+        {
+          "type": "bind",
+          "source": "${LEGACY_STATE_DIR:?Set LEGACY_STATE_DIR to the prepared private runtime directory}/keycloak",
+          "target": "/run/demo",
+          "read_only": true
+        },
+        {
+          "type": "bind",
+          "source": "${LEGACY_STATE_DIR:?Set LEGACY_STATE_DIR to the prepared private runtime directory}/migration-inputs/keycloak/original-export",
+          "target": "/imports",
+          "read_only": true
+        },
+        {
+          "type": "bind",
+          "source": "${LEGACY_STATE_DIR:?Set LEGACY_STATE_DIR to the prepared private runtime directory}/evidence",
+          "target": "/evidence"
+        }
+      ]
+    }
+  },
+  "networks": {
+    "core": {
+      "name": "zerotrust-legacy-integration-20261026_core",
+      "internal": true,
+      "labels": {
+        "app.owner": "zerotrust-legacy-integration-20261026"
+      }
+    },
+    "edge": {
+      "name": "zerotrust-legacy-integration-20261026_edge",
+      "labels": {
+        "app.owner": "zerotrust-legacy-integration-20261026"
+      }
+    }
+  },
+  "volumes": {
+    "school-data": {
+      "name": "zerotrust-legacy-integration-20261026_school-data",
+      "labels": {
+        "app.owner": "zerotrust-legacy-integration-20261026"
+      }
+    },
+    "risk-db-data": {
+      "name": "zerotrust-legacy-integration-20261026_risk-db-data",
+      "labels": {
+        "app.owner": "zerotrust-legacy-integration-20261026"
+      }
+    },
+    "keycloak-db-data": {
+      "name": "zerotrust-legacy-integration-20261026_keycloak-db-data",
+      "labels": {
+        "app.owner": "zerotrust-legacy-integration-20261026"
+      }
+    },
+    "redis-data": {
+      "name": "zerotrust-legacy-integration-20261026_redis-data",
+      "labels": {
+        "app.owner": "zerotrust-legacy-integration-20261026"
+      }
+    }
+  },
+  "secrets": {
+    "legacy-provider": {
+      "file": "${LEGACY_STATE_DIR:?Set LEGACY_STATE_DIR to the prepared private runtime directory}/import-assets/keycloak-risk-extension.jar"
+    },
+    "legacy-theme": {
+      "file": "${LEGACY_STATE_DIR:?Set LEGACY_STATE_DIR to the prepared private runtime directory}/import-assets/legacy-theme.tar"
+    }
+  }
+}

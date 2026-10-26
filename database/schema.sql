@@ -98,6 +98,7 @@ CREATE TABLE `subjects` (
 -- Score fields remain NULL until an administrator enters them.
 CREATE TABLE `scores` (
     `id` BINARY(16) NOT NULL,
+    `version` BIGINT NOT NULL DEFAULT 0,
     `student_id` BINARY(16) NOT NULL,
     `subject_id` BINARY(16) NOT NULL,
     `semester` TINYINT UNSIGNED NOT NULL,

@@ -1,0 +1,215 @@
+# Legacy-data Docker candidate
+
+Status 2026-10-26: approved copy migrations/import completed; focused ADMIN/STUDENT
+password+OTP, JWT/RBAC and trusted-device relogin verified. Full acceptance remains
+NOT_VERIFIED because positive Teacher ownership and a real HIGH login are outstanding.
+One source codebase supplies three configurations:
+
+| Configuration | Purpose | Data/bootstrap |
+|---|---|---|
+| compose.yaml, scripts/demo/demo.ps1 | Existing synthetic development profile | Explicit Demo fixtures in deploy/demo/fixtures.py |
+| compose.legacy.yaml, scripts/legacy | Isolated legacy integration candidate | Verified backups/official exports; no fixture seed or bootstrap admin |
+| compose.primary.example.yaml | Future primary template | Requires explicitly selected release/state; no cutover configured |
+
+Existing Java/frontend/Gateway Dockerfiles are reused. The historical internal mount
+name /run/demo is retained for image compatibility; it points to the new private legacy
+configuration, never .local-demo or QA volumes.
+
+## Boundaries and outstanding decisions
+
+- Source/operational/frozen restore databases are never application test destinations.
+- School migration adds three empty teaching tables plus a version/checksum ledger.
+  Five existing tables/49 rows, scores.version and six BINARY16 subjects must remain identical.
+- Initial V5 inspection found one DoAn subject with two TRUSTED devices and no
+  subject_device_trust row/reset audit. The owner approved exactly one generation-zero
+  initialization on the new copy; immutable V5/checksum661092940 then migrated and
+  validated successfully. Source/frozen data remains unchanged. Future runs must never
+  generalize this reconciliation to other subjects or reimport into this existing copy.
+- Two non-realm trust IDs (generation0, no devices/audits) and five events for one of
+  those IDs remain unchanged. Their provenance is unresolved; never delete/remap them.
+- No TEACHER role/real teacher ownership exists in the legacy dataset. Teaching tables
+  stay empty; positive legacy Teacher acceptance is blocked until real business mappings exist.
+- Existing ADMIN and STUDENT credentials were supplied privately and verified through
+  normal password+OTP login. No replacement account or credential reset was needed.
+
+## Keycloak supported-database rehearsal
+
+Use exact Keycloak26.7.0. The CLI import image keeps the original provider/theme; the
+runtime image uses published source. Their only behavioral bytecode difference is the
+published BrowserFlowRiskConfigLocator check that ignores disabled executions.
+Service-loader text and six theme files differ only in line endings. Do not regress that
+source hardening to make the old binary hash match.
+
+Target is a fresh MySQL8.4.13 database, pinned by digest. Current official guidance supports
+[MySQL8.4 LTS](https://www.keycloak.org/server/db). Import original CLI exports with all nodes
+stopped, then export again and compare realm/user IDs, roles/groups/clients/service accounts,
+flows, password/OTP/recovery credential hashes and signing-key component state before
+changing candidate endpoints. See [official CLI limitations](https://www.keycloak.org/server/importExport).
+Sessions, user/admin events, workflow state and revoked-token state are not transferred by
+CLI export/import; original full H2/filesystem backups remain available. No direct SQL conversion.
+
+Only after comparison passes: change two authenticator URLs, SPA redirects/origin/PKCE
+and realm TLS requirement/canonical frontendUrl on the candidate. The imported legacy
+frontendUrl otherwise overrides the HTTPS hostname with HTTP8180. Keep failureMode DENY, credentials, roles,
+flow bindings and user IDs. No import-realm on ordinary runtime startup; no Demo seeding.
+
+Raw client JSON differs because official import materializes default logout URIs,
+userinfo mapper flags, default protocol and secrets on built-in bearer-only clients.
+The comparator retains raw results and compares these specific effective defaults;
+all original service secrets, IDs, grants, audiences, redirects and flows stay strict.
+
+## Verified candidate topology
+
+```mermaid
+flowchart LR
+  U["Browser"] -->|"TLS localhost:28443"| G["Gateway"]
+  U -->|"TLS localhost:28444"| K["Keycloak26.7 / DoAn"]
+  G --> F["Frontend"]
+  G -->|"TLS + JWT"| B["Portal backend"]
+  B -->|"TLS"| S[("School9.1 copy")]
+  B -->|"Service JWT + TLS"| R["Risk"]
+  K -->|"SPI service JWT + TLS"| R
+  K -->|"TLS"| KD[("Keycloak MySQL8.4 copy")]
+  R -->|"TLS"| RD[("Risk8.0.46 copy / V5")]
+  R -->|"TLS + auth"| C[("Redis7.4.7 copy")]
+```
+
+Core network is internal. Only Gateway/Keycloak/public CRL use the separate edge bridge
+for loopback host access. DB/Redis have no host ports. All bound URLs are new candidates;
+Keycloak blocks host.docker.internal. Expected issuer https://localhost:28444/realms/DoAn,
+internal JWKS https://keycloak:28444/realms/DoAn/protocol/openid-connect/certs, Portal
+audience zerotrust-api and Risk audience/caller roles remain unchanged. Original peppers,
+client secrets, Redis namespace and network policy are preserved; no synthetic credentials.
+Original City/ASN GeoIP datasets are copied privately with hashes and Linux runtime paths;
+GeoIP remains enabled, with no remote lookup or silent fallback to a disabled feature.
+CLI exports and automation admin credentials are separate from steady-state application mounts.
+
+## Commands and execution guard
+
+Prerequisites: Docker Compose/BuildKit, Java17 for local tests, Python3.11+ for host
+orchestration. Database clients/cryptography run in the tools image built from committed packaging.
+Private state and source backup directory are explicit parameters, outside Git.
+
+### Clone, resolve configuration and build from source
+
+Use the release containing this guide. All build contexts are `.` relative to the
+repository; Dockerfiles compile Java/SPI and frontend from source. No QA02C or synthetic
+Demo JAR is required. The existing `deploy/demo` directory supplies shared Dockerfiles,
+not a second application source tree. Only an explicitly selected migration import
+image uses the preserved original provider/theme as private BuildKit inputs.
+
+The public `.env.legacy.example` contains no secrets. Keep the actual env file and
+prepared legacy runtime outside Git. `LEGACY_STATE_DIR` may be absolute or relative;
+relative paths resolve from the Compose project directory, not the env-file directory
+or shell working directory. Always specify the project/file/env explicitly:
+
+```powershell
+$Repo = (Get-Location).Path
+$PrivateEnv = 'PATH_TO_YOUR_PRIVATE_COMPOSE_ENV'
+# Source-only validation; does not need private service env files or data.
+docker compose --project-directory "$Repo" --project-name zerotrust-legacy-integration-20261026 --env-file "$Repo\.env.legacy.example" -f "$Repo\compose.legacy.yaml" --profile legacy config --no-env-resolution --quiet
+# Full configuration validation requires the prepared external runtime files.
+docker compose --project-directory "$Repo" --project-name zerotrust-legacy-integration-20261026 --env-file "$PrivateEnv" -f "$Repo\compose.legacy.yaml" --profile legacy config --quiet
+# Build steady-state images only. This does not start services or restore data.
+docker compose --project-directory "$Repo" --project-name zerotrust-legacy-integration-20261026 --env-file "$PrivateEnv" -f "$Repo\compose.legacy.yaml" --profile legacy build backend risk frontend gateway keycloak crl
+```
+
+Do not run an unqualified `docker compose up` from this repository: the default
+`compose.yaml` is the separate synthetic development configuration. Building source
+does not restore private data. A different host requires an approved restore from
+the preserved backups into its own empty volumes; a clone cannot recreate legacy
+passwords/OTP/data without those private inputs. Existing deployments use the safe
+start/status/stop helper below, which never creates containers or imports data.
+
+For this existing candidate, use only:
+
+```powershell
+python -X utf8 scripts/legacy/operate.py start
+python -X utf8 scripts/legacy/operate.py status
+python -X utf8 scripts/legacy/operate.py stop
+```
+
+These commands verify ownership and operate on existing container IDs only. They do
+not create/delete volumes or containers, run SQL, import realms, build or seed data.
+The steady Risk service explicitly disables application-start Flyway; JPA remains
+`ddl-auto=validate`. The separate approved migration job still applies and validates
+immutable V1–V5 before first start. No schema migration is skipped or repaired.
+Do not run prepare_plan or execute again against an environment with an execution journal.
+
+Initial provisioning below is for a separately approved, empty destination, never restart:
+
+```powershell
+# Bootstrap is separate and requires its original private provider/theme inputs.
+# These commands are NOT part of ordinary start or a routine rebuild.
+python scripts/legacy/prepare_plan.py --source "$Preservation" --private "$Private"
+python scripts/legacy/rehearse.py check --plan "$Private\execution-plan.private.json"
+# execute requires the one owner approval; the generated approval file defaults to false.
+python scripts/legacy/rehearse.py execute --plan "$Private\execution-plan.private.json" --approval "$Private\runtime\approval\owner-approval.private.json"
+```
+
+No commit/push, primary deployment, frozen restore change or source cutover is performed.
+The approval binds exact source/config hashes, image IDs, backups, destinations, grants,
+one optional reconciliation row and test budgets. A failed invariant stops the run;
+do not clean/repair, reset credentials or alter security contracts.
+
+## Acceptance and rollback
+
+Migration success alone is not LEGACY_DOCKER_INTEGRATION_VERIFIED. Focused Browser/API
+acceptance covers real LOW/MEDIUM/HIGH outcomes, MFA, Student/Teacher/Admin ownership,
+logout/relogin, persistence and TLS/JWT/RBAC without bypass. Keep original grade rows unchanged.
+Teacher mapping and real HIGH reproduction remain explicit gaps, never synthetic PASS.
+Manual Windows browser remains NOT_VERIFIED until the owner confirms it.
+
+### Manual Windows demo checklist — owner confirmation pending
+
+Use the existing QA-only Firefox executable/profile described in the local completion
+report; its NSS certificate store trusts only the candidate CA. Do not install the CA
+in Windows Root, accept a certificate warning, disable hostname validation or save passwords.
+Open `https://localhost:28443/` and use existing credentials supplied privately.
+
+- ADMIN: sign in, use the existing authenticator OTP when requested, view users/classes/subjects and the score sheet.
+- Sign out completely, then STUDENT: sign in with the old password/OTP, check own personal information and grades.
+- A trusted device may correctly skip OTP on relogin. To demonstrate the OTP challenge, use the preserved, privately prepared separate QA browser profile without an issued device cookie; do not revoke existing devices or reset OTP.
+- Confirm Student cannot open Admin/Teacher resources; sign out and sign in again, checking the expected account and page.
+- Review Admin management screens. Do not save changes to the 49 preserved rows merely to demonstrate buttons; a write demonstration needs an explicitly approved disposable record and cleanup plan.
+
+No manual PASS is recorded until the project owner confirms these steps.
+
+### Teacher data required for a legitimate demonstration
+
+Read-only candidate checks found **no DoAn TEACHER realm role, no users assigned that
+role, and zero teachers/teaching_assignments/schedule_entries rows**. Six School users
+remain linked to their existing Keycloak IDs. A TEACHER JWT alone would still need an
+active teacher profile linked through `users.keycloak_user_id`, then an owned assignment.
+
+If the owner chooses to add real Teacher data, first approve the TEACHER realm role
+and the actual person's identity/teacherCode. The existing ADMIN API
+`POST /api/admin/teachers` creates a new legitimate Keycloak user and linked School
+user/teacher profile; it rejects existing usernames and compensates on failure. It
+does not adopt a current Student/Admin as a teacher. After role provisioning, assign
+real existing class/subject IDs through `POST /api/admin/teaching-assignments`; add a
+real timetable through `POST /api/admin/schedules` when needed. The teacher must enroll
+and verify their own MFA. None of these writes or permission grants were performed.
+
+### Real HIGH limitation
+
+Existing actor tests observed normal MFA/trusted-device paths. No safe HIGH condition
+was reproduced on their real network/device context. A security-revoked device requires
+its original raw cookie; stored HMACs cannot recover that cookie. Do not revoke old
+trusted devices, forge forwarding headers/IP context or change thresholds to obtain
+HIGH. Keep real HIGH Browser NOT_VERIFIED until an authorized actor has a genuine
+applicable risk signal and a separately agreed, non-destructive test can demonstrate it.
+
+TLS uses an internal self-signed CA, restricted to Docker/Java bundles and a dedicated
+QA Firefox profile. Never install it in Windows CurrentUser/LocalMachine Root. CA/leaf
+AKI/SKI, SAN and usages are required; keep certificate and hostname validation enabled.
+The current candidate CA SHA1 thumbprint is 5DFA54E7FE9DC555E0A56BAE2DA635B05187ADA0;
+this is a certificate identifier, not a Windows trust-store installation requirement.
+
+On partial DDL/import failure, stop only this candidate project and retain its volumes/logs.
+Do not attempt reverse MySQL DDL or Flyway repair/clean. Recover from the verified backup
+into a reviewed clean candidate destination; original/frozen backups remain untouched.
+No Windows certificates were installed or removed. Never remove existing certificates
+or another project's containers/volumes.
+
+See [School migration contract](../../database/migrations/school/README.md).

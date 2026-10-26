@@ -46,6 +46,13 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import com.zerotrust.zerotrust.entity.ScoreEntity;
+import jakarta.persistence.OptimisticLockException;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 @WebMvcTest(AdminController.class)
 @Import({SecurityConfig.class, CustomAuthenticationEntryPoint.class,
@@ -819,5 +826,114 @@ class AdminControllerSecurityTest {
                 "Ha Noi",
                 "AT19B",
                 "An toan thong tin 19B");
+    }
+
+
+    @ParameterizedTest
+    @ValueSource(strings = {"", "{", "{\"credits\":\"private-input\"}"})
+    void returnsSafeApiErrorForUnreadableRequestBody(String body) throws Exception {
+        mockMvc.perform(post("/api/admin/subjects")
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.error").value("INVALID_REQUEST"))
+                .andExpect(jsonPath("$.message").value("Request body is missing or malformed"))
+                .andExpect(jsonPath("$.path").value("/api/admin/subjects"));
+
+        verify(subjectAdministrationService, never()).createSubject(any());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"private-input", "2147483648"})
+    void returnsSafeApiErrorForInvalidPageParameter(String page) throws Exception {
+        mockMvc.perform(get("/api/admin/subjects")
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN")))
+                        .param("page", page))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("INVALID_REQUEST"))
+                .andExpect(jsonPath("$.message").value("Parameter 'page' has an invalid value"))
+                .andExpect(jsonPath("$.path").value("/api/admin/subjects"));
+
+        verify(subjectAdministrationService, never()).getSubjects(any(), anyInt(), anyInt(), any());
+    }
+
+    @Test
+    void returnsApiErrorForInvalidPathIdentifier() throws Exception {
+        mockMvc.perform(delete("/api/admin/subjects/not-a-uuid")
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("INVALID_REQUEST"))
+                .andExpect(jsonPath("$.message").value("Parameter 'subjectId' has an invalid value"));
+
+        verify(subjectAdministrationService, never()).deleteSubject(any());
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void returnsSafeConflictResponseForConcurrentScoreUpdate(boolean translatedException) throws Exception {
+        UUID scoreId = UUID.randomUUID();
+        RuntimeException failure = translatedException
+                ? new ObjectOptimisticLockingFailureException(ScoreEntity.class, scoreId)
+                : new OptimisticLockException("Internal database detail must not be exposed");
+        when(scoreAdministrationService.updateScore(eq(scoreId), any())).thenThrow(failure);
+
+        mockMvc.perform(patch("/api/admin/scores/{scoreId}", scoreId)
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(validScoreUpdateRequestJson()))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.status").value(409))
+                .andExpect(jsonPath("$.error").value("CONCURRENT_MODIFICATION"))
+                .andExpect(jsonPath("$.message").value(
+                        "The record was modified by another request. Reload it and retry."))
+                .andExpect(jsonPath("$.path").value("/api/admin/scores/" + scoreId));
+
+        verify(scoreAdministrationService).updateScore(eq(scoreId), any());
+    }
+
+    @Test
+    void allowsAdminToUpdateTermWithoutScoreValues() throws Exception {
+        UUID scoreId = UUID.randomUUID();
+        when(scoreAdministrationService.updateScore(any(), any()))
+                .thenReturn(scoreResponse(scoreId, UUID.randomUUID(), UUID.randomUUID()));
+
+        mockMvc.perform(patch("/api/admin/scores/{scoreId}", scoreId)
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "semester": 2,
+                                  "academicYear": "2026-2027"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+
+        verify(scoreAdministrationService).updateScore(eq(scoreId), argThat(request ->
+                Short.valueOf((short) 2).equals(request.getSemester())
+                        && "2026-2027".equals(request.getAcademicYear())
+                        && request.getAttendanceScore() == null
+                        && request.getMidtermScore() == null
+                        && request.getFinalScore() == null));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "{\"semester\":0}",
+            "{\"semester\":3}",
+            "{\"academicYear\":\"2026/2027\"}",
+            "{\"academicYear\":\"\"}"
+    })
+    void rejectsInvalidTermUpdatePayload(String body) throws Exception {
+        mockMvc.perform(patch("/api/admin/scores/{scoreId}", UUID.randomUUID())
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("INVALID_REQUEST"));
+
+        verifyNoInteractions(scoreAdministrationService);
     }
 }

@@ -73,3 +73,5 @@ lại trước demo. Các link class trong hướng dẫn đọc mã dẫn trự
 - Phân biệt kiến trúc đích, mã đã triển khai và kết quả đã chạy thực tế. Khi khác nhau, ghi rõ giới hạn thay vì mặc định mọi phần đã hoàn thành.
 - Các đường dẫn mã nguồn và lệnh trong nội dung được hiểu từ gốc repository, trừ chỉ dẫn riêng. Thanh điều hướng dùng đường dẫn tương đối theo vị trí tài liệu.
 - Khi đổi tên hoặc di chuyển tài liệu, cập nhật cả mục lục, liên kết và tham chiếu trong script/cấu hình.
+
+- [Legacy-data integration candidate](operations/LEGACY_INTEGRATION.md) — source/build readiness, pending execution approval.

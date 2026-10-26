@@ -2,7 +2,29 @@
 
 Hệ thống học vụ với xác thực thích ứng. Keycloak sở hữu mật khẩu/MFA/token; Risk đánh giá ngữ cảnh; Gateway và Backend kiểm tra JWT, role và ownership. Có giao diện Student, Teacher và Admin.
 
-## Chạy trên Windows 11
+## Docker với dữ liệu School / DoAn / Risk đã bảo toàn
+
+Một repository giữ source chính và các Dockerfiles dùng chung. Triển khai legacy dùng
+[compose.legacy.yaml](compose.legacy.yaml), private runtime ngoài Git và volumes dữ liệu
+đã khôi phục. Xem [hướng dẫn legacy](docs/operations/LEGACY_INTEGRATION.md) cùng
+[env example](.env.legacy.example) cho build contexts tương đối, cấu hình và bootstrap riêng.
+Clone source không chứa passwords/OTP, database backups hoặc private keys; khôi phục
+trên máy khác cần private inputs và một kế hoạch được duyệt.
+
+Với candidate hiện có, từ repository dùng Python3.11+ và Docker:
+
+```powershell
+python -X utf8 scripts/legacy/operate.py start
+python -X utf8 scripts/legacy/operate.py status
+python -X utf8 scripts/legacy/operate.py stop
+```
+
+Các lệnh này chỉ dùng existing containers/volumes, không tạo lại database, import realm,
+chạy migration hoặc seed. Portal HTTPS28443 và Keycloak HTTPS28444/realm `DoAn` dùng
+CA trong truststore/profile QA riêng; không cài Windows Root. Manual, Teacher positive
+ownership và real HIGH vẫn cần bằng chứng xác nhận như hướng dẫn vận hành.
+
+## Development synthetic trên Windows 11
 
 Cần Git và Docker Desktop Linux containers. Không cần Java, Node hoặc Python trên host. Khuyến nghị Docker8GB RAM và đủ dung lượng build cache.
 

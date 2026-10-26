@@ -162,7 +162,8 @@ qua JWKS, không introspect hoặc đọc generation Risk mỗi request.
 
 - chữ ký JWT qua JWKS của realm;
 - `iss` đúng `KEYCLOAK_ISSUER_URI`;
-- token chưa hết hạn và hợp lệ theo thời gian;
+- bắt buộc có `exp`; kiểm tra hết hạn (`exp`) và thời điểm bắt đầu hiệu lực (`nbf`
+  nếu có) bằng validator thời gian mặc định của Spring Security, với clock skew 60 giây;
 - `aud` có `zerotrust-api` hoặc giá trị `KEYCLOAK_API_AUDIENCE`;
 - realm role phù hợp với endpoint.
 
@@ -264,7 +265,7 @@ CORS_ALLOWED_ORIGINS=http://localhost:3000
 ## 12. Mã lỗi quan trọng
 
 ```text
-401 UNAUTHORIZED -> thiếu/sai/hết hạn token, sai issuer, signature hoặc audience
+401 UNAUTHORIZED -> thiếu/sai/hết hạn token, thiếu exp, sai issuer, signature hoặc audience
 403 FORBIDDEN    -> JWT hợp lệ nhưng thiếu role cho endpoint
 403 USER_INACTIVE -> hồ sơ Portal của sinh viên không ACTIVE
 404 USER_NOT_FOUND -> sub không có hồ sơ Portal tương ứng

@@ -1,0 +1,14 @@
+# Future primary overlay: intentionally requires an explicitly selected, approved state.
+# No primary volumes/ports are selected by this example. Do not use for the rehearsal.
+name: zerotrust-primary
+services:
+  backend:
+    image: ${PRIMARY_BACKEND_IMAGE:?Select the reviewed release image after integration acceptance}
+    volumes:
+      - ${PRIMARY_PRIVATE_STATE:?Select primary state only in an approved cutover}:/run/demo:ro
+    profiles: [primary]
+  risk:
+    image: ${PRIMARY_RISK_IMAGE:?Select the reviewed release image after integration acceptance}
+    volumes:
+      - ${PRIMARY_RISK_STATE:?Select Risk state only in an approved cutover}:/run/demo:ro
+    profiles: [primary]

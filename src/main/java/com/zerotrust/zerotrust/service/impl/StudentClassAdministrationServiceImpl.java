@@ -9,12 +9,12 @@ import com.zerotrust.zerotrust.model.response.StudentClassResponseDTO;
 import com.zerotrust.zerotrust.repository.StudentClassRepository;
 import com.zerotrust.zerotrust.repository.StudentRepository;
 import com.zerotrust.zerotrust.service.StudentClassAdministrationService;
+import com.zerotrust.zerotrust.service.support.QueryParameters;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,7 +27,6 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class StudentClassAdministrationServiceImpl
         implements StudentClassAdministrationService {
-    private static final int MAX_PAGE_SIZE = 100;
     private static final String DEFAULT_SORT = "classCode,asc";
     private static final Set<String> ALLOWED_SORT_PROPERTIES = Set.of(
             "classCode",
@@ -92,16 +91,17 @@ public class StudentClassAdministrationServiceImpl
             int page,
             int size,
             String sort) {
-        validatePagination(page, size);
-        String normalizedCourseYears = normalizeOptional(courseYears);
+        QueryParameters.validatePagination(page, size);
+        String normalizedCourseYears = QueryParameters.normalizeOptional(courseYears);
         if (normalizedCourseYears != null) {
             validateCourseYears(normalizedCourseYears);
         }
 
-        Pageable pageable = PageRequest.of(page, size, parseSort(sort));
+        Pageable pageable = PageRequest.of(
+                page, size, QueryParameters.parseSort(sort, DEFAULT_SORT, ALLOWED_SORT_PROPERTIES));
         Page<StudentClassResponseDTO> studentClasses = studentClassRepository.findAllFiltered(
-                        normalizeOptional(keyword),
-                        normalizeOptional(department),
+                        QueryParameters.normalizeOptional(keyword),
+                        QueryParameters.normalizeOptional(department),
                         normalizedCourseYears,
                         pageable)
                 .map(this::toResponse);
@@ -123,53 +123,6 @@ public class StudentClassAdministrationServiceImpl
                     ErrorCode.INVALID_REQUEST,
                     "Course end year must be later than its start year");
         }
-    }
-
-    private void validatePagination(int page, int size) {
-        if (page < 0) {
-            throw new WebException(ErrorCode.INVALID_REQUEST, "Page must be zero or greater");
-        }
-        if (size < 1 || size > MAX_PAGE_SIZE) {
-            throw new WebException(
-                    ErrorCode.INVALID_REQUEST,
-                    "Size must be between 1 and " + MAX_PAGE_SIZE);
-        }
-    }
-
-    private Sort parseSort(String sort) {
-        String normalizedSort = normalizeOptional(sort);
-        String[] parts = (normalizedSort == null ? DEFAULT_SORT : normalizedSort).split(",", -1);
-        if (parts.length > 2) {
-            throw invalidSort();
-        }
-
-        String property = parts[0].trim();
-        if (!ALLOWED_SORT_PROPERTIES.contains(property)) {
-            throw invalidSort();
-        }
-
-        Sort.Direction direction = Sort.Direction.ASC;
-        if (parts.length == 2) {
-            try {
-                direction = Sort.Direction.fromString(parts[1].trim());
-            } catch (IllegalArgumentException ex) {
-                throw invalidSort();
-            }
-        }
-        return Sort.by(direction, property);
-    }
-
-    private WebException invalidSort() {
-        return new WebException(
-                ErrorCode.INVALID_REQUEST,
-                "Sort must use an allowed field followed by asc or desc");
-    }
-
-    private String normalizeOptional(String value) {
-        if (value == null || value.isBlank()) {
-            return null;
-        }
-        return value.trim();
     }
 
     private StudentClassResponseDTO toResponse(StudentClassEntity studentClass) {

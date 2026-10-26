@@ -30,6 +30,15 @@ Fixture, mức ưu tiên và ký hiệu `T/M/G` được định nghĩa trong [k
 | F-P09 / P1 / T + M | ADMIN_A; bảng điểm môn; A/B ACTIVE | Batch hợp lệ hai sinh viên; lặp batch; thử student trùng trong batch, 101 dòng, student không tồn tại | Batch hợp lệ 200, create/update đúng; không tạo điểm trùng; batch invalid bị chặn, không ghi một phần | `UpsertSubjectScoresRequestDTOTest`, `ScoreAdministrationServiceImplTest`; cần DB thật cho atomicity |
 | F-P10 / P1 / T + M | Danh mục đang được dùng; một score thử có thể xóa | GET page=0,size=100 rồi page=-1,size=0/101, sort sai; DELETE lớp có student/môn có score; DELETE score thử | Pagination invalid 400; lớp/môn đang dùng 409; xóa score 204; GET sau xóa không còn score; summary cập nhật | Query/service tests, `AdminControllerSecurityTest` |
 
+Kiểm tra bổ sung cho cập nhật điểm đồng thời: hai transaction cùng đọc một
+`scores.version`, transaction đầu lưu điểm giữa kỳ và commit, transaction sau
+thử lưu điểm cuối kỳ từ bản đọc cũ. Chỉ transaction đầu thành công; transaction
+sau rollback với lỗi optimistic locking; điểm, tổng kết và điểm chữ trong DB
+thuộc kết quả đã commit. `ScoreUpdateConcurrencyTest` dùng hai thread và hai
+transaction JPA/H2 thật; `AdminControllerSecurityTest` kiểm tra lỗi Spring/JPA
+được trả thành `409 CONCURRENT_MODIFICATION` với thông báo an toàn. Ca này không
+thay thế kiểm chứng migration và concurrency trên MySQL thật.
+
 ### Fixture request tạo sinh viên
 
 Chỉ dùng mật khẩu do người kiểm thử tự tạo cho tài khoản disposable. Giá trị password dưới đây là placeholder, phải thay trong biến local của công cụ; không dùng cho tài khoản thật.

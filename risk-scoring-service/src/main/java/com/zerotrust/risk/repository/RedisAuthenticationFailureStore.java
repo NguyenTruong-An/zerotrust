@@ -104,8 +104,8 @@ public class RedisAuthenticationFailureStore implements AuthenticationFailureSto
                 Long.toString(eventDeduplicationSeconds),
                 Long.toString(failureWindowSeconds)
         );
-        if (result == null) {
-            throw new IllegalStateException("Redis did not return an authentication failure result");
+        if (result == null || (result != 0L && result != 1L)) {
+            throw new DataRetrievalFailureException("Redis returned an invalid authentication failure result");
         }
         return result == 1L;
     }

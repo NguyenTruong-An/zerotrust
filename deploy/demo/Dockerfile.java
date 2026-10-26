@@ -9,7 +9,7 @@ RUN --mount=type=cache,target=/root/.m2 chmod +x mvnw && \
     javac -d /out/tools deploy/demo/Health.java && \
     if [ "$MODULE" = "risk-scoring-service" ]; then \
       cd /out/unpacked && jar xf /out/application.jar && \
-      javac -cp 'BOOT-INF/classes:BOOT-INF/lib/*' -d /out/tools /source/deploy/demo/Migrate.java; fi
+      javac -cp 'BOOT-INF/classes:BOOT-INF/lib/*' -d /out/tools /source/deploy/demo/Migrate.java /source/deploy/legacy/InspectRisk.java /source/deploy/legacy/MigrateLegacyRisk.java; fi
 FROM eclipse-temurin:17-jre@sha256:3f28040954c30a9deb5cdd1116f806029c435ac6dca8c228f5b6f1d96f82b827
 WORKDIR /app
 COPY --from=build /out/application.jar /app/application.jar

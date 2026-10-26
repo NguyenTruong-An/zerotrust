@@ -19,6 +19,7 @@ import com.zerotrust.zerotrust.repository.ScoreRepository;
 import com.zerotrust.zerotrust.repository.StudentRepository;
 import com.zerotrust.zerotrust.repository.SubjectRepository;
 import com.zerotrust.zerotrust.service.ScoreAdministrationService;
+import com.zerotrust.zerotrust.service.support.QueryParameters;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
@@ -108,13 +109,13 @@ public class ScoreAdministrationServiceImpl implements ScoreAdministrationServic
             int page,
             int size,
             String sort) {
-        validatePagination(page, size);
+        QueryParameters.validatePagination(page, size);
         validateSemester(semester);
-        String normalizedAcademicYear = normalizeOptional(academicYear);
+        String normalizedAcademicYear = QueryParameters.normalizeOptional(academicYear);
         if (normalizedAcademicYear != null) {
             validateAcademicYear(normalizedAcademicYear);
         }
-        Pageable pageable = PageRequest.of(page, size, parseSort(sort));
+        Pageable pageable = PageRequest.of(page, size, QueryParameters.parseSort(sort, DEFAULT_SORT, ALLOWED_SORT_PROPERTIES));
 
         if (!studentRepository.existsById(studentId)) {
             throw new WebException(ErrorCode.STUDENT_NOT_FOUND);
@@ -143,14 +144,14 @@ public class ScoreAdministrationServiceImpl implements ScoreAdministrationServic
             int page,
             int size,
             String sort) {
-        validatePagination(page, size);
+        QueryParameters.validatePagination(page, size);
         validateSemester(semester);
-        String normalizedKeyword = normalizeOptional(keyword);
-        String normalizedAcademicYear = normalizeOptional(academicYear);
+        String normalizedKeyword = QueryParameters.normalizeOptional(keyword);
+        String normalizedAcademicYear = QueryParameters.normalizeOptional(academicYear);
         if (normalizedAcademicYear != null) {
             validateAcademicYear(normalizedAcademicYear);
         }
-        Pageable pageable = PageRequest.of(page, size, parseSort(sort));
+        Pageable pageable = PageRequest.of(page, size, QueryParameters.parseSort(sort, DEFAULT_SORT, ALLOWED_SORT_PROPERTIES));
 
         StudentEntity student = findActiveStudent(keycloakUserId);
 
@@ -270,8 +271,8 @@ public class ScoreAdministrationServiceImpl implements ScoreAdministrationServic
             String keyword,
             int page,
             int size) {
-        validatePagination(page, size);
-        String normalizedClassCode = normalizeOptional(classCode);
+        QueryParameters.validatePagination(page, size);
+        String normalizedClassCode = QueryParameters.normalizeOptional(classCode);
         if (normalizedClassCode == null) {
             throw new WebException(ErrorCode.INVALID_REQUEST, "Student class code is required");
         }
@@ -283,7 +284,7 @@ public class ScoreAdministrationServiceImpl implements ScoreAdministrationServic
                 size,
                 Sort.by(Sort.Direction.ASC, "studentCode"));
         Page<StudentEntity> students = studentRepository.findAllFiltered(
-                normalizeOptional(keyword),
+                QueryParameters.normalizeOptional(keyword),
                 normalizedClassCode,
                 UserEntity.Status.ACTIVE,
                 pageable);
@@ -388,6 +389,8 @@ public class ScoreAdministrationServiceImpl implements ScoreAdministrationServic
     }
 
     private void validateScoreUpdateRequest(UpdateScoreRequestDTO request) {
+        validateSemester(request.getSemester());
+        if (request.getAcademicYear() != null) validateAcademicYear(request.getAcademicYear());
         if (request.getSubjectId() == null
                 && request.getSemester() == null
                 && request.getAcademicYear() == null
@@ -430,16 +433,7 @@ public class ScoreAdministrationServiceImpl implements ScoreAdministrationServic
         }
     }
 
-    private void validatePagination(int page, int size) {
-        if (page < 0) {
-            throw new WebException(ErrorCode.INVALID_REQUEST, "Page must be zero or greater");
-        }
-        if (size < 1 || size > MAX_PAGE_SIZE) {
-            throw new WebException(
-                    ErrorCode.INVALID_REQUEST,
-                    "Size must be between 1 and " + MAX_PAGE_SIZE);
-        }
-    }
+
 
     private void validateSemester(Short semester) {
         if (semester != null && (semester < 1 || semester > 2)) {
@@ -449,41 +443,11 @@ public class ScoreAdministrationServiceImpl implements ScoreAdministrationServic
         }
     }
 
-    private Sort parseSort(String sort) {
-        String normalizedSort = normalizeOptional(sort);
-        String[] parts = (normalizedSort == null ? DEFAULT_SORT : normalizedSort).split(",", -1);
-        if (parts.length > 2) {
-            throw invalidSort();
-        }
 
-        String property = ALLOWED_SORT_PROPERTIES.get(parts[0].trim());
-        if (property == null) {
-            throw invalidSort();
-        }
 
-        Sort.Direction direction = Sort.Direction.ASC;
-        if (parts.length == 2) {
-            try {
-                direction = Sort.Direction.fromString(parts[1].trim());
-            } catch (IllegalArgumentException ex) {
-                throw invalidSort();
-            }
-        }
-        return Sort.by(direction, property);
-    }
 
-    private WebException invalidSort() {
-        return new WebException(
-                ErrorCode.INVALID_REQUEST,
-                "Sort must use an allowed field followed by asc or desc");
-    }
 
-    private String normalizeOptional(String value) {
-        if (value == null || value.isBlank()) {
-            return null;
-        }
-        return value.trim();
-    }
+
 
     private void recalculateScore(ScoreEntity score) {
         if (score.getAttendanceScore() == null

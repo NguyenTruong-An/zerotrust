@@ -1,8 +1,6 @@
 package com.zerotrust.zerotrust.model.request;
 
-import jakarta.validation.constraints.DecimalMax;
-import jakarta.validation.constraints.DecimalMin;
-import jakarta.validation.constraints.Digits;
+import com.zerotrust.zerotrust.model.validation.ScoreValue;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
@@ -35,21 +33,24 @@ public class CreateScoreRequestDTO {
             message = "Academic year must use the format YYYY-YYYY")
     private String academicYear;
 
-    @DecimalMin(value = "0.0", message = "Attendance score must be at least 0")
-    @DecimalMax(value = "10.0", message = "Attendance score must not exceed 10")
-    @Digits(integer = 2, fraction = 2, message = "Attendance score must have at most 2 decimal places")
+    @ScoreValue(
+            minMessage = "Attendance score must be at least 0",
+            maxMessage = "Attendance score must not exceed 10",
+            precisionMessage = "Attendance score must have at most 2 decimal places")
     @NotNull(message = "Attendance score is required")
     private BigDecimal attendanceScore;
 
-    @DecimalMin(value = "0.0", message = "Midterm score must be at least 0")
-    @DecimalMax(value = "10.0", message = "Midterm score must not exceed 10")
-    @Digits(integer = 2, fraction = 2, message = "Midterm score must have at most 2 decimal places")
+    @ScoreValue(
+            minMessage = "Midterm score must be at least 0",
+            maxMessage = "Midterm score must not exceed 10",
+            precisionMessage = "Midterm score must have at most 2 decimal places")
     @NotNull(message = "Midterm score is required")
     private BigDecimal midtermScore;
 
-    @DecimalMin(value = "0.0", message = "Final score must be at least 0")
-    @DecimalMax(value = "10.0", message = "Final score must not exceed 10")
-    @Digits(integer = 2, fraction = 2, message = "Final score must have at most 2 decimal places")
+    @ScoreValue(
+            minMessage = "Final score must be at least 0",
+            maxMessage = "Final score must not exceed 10",
+            precisionMessage = "Final score must have at most 2 decimal places")
     @NotNull(message = "Final score is required")
     private BigDecimal finalScore;
 }

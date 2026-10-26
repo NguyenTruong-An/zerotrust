@@ -8,3 +8,11 @@ output
 **/.wrangler
 **/.env*
 docs
+
+# Private legacy integration state, never part of source or build context.
+.local-legacy/
+**/*.private.*
+
+# Local Python tooling caches are generated, never source.
+**/__pycache__/
+*.pyc

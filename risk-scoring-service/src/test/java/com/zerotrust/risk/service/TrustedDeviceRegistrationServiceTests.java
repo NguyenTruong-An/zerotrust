@@ -4,6 +4,7 @@ import com.zerotrust.risk.config.DeviceFingerprintProperties;
 import com.zerotrust.risk.entity.DeviceStatus;
 import com.zerotrust.risk.entity.KnownDeviceEntity;
 import com.zerotrust.risk.exception.DeviceTrustRejectedException;
+import com.zerotrust.risk.repository.DeviceTrustStateRepository;
 import com.zerotrust.risk.repository.KnownDeviceRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -93,6 +94,7 @@ class TrustedDeviceRegistrationServiceTests {
 
     private TrustedDeviceRegistrationService serviceAt(Instant instant) {
         Clock clock = Clock.fixed(instant, ZoneOffset.UTC);
-        return new TrustedDeviceRegistrationService(fingerprintHasher, repository, clock, new DeviceTrustLifecycle(jdbc, repository, clock));
+        DeviceTrustLifecycle lifecycle = new DeviceTrustLifecycle(new DeviceTrustStateRepository(jdbc), repository, clock);
+        return new TrustedDeviceRegistrationService(fingerprintHasher, repository, clock, lifecycle);
     }
 }

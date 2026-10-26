@@ -3,7 +3,10 @@ WORKDIR /app
 COPY frontend/package*.json ./
 RUN --mount=type=cache,target=/root/.npm npm ci --no-audit --no-fund
 COPY frontend/ ./
-ENV NEXT_TELEMETRY_DISABLED=1 NEXT_PUBLIC_KEYCLOAK_URL=https://localhost:8444 NEXT_PUBLIC_KEYCLOAK_REALM=zerotrust-demo NEXT_PUBLIC_KEYCLOAK_CLIENT_ID=zerotrust-spa
+ARG KEYCLOAK_URL=https://localhost:8444
+ARG KEYCLOAK_REALM=zerotrust-demo
+ARG KEYCLOAK_CLIENT_ID=zerotrust-spa
+ENV NEXT_TELEMETRY_DISABLED=1 NEXT_PUBLIC_KEYCLOAK_URL=$KEYCLOAK_URL NEXT_PUBLIC_KEYCLOAK_REALM=$KEYCLOAK_REALM NEXT_PUBLIC_KEYCLOAK_CLIENT_ID=$KEYCLOAK_CLIENT_ID
 RUN npm run check && npx next build
 FROM node:24.16.0-bookworm-slim@sha256:ca520832af80fa37a57c14077ed0fcdd83b5aefccc356059fdc3a9a05b78ae1f
 WORKDIR /app

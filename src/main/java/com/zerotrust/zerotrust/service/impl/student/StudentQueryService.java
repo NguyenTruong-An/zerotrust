@@ -8,11 +8,11 @@ import com.zerotrust.zerotrust.exception.WebException;
 import com.zerotrust.zerotrust.model.response.PageResponse;
 import com.zerotrust.zerotrust.model.response.StudentResponseDTO;
 import com.zerotrust.zerotrust.repository.StudentRepository;
+import com.zerotrust.zerotrust.service.support.QueryParameters;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,7 +24,6 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 public class StudentQueryService {
-    private static final int MAX_PAGE_SIZE = 100;
     private static final String DEFAULT_SORT = "studentCode,asc";
     private static final Map<String, String> ALLOWED_SORT_PROPERTIES = Map.of(
             "studentCode", "studentCode",
@@ -44,11 +43,12 @@ public class StudentQueryService {
             int page,
             int size,
             String sort) {
-        validatePagination(page, size);
-        Pageable pageable = PageRequest.of(page, size, parseSort(sort));
+        QueryParameters.validatePagination(page, size);
+        Pageable pageable = PageRequest.of(
+                page, size, QueryParameters.parseSort(sort, DEFAULT_SORT, ALLOWED_SORT_PROPERTIES));
         Page<StudentResponseDTO> students = studentRepository.findAllFiltered(
-                        normalizeOptional(keyword),
-                        normalizeOptional(classCode),
+                        QueryParameters.normalizeOptional(keyword),
+                        QueryParameters.normalizeOptional(classCode),
                         parseStatus(status),
                         pageable)
                 .map(studentConverter::convertToDto);
@@ -73,19 +73,8 @@ public class StudentQueryService {
         return studentConverter.convertToDto(student);
     }
 
-    private void validatePagination(int page, int size) {
-        if (page < 0) {
-            throw new WebException(ErrorCode.INVALID_REQUEST, "Page must be zero or greater");
-        }
-        if (size < 1 || size > MAX_PAGE_SIZE) {
-            throw new WebException(
-                    ErrorCode.INVALID_REQUEST,
-                    "Size must be between 1 and " + MAX_PAGE_SIZE);
-        }
-    }
-
     private UserEntity.Status parseStatus(String status) {
-        String normalizedStatus = normalizeOptional(status);
+        String normalizedStatus = QueryParameters.normalizeOptional(status);
         if (normalizedStatus == null) {
             return null;
         }
@@ -99,39 +88,4 @@ public class StudentQueryService {
         }
     }
 
-    private Sort parseSort(String sort) {
-        String normalizedSort = normalizeOptional(sort);
-        String[] parts = (normalizedSort == null ? DEFAULT_SORT : normalizedSort).split(",", -1);
-        if (parts.length > 2) {
-            throw invalidSort();
-        }
-
-        String property = ALLOWED_SORT_PROPERTIES.get(parts[0].trim());
-        if (property == null) {
-            throw invalidSort();
-        }
-
-        Sort.Direction direction = Sort.Direction.ASC;
-        if (parts.length == 2) {
-            try {
-                direction = Sort.Direction.fromString(parts[1].trim());
-            } catch (IllegalArgumentException ex) {
-                throw invalidSort();
-            }
-        }
-        return Sort.by(direction, property);
-    }
-
-    private WebException invalidSort() {
-        return new WebException(
-                ErrorCode.INVALID_REQUEST,
-                "Sort must use an allowed field followed by asc or desc");
-    }
-
-    private String normalizeOptional(String value) {
-        if (value == null || value.isBlank()) {
-            return null;
-        }
-        return value.trim();
-    }
 }

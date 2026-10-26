@@ -23,6 +23,7 @@ public enum ErrorCode {
     SUBJECT_IN_USE(HttpStatus.CONFLICT, "Subject cannot be deleted because scores already exist"),
     SCORE_NOT_FOUND(HttpStatus.NOT_FOUND, "Score not found"),
     SCORE_EXISTS(HttpStatus.BAD_REQUEST, "Score already exists for this student and subject"),
+    CONCURRENT_MODIFICATION(HttpStatus.CONFLICT, "The record was modified by another request. Reload it and retry."),
     INVALID_CREDENTIALS(HttpStatus.FORBIDDEN, "Invalid credentials"),
     EMAIL_EXISTS(HttpStatus.BAD_REQUEST, "Email already exists"),
     USERNAME_EXISTS(HttpStatus.BAD_REQUEST, "Username already exists"),

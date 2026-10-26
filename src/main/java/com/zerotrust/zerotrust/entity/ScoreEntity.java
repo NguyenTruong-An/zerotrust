@@ -1,9 +1,11 @@
 package com.zerotrust.zerotrust.entity;
 
 import jakarta.persistence.*;
+import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.Setter;
 import org.hibernate.annotations.Check;
+import org.hibernate.annotations.ColumnDefault;
 
 import java.math.BigDecimal;
 import java.util.UUID;
@@ -32,6 +34,12 @@ public class ScoreEntity extends AuditableEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
+
+    @Version
+    @Column(name = "version", nullable = false)
+    @ColumnDefault("0")
+    @Setter(AccessLevel.NONE)
+    private long version;
 
     @Column(name = "attendance_score", precision = 4, scale = 2)
     private BigDecimal attendanceScore;

@@ -1,0 +1,11 @@
+FROM eclipse-temurin:17.0.10_7-jdk-jammy@sha256:58aead1bf67b0009ce2acb496b7b6220ae0275ae9ade5989e0077c67bb7fbd14 AS assets
+# Original, preserved provider/theme are migration inputs, not a second application source tree.
+RUN --mount=type=secret,id=legacy-provider,required=true,uid=1000,gid=0,mode=0400 \
+    --mount=type=secret,id=legacy-theme,required=true,uid=1000,gid=0,mode=0400 \
+    mkdir -p /out/providers /out/themes && \
+    cp /run/secrets/legacy-provider /out/providers/keycloak-risk-extension.jar && \
+    tar --no-same-owner -xf /run/secrets/legacy-theme -C /out/themes
+FROM quay.io/keycloak/keycloak:26.7.0@sha256:0f198be292568439d700cdbfb893e69a6009bb43a94a06a945b1d3d506c76b13
+COPY --from=assets --chown=keycloak:keycloak /out/ /opt/keycloak/
+RUN /opt/keycloak/bin/kc.sh build --db=mysql --health-enabled=true
+ENTRYPOINT ["/opt/keycloak/bin/kc.sh"]

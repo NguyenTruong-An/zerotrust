@@ -37,6 +37,9 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 @ExtendWith(MockitoExtension.class)
 class ScoreAdministrationServiceImplTest {
@@ -487,12 +490,12 @@ class ScoreAdministrationServiceImplTest {
         UpdateScoreRequestDTO request = UpdateScoreRequestDTO.builder()
                 .academicYear("2027-2026")
                 .build();
-        when(scoreRepository.findById(scoreId)).thenReturn(Optional.of(score));
 
         assertThatThrownBy(() -> service.updateScore(scoreId, request))
                 .isInstanceOf(WebException.class)
                 .extracting(exception -> ((WebException) exception).getErrorCode())
                 .isEqualTo(ErrorCode.INVALID_REQUEST);
+        verify(scoreRepository, never()).findById(any());
         verify(scoreRepository, never()).saveAndFlush(any());
     }
 
@@ -685,5 +688,93 @@ class ScoreAdministrationServiceImplTest {
         score.setTotalScore(new BigDecimal("8.75"));
         score.setGrade("B+");
         return score;
+    }
+
+
+    @Test
+    void updatesScoresAndTermWithoutChangingSubject() {
+        UUID scoreId = UUID.randomUUID();
+        UUID studentId = UUID.randomUUID();
+        UUID subjectId = UUID.randomUUID();
+        ScoreEntity score = score(scoreId, studentId, subjectId);
+        UpdateScoreRequestDTO request = UpdateScoreRequestDTO.builder()
+                .semester((short) 2)
+                .academicYear("2026-2027")
+                .attendanceScore(BigDecimal.ZERO)
+                .midtermScore(BigDecimal.ZERO)
+                .finalScore(BigDecimal.ZERO)
+                .build();
+        when(scoreRepository.findById(scoreId)).thenReturn(Optional.of(score));
+        when(scoreRepository.saveAndFlush(score)).thenReturn(score);
+
+        var response = service.updateScore(scoreId, request);
+
+        assertThat(response.attendanceScore()).isEqualByComparingTo("0");
+        assertThat(response.midtermScore()).isEqualByComparingTo("0");
+        assertThat(response.finalScore()).isEqualByComparingTo("0");
+        assertThat(response.totalScore()).isEqualByComparingTo("0.0");
+        assertThat(response.grade()).isEqualTo("F");
+        assertThat(response.studentId()).isEqualTo(studentId);
+        assertThat(response.subjectId()).isEqualTo(subjectId);
+        assertThat(response.semester()).isEqualTo((short) 2);
+        assertThat(response.academicYear()).isEqualTo("2026-2027");
+    }
+
+    @ParameterizedTest
+    @CsvSource(value = {"2,NULL", "NULL,2026-2027", "2,2026-2027"}, nullValues = "NULL")
+    void updatesOnlyProvidedTermFields(Short semester, String academicYear) {
+        UUID scoreId = UUID.randomUUID();
+        UUID studentId = UUID.randomUUID();
+        UUID subjectId = UUID.randomUUID();
+        ScoreEntity score = score(scoreId, studentId, subjectId);
+        UpdateScoreRequestDTO request = UpdateScoreRequestDTO.builder()
+                .semester(semester)
+                .academicYear(academicYear)
+                .build();
+        when(scoreRepository.findById(scoreId)).thenReturn(Optional.of(score));
+        when(scoreRepository.saveAndFlush(score)).thenReturn(score);
+
+        var response = service.updateScore(scoreId, request);
+
+        assertThat(response.studentId()).isEqualTo(studentId);
+        assertThat(response.subjectId()).isEqualTo(subjectId);
+        assertThat(response.semester()).isEqualTo(semester == null ? (short) 1 : semester);
+        assertThat(response.academicYear()).isEqualTo(academicYear == null ? "2025-2026" : academicYear);
+        assertThat(response.attendanceScore()).isEqualByComparingTo("8.50");
+        assertThat(response.midtermScore()).isEqualByComparingTo("8.00");
+        assertThat(response.finalScore()).isEqualByComparingTo("9.00");
+        assertThat(response.totalScore()).isEqualByComparingTo("8.7");
+        assertThat(response.grade()).isEqualTo("A");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"2026-2026", "2027-2026", "2026-2028"})
+    void rejectsAcademicYearThatDoesNotCoverExactlyOneYearDuringUpdate(String academicYear) {
+        UpdateScoreRequestDTO request = UpdateScoreRequestDTO.builder()
+                .academicYear(academicYear)
+                .finalScore(new BigDecimal("9.50"))
+                .build();
+
+        assertThatThrownBy(() -> service.updateScore(UUID.randomUUID(), request))
+                .isInstanceOf(WebException.class)
+                .extracting(exception -> ((WebException) exception).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_REQUEST);
+        verify(scoreRepository, never()).findById(any());
+        verify(scoreRepository, never()).saveAndFlush(any());
+    }
+
+    @ParameterizedTest
+    @ValueSource(shorts = {0, 3})
+    void rejectsInvalidSemesterDuringUpdate(short semester) {
+        UpdateScoreRequestDTO request = UpdateScoreRequestDTO.builder()
+                .semester(semester)
+                .build();
+
+        assertThatThrownBy(() -> service.updateScore(UUID.randomUUID(), request))
+                .isInstanceOf(WebException.class)
+                .extracting(exception -> ((WebException) exception).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_REQUEST);
+        verify(scoreRepository, never()).findById(any());
+        verify(scoreRepository, never()).saveAndFlush(any());
     }
 }

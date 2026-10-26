@@ -95,6 +95,7 @@ class SubjectAdministrationServiceImplTest {
     @Test
     void translatesConcurrentDuplicateIntoSubjectCodeError() {
         CreateSubjectRequestDTO request = request("SEC101");
+        when(subjectRepository.existsBySubjectCodeIgnoreCase("SEC101")).thenReturn(false, true);
         when(subjectRepository.saveAndFlush(any(SubjectEntity.class)))
                 .thenThrow(new DataIntegrityViolationException("duplicate subject code"));
 
@@ -102,6 +103,14 @@ class SubjectAdministrationServiceImplTest {
                 .isInstanceOf(WebException.class)
                 .extracting(exception -> ((WebException) exception).getErrorCode())
                 .isEqualTo(ErrorCode.SUBJECT_CODE_EXISTS);
+    }
+
+    @Test
+    void preservesUnrelatedIntegrityFailure() {
+        DataIntegrityViolationException failure = new DataIntegrityViolationException("invalid credits");
+        when(subjectRepository.saveAndFlush(any(SubjectEntity.class))).thenThrow(failure);
+
+        assertThatThrownBy(() -> service.createSubject(request("SEC101"))).isSameAs(failure);
     }
 
     @Test

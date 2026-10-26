@@ -39,3 +39,13 @@ application-local.properties
 /geoip-data/
 /.local-demo/
 /output/
+
+# Private legacy integration state, never part of source or build context.
+.local-legacy/
+**/*.private.*
+
+# Local Python tooling caches are generated, never source.
+**/__pycache__/
+*.pyc
+
+/.presentation-build/

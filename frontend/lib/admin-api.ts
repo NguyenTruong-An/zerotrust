@@ -125,6 +125,9 @@ export function emptyPage<T>(size = 10): PageResponse<T> {
 }
 
 function errorMessage(body: ApiErrorBody | null, fallback: string): string {
+  if (body?.error === 'CONCURRENT_MODIFICATION') {
+    return 'Dữ liệu vừa được người khác thay đổi. Hãy tải lại trang, kiểm tra dữ liệu mới rồi cập nhật lại.';
+  }
   if (body?.error === 'RISK_DEVICE_REVOCATION_FAILED') {
     return 'Chưa xác nhận được việc thu hồi thiết bị. Reset MFA chưa hoàn tất; hãy thử lại.';
   }

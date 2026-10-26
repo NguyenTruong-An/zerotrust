@@ -4,6 +4,7 @@ import com.zerotrust.risk.domain.LoginContext;
 import com.zerotrust.risk.domain.SubjectIdentifierNormalizer;
 import com.zerotrust.risk.exception.DeviceTrustRejectedException;
 import com.zerotrust.risk.repository.KnownDeviceRepository;
+import com.zerotrust.risk.repository.DeviceTrustStateRepository;
 import com.zerotrust.risk.repository.RedisAuthenticationFailureStore;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -104,13 +105,15 @@ class SubjectIdentityIsolationRegressionTests {
     }
 
     @Test void javaOwnerGuardRejectsSqlAliasEvenWhenAuditWasAlreadyCompleted() {
-        JdbcTemplate aliasJdbc=mock(JdbcTemplate.class);KnownDeviceRepository repository=mock(KnownDeviceRepository.class);
-        var lifecycle=new DeviceTrustLifecycle(aliasJdbc,repository,Clock.fixed(NOW,ZoneOffset.UTC));
+        DeviceTrustStateRepository aliasState=mock(DeviceTrustStateRepository.class);
+        KnownDeviceRepository repository=mock(KnownDeviceRepository.class);
+        var lifecycle=new DeviceTrustLifecycle(aliasState,repository,Clock.fixed(NOW,ZoneOffset.UTC));
         UUID operation=UUID.randomUUID();String a="f:provider:Alice",b="f:provider:alice";
-        when(aliasJdbc.queryForObject(anyString(),eq(Long.class),eq(b))).thenReturn(1L);
-        when(aliasJdbc.queryForList(anyString(),any(Object[].class))).thenReturn(java.util.List.of(Map.of("subject_id",a,"requested_by","Admin","completed_at",java.sql.Timestamp.from(NOW))));
+        when(aliasState.lockSubject(b)).thenReturn(new DeviceTrustStateRepository.SubjectState(1L,null));
+        when(aliasState.findRevocation(operation)).thenReturn(java.util.Optional.of(
+                new DeviceTrustStateRepository.Revocation(a,"Admin",true)));
         assertThatThrownBy(()->lifecycle.complete(b,operation,"Admin")).isInstanceOf(DeviceTrustRejectedException.class);
-        verify(aliasJdbc,never()).update(startsWith("UPDATE"),any(Object[].class));
+        verify(aliasState,never()).markCompleted(anyString(),any(),any());
         verifyNoInteractions(repository);
     }
 
