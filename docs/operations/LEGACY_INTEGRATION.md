@@ -15,6 +15,48 @@ Existing Java/frontend/Gateway Dockerfiles are reused. The historical internal m
 name /run/demo is retained for image compatibility; it points to the new private legacy
 configuration, never .local-demo or QA volumes.
 
+## Một checkout source cho phát triển và triển khai
+
+IntelliJ, Codex và lệnh Compose phải dùng cùng một checkout của branch
+`zerotrust-v4-risk-scoring`. Bốn Maven project độc lập là `pom.xml`,
+`risk-scoring-service/pom.xml`, `gateway/pom.xml` và `keycloak-risk-extension/pom.xml`;
+frontend ở `frontend/`. Trong IntelliJ, mở thư mục gốc và liên kết thêm ba POM con
+vào Maven nếu IDE chưa nhận diện; dùng JDK 17. Docker build lấy source từ checkout
+này; container đang chạy dùng image đã build, không tự thay đổi khi sửa file trong IDE.
+Private runtime storage nằm ngoài Git và không phải một bản source khác.
+
+## Các ràng buộc vận hành đã hợp nhất từ source cũ
+
+`ScoreEntity` dùng `scores.version` để phát hiện hai transaction cùng cập nhật một
+bản ghi. Transaction xung đột rollback và API trả `409 CONCURRENT_MODIFICATION`;
+người dùng cần tải lại dữ liệu trước khi quyết định sửa tiếp. Không tự động retry
+PATCH vì có thể ghi đè thay đổi chưa được người dùng xem. Cơ chế này chưa có
+`If-Match`/version gửi từ form để phát hiện form cũ nếu transaction sau chỉ bắt đầu
+khi transaction trước đã commit. Xem [mapping](../../src/main/java/com/zerotrust/zerotrust/entity/ScoreEntity.java)
+và [kiểm thử concurrency](../../src/test/java/com/zerotrust/zerotrust/service/impl/ScoreUpdateConcurrencyTest.java).
+
+Candidate legacy đã có cột version; start thông thường không chạy lại SQL/DDL.
+Khi chuẩn bị một database khác, đối chiếu schema và kế hoạch migration trước khi
+dùng [migrate_score_version.sql](../../database/migrate_score_version.sql).
+SQL cập nhật điểm trực tiếp cũng phải tăng version; xem
+[recalculate_score_results.sql](../../database/recalculate_score_results.sql).
+Deployment hiện có dùng JPA `validate`; không dùng schema auto-update để thay migration.
+
+Keycloak admin client có pool và timeout cấu hình qua các biến sau:
+
+| Biến | Mặc định | Phạm vi |
+|---|---|---|
+| `KEYCLOAK_CONNECT_TIMEOUT` | `3s` | Thiết lập kết nối |
+| `KEYCLOAK_READ_TIMEOUT` | `5s` | Đọc dữ liệu từ Keycloak |
+| `KEYCLOAK_CONNECTION_CHECKOUT_TIMEOUT` | `3s` | Chờ connection trong pool |
+| `KEYCLOAK_CONNECTION_POOL_SIZE` | `10` | Số connection tối đa |
+
+Timeout là giới hạn từng giai đoạn, không phải thời hạn tổng của một thao tác.
+Định dạng, giới hạn và validation theo
+[KeycloakAdminProperties](../../src/main/java/com/zerotrust/zerotrust/config/KeycloakAdminProperties.java)
+và [application.properties](../../src/main/resources/application.properties).
+Các kiểm thử pool dùng HTTP server giả lập, không thay thế kiểm thử tải Keycloak thật.
+
 ## Boundaries and outstanding decisions
 
 - Source/operational/frozen restore databases are never application test destinations.
