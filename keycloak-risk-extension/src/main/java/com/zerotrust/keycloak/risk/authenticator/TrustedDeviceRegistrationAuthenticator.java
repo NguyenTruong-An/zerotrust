@@ -9,6 +9,9 @@ import com.zerotrust.keycloak.risk.context.DeviceIdGenerator;
 import com.zerotrust.keycloak.risk.context.DeviceIdResolver;
 import com.zerotrust.keycloak.risk.dto.TrustedDeviceRegistrationRequest;
 import com.zerotrust.keycloak.risk.policy.RiskAuthenticationNotes;
+import com.zerotrust.keycloak.risk.trace.RiskEvaluationTrace;
+import static com.zerotrust.keycloak.risk.trace.RiskEvaluationTrace.Stage.DEVICE_REGISTRATION;
+import static com.zerotrust.keycloak.risk.trace.RiskEvaluationTrace.Outcome.*;
 import org.jboss.logging.Logger;
 import org.keycloak.authentication.AuthenticationFlowContext;
 import org.keycloak.authentication.Authenticator;
@@ -65,7 +68,9 @@ public final class TrustedDeviceRegistrationAuthenticator implements Authenticat
     public void authenticate(AuthenticationFlowContext context) {
         Objects.requireNonNull(context, "context must not be null");
         AuthenticationSessionModel authenticationSession = context.getAuthenticationSession();
+        RiskEvaluationTrace.DEFAULT.registrationReached(context);
         if (!isEligible(authenticationSession)) {
+            RiskEvaluationTrace.DEFAULT.observe(context, DEVICE_REGISTRATION, NOT_ELIGIBLE);
             context.success();
             return;
         }
@@ -79,6 +84,7 @@ public final class TrustedDeviceRegistrationAuthenticator implements Authenticat
 
         // Required actions run after the browser flow: enrollment has not yet proved MFA.
         if (requireUser(context).getRequiredActionsStream().anyMatch("CONFIGURE_TOTP"::equals)) {
+            RiskEvaluationTrace.DEFAULT.observe(context, DEVICE_REGISTRATION, ENROLLMENT_PENDING);
             if (rotate) expireRejectedCookie(context);
             context.success();
             return;
@@ -101,8 +107,12 @@ public final class TrustedDeviceRegistrationAuthenticator implements Authenticat
                     deviceId,
                     Long.parseLong(generation)
             ));
+            RiskEvaluationTrace.DEFAULT.observe(context, DEVICE_REGISTRATION, REGISTERED_204);
             cookieWriter.issue(context, deviceId);
+            RiskEvaluationTrace.DEFAULT.observe(context, DEVICE_REGISTRATION, COOKIE_ISSUED);
         } catch (RiskScoringClientException exception) {
+            RiskEvaluationTrace.DEFAULT.observe(context, DEVICE_REGISTRATION,
+                    exception.statusCode() == 409 ? REGISTRATION_REJECTED : REGISTRATION_UNAVAILABLE);
             LOGGER.warnf(
                     "Trusted-device registration failed: type=%s, status=%d",
                     exception.failureType(),
@@ -112,7 +122,8 @@ public final class TrustedDeviceRegistrationAuthenticator implements Authenticat
                 expireRejectedCookie(context);
             }
         } catch (RuntimeException exception) {
-            LOGGER.error("Trusted-device registration could not be completed", exception);
+            RiskEvaluationTrace.DEFAULT.observe(context, DEVICE_REGISTRATION, REGISTRATION_ERROR);
+            LOGGER.error("Trusted-device registration could not be completed; details suppressed");
         }
 
         context.success();
@@ -183,7 +194,7 @@ public final class TrustedDeviceRegistrationAuthenticator implements Authenticat
         try {
             cookieWriter.expire(context);
         } catch (RuntimeException exception) {
-            LOGGER.warn("Could not expire a rejected trusted-device cookie", exception);
+            LOGGER.warn("Could not expire a rejected trusted-device cookie; details suppressed");
         }
     }
 }

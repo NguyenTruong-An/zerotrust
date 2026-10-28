@@ -9,6 +9,10 @@ không phải yêu cầu hoặc điều kiện nghiệm thu hiện tại. Nguồ
 [báo cáo tổng hợp](../ZEROTRUST_FINAL_CONSOLIDATION_REPORT.md); đọc các trạng thái
 PASS/FAIL/BLOCKED/NOT VERIFIED tại đó trước khi sử dụng kết quả runtime lịch sử.
 
+Nghiệm thu Risk/MFA, Trusted Device và quyền theo phiên thật được đối chiếu riêng trong
+[ADAPTIVE_AUTH_ACCEPTANCE_REPORT](../ADAPTIVE_AUTH_ACCEPTANCE_REPORT.md), gồm checklist
+owner, cấu hình đang chạy và các mục chưa đủ bằng chứng; không coi source tests là Browser PASS.
+
 ## Runtime canonical hiện tại
 
 Dùng project `zerotrust-legacy-integration-20261026`, [hướng dẫn vận hành](operations/LEGACY_INTEGRATION.md)

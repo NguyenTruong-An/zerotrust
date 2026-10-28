@@ -75,7 +75,7 @@ public final class RiskAuthenticator implements Authenticator {
                     exception.failureType().name()
             );
         } catch (RuntimeException exception) {
-            LOGGER.error("Risk authentication failed before a valid decision was produced", exception);
+            LOGGER.error("Risk authentication failed before a valid decision was produced; details suppressed");
             decisionHandler.handleUnavailable(
                     context,
                     RiskFailureMode.DENY,

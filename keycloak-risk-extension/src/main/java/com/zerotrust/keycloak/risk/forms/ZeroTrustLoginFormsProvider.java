@@ -1,6 +1,10 @@
 package com.zerotrust.keycloak.risk.forms;
 
 import jakarta.ws.rs.core.UriBuilder;
+import jakarta.ws.rs.core.Response;
+import com.zerotrust.keycloak.risk.trace.RiskEvaluationTrace;
+import static com.zerotrust.keycloak.risk.trace.RiskEvaluationTrace.Stage.MFA_FORM;
+import static com.zerotrust.keycloak.risk.trace.RiskEvaluationTrace.Outcome.*;
 import org.keycloak.common.util.Time;
 import org.keycloak.forms.login.LoginFormsPages;
 import org.keycloak.forms.login.freemarker.FreeMarkerLoginFormsProvider;
@@ -17,9 +21,39 @@ import java.util.Properties;
 public class ZeroTrustLoginFormsProvider extends FreeMarkerLoginFormsProvider {
 
     private final TemporaryLockoutResolver lockoutResolver = new TemporaryLockoutResolver();
+    private final RiskEvaluationTrace trace;
 
     public ZeroTrustLoginFormsProvider(KeycloakSession session) {
+        this(session, RiskEvaluationTrace.DEFAULT);
+    }
+
+    ZeroTrustLoginFormsProvider(KeycloakSession session, RiskEvaluationTrace trace) {
         super(session);
+        this.trace = trace;
+    }
+
+    @Override
+    protected Response createResponse(LoginFormsPages page) {
+        Response response = super.createResponse(page);
+        traceMfaForm(page, response);
+        return response;
+    }
+
+    void traceMfaForm(LoginFormsPages page, Response response) {
+        // Observe the rendered form, never the submitted form data or credential.
+        try {
+            if (response != null && response.getStatus() == 200
+                && (page == LoginFormsPages.LOGIN_TOTP
+                    || page == LoginFormsPages.LOGIN_RECOVERY_AUTHN_CODES_INPUT)) {
+                trace.form(authenticationSession, MFA_FORM, CHALLENGE_RENDERED);
+                if (page == LoginFormsPages.LOGIN_TOTP && messages != null && messages.stream()
+                        .anyMatch(message -> Messages.INVALID_TOTP.equals(message.getMessage()))) {
+                    trace.form(authenticationSession, MFA_FORM, MFA_INPUT_REJECTED);
+                }
+            }
+        } catch (RuntimeException ignored) {
+            // Observing a form must never replace Keycloak's response.
+        }
     }
 
     @Override

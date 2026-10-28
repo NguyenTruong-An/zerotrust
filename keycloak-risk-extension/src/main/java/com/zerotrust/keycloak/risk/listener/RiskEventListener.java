@@ -8,6 +8,7 @@ import com.zerotrust.keycloak.risk.config.RiskEventListenerConfig;
 import com.zerotrust.keycloak.risk.config.RiskEventListenerConfigResolver;
 import com.zerotrust.keycloak.risk.dto.AuthenticationFailureRequest;
 import com.zerotrust.keycloak.risk.dto.AuthenticationSuccessRequest;
+import com.zerotrust.keycloak.risk.trace.RiskEvaluationTrace;
 import org.jboss.logging.Logger;
 import org.keycloak.events.Event;
 import org.keycloak.events.EventListenerProvider;
@@ -59,6 +60,7 @@ public final class RiskEventListener implements EventListenerProvider {
 
     @Override
     public void onEvent(Event event) {
+        RiskEvaluationTrace.DEFAULT.authenticationEvent(session, event);
         if (event == null || !isSupported(event.getType())) {
             return;
         }

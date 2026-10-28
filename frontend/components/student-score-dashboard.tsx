@@ -192,7 +192,7 @@ export function StudentScoreDashboard({
     setScoresLoading(true);
     setScoresError(null);
     setDraftFilters(INITIAL_FILTERS);
-    setFilters(INITIAL_FILTERS);
+    setFilters({ ...INITIAL_FILTERS });
     setPage(0);
   };
 
