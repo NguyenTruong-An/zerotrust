@@ -58,7 +58,7 @@ def generate():
         if name == 'gateway':
             service['networks']=['core','edge'];service['ports']=['127.0.0.1:28443:8443']
         if name == 'frontend':
-            service['build']['args']={'KEYCLOAK_URL':'https://localhost:28444','KEYCLOAK_REALM':'DoAn','KEYCLOAK_CLIENT_ID':'zerotrust-spa'}
+            service['build']['args']={'KEYCLOAK_URL':'https://localhost:28444','KEYCLOAK_REALM':'DoAn','KEYCLOAK_CLIENT_ID':'zerotrust-spa','API_BASE_URL':''}
         if name == 'risk':
             service['env_file']=[STATE+'/risk/legacy-policy.env']
             # Only the explicitly approved migration job may apply schema changes.

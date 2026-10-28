@@ -380,7 +380,8 @@
         "args": {
           "KEYCLOAK_URL": "https://localhost:28444",
           "KEYCLOAK_REALM": "DoAn",
-          "KEYCLOAK_CLIENT_ID": "zerotrust-spa"
+          "KEYCLOAK_CLIENT_ID": "zerotrust-spa",
+          "API_BASE_URL": ""
         }
       },
       "command": null,

@@ -218,8 +218,10 @@ Manual Windows browser remains NOT_VERIFIED until the owner confirms it.
 ### Manual Windows demo checklist — owner confirmation pending
 
 Use the existing QA-only Firefox executable/profile described in the local completion
-report; its NSS certificate store trusts only the candidate CA. Do not install the CA
-in Windows Root, accept a certificate warning, disable hostname validation or save passwords.
+report; its NSS certificate store trusts only the candidate CA. The owner also approved
+trusting the exact project CA in Windows CurrentUser Root on 28/10/2026 for this machine.
+Do not install another CA or change LocalMachine Root without separate approval. Do not
+accept a certificate warning, disable hostname validation or save passwords.
 Open `https://localhost:28443/` and use existing credentials supplied privately.
 
 - ADMIN: sign in, use the existing authenticator OTP when requested, view users/classes/subjects and the score sheet.
@@ -258,16 +260,20 @@ trusted devices, forge forwarding headers/IP context or change thresholds to obt
 HIGH. Keep real HIGH Browser NOT_VERIFIED until an authorized actor has a genuine
 applicable risk signal and a separately agreed, non-destructive test can demonstrate it.
 
-TLS uses an internal self-signed CA, restricted to Docker/Java bundles and a dedicated
-QA Firefox profile. Never install it in Windows CurrentUser/LocalMachine Root. CA/leaf
-AKI/SKI, SAN and usages are required; keep certificate and hostname validation enabled.
-The current candidate CA SHA1 thumbprint is 5DFA54E7FE9DC555E0A56BAE2DA635B05187ADA0;
-this is a certificate identifier, not a Windows trust-store installation requirement.
+TLS uses an internal self-signed CA in Docker/Java bundles and a dedicated QA Firefox
+profile. On 28/10/2026 the owner separately approved adding its public certificate to
+Windows CurrentUser Root for the current user. LocalMachine Root is unchanged. This
+makes applications using that store trust TLS certificates issued by this CA, rather
+than limiting trust to one Portal tab. CA/leaf AKI/SKI, SAN and usages remain required.
+The current CA SHA1 thumbprint is 5DFA54E7FE9DC555E0A56BAE2DA635B05187ADA0. Verify
+that identity against the preserved CA before any import. Fresh deployments have their
+own CA identity and require their own trust decision; bootstrap never installs Windows roots.
 
 On partial DDL/import failure, stop only this candidate project and retain its volumes/logs.
 Do not attempt reverse MySQL DDL or Flyway repair/clean. Recover from the verified backup
 into a reviewed clean candidate destination; original/frozen backups remain untouched.
-No Windows certificates were installed or removed. Never remove existing certificates
+Initial database integration did not install Windows certificates. The later, separately
+approved CurrentUser CA import is recorded below. Never remove pre-existing certificates
 or another project's containers/volumes.
 
 See [School migration contract](../../database/migrations/school/README.md).
@@ -279,8 +285,9 @@ Gateway/Keycloak phục vụ Windows tại `https://localhost:28443` và
 của cùng CRL DER: `http://localhost:28445/ca.crl` cho Windows và
 `http://crl:8080/ca.crl` cho Docker. Đây là các địa chỉ thay thế theo
 [RFC 5280 §4.2.1.13](https://www.rfc-editor.org/rfc/rfc5280.html#section-4.2.1.13).
-Không đổi DNS/hosts, không mở CRL ra ngoài loopback Windows và không cài CA vào
-Windows Root. Backend/Risk tiếp tục dùng SAN và CDP nội bộ hiện có.
+Không đổi DNS/hosts, không mở CRL ra ngoài loopback Windows. Thay đổi Windows trust
+store cần phê duyệt riêng; CA hiện tại đã được chủ đồ án duyệt trong CurrentUser Root
+ngày 28/10/2026. Backend/Risk tiếp tục dùng SAN và CDP nội bộ hiện có.
 
 `prepare.py` chỉ chuẩn bị một destination mới. Không chạy lại để sửa TLS của
 runtime đã có dữ liệu. Công cụ sau chỉ đọc hoặc tạo ứng viên riêng, không cài
@@ -312,3 +319,39 @@ Gateway/Keycloak hiện có và kiểm tra Windows Schannel mặc định bằng
 cùng OIDC discovery tại Keycloak. Kiểm tra kết nối Gateway→Backend/Keycloak và
 Backend→Risk; nếu lỗi, khôi phục allowlist `before/` rồi restart đúng hai service.
 Không dùng tùy chọn bỏ xác minh hay bỏ kiểm tra thu hồi. Không sửa MFA/JWT keys.
+
+### Kiểm tra Windows native trust sau phê duyệt CurrentUser CA
+
+Thêm public CA vào Windows Root là quyết định riêng của chủ máy; không tự làm cho
+máy mới và không dùng để bỏ qua TLS verification. Chỉ cài CA đã xác minh fingerprint,
+không cài server leaf hoặc private key. Ghi snapshot CurrentUser/LocalMachine roots
+trước/sau để chứng minh chỉ thêm một CA vào CurrentUser và giữ các root khác nguyên vẹn.
+Nếu rollback, chỉ gỡ đúng thumbprint đã được workflow thêm, có journal xác nhận nó
+không tồn tại trước đó. Không xóa một root chỉ dựa trên tên subject.
+
+Sau import đã được duyệt, kiểm tra kho native, không chỉ định `--cacert`:
+
+```powershell
+curl.exe --disable --noproxy "*" --fail --show-error https://localhost:28443/
+curl.exe --disable --noproxy "*" --fail --show-error https://localhost:28444/realms/DoAn/.well-known/openid-configuration
+curl.exe --disable --noproxy "*" --fail --show-error https://localhost:28444/realms/DoAn/protocol/openid-connect/3p-cookies/step1.html
+```
+
+Giữ revocation mặc định. Native X509Chain dùng System trust, Online/ExcludeRoot,
+NoFlag phải hợp lệ và chain kết thúc tại CA đã duyệt. Sau đó người dùng reload
+Portal để xóa trạng thái init thất bại trong bộ nhớ trang; nếu browser còn cache
+lỗi chứng chỉ, lưu công việc rồi đóng/mở lại. Không chấp nhận cảnh báo HTTPS.
+HTTP 200 và chain hợp lệ chưa xác nhận user login/OTP hoặc Adaptive Browser Flow;
+những mục đó cần thao tác thật và log tương ứng. Kết quả hiện tại nằm trong báo cáo
+tổng hợp duy nhất `ZEROTRUST_FINAL_CONSOLIDATION_REPORT.md` ở gốc repository.
+
+### Frontend phải gọi API qua Gateway
+
+Canonical frontend build đặt `API_BASE_URL` thành chuỗi rỗng và Dockerfile ánh xạ
+nó vào `NEXT_PUBLIC_API_BASE_URL` trước Next build. Browser gọi `/api/...` theo
+cùng HTTPS origin của Portal. Không để bundle fallback sang `http://localhost:8080`
+ở canonical Docker. Các biến `NEXT_PUBLIC_*` được đóng gói lúc build; chỉ đổi env
+của container đã build không sửa bundle hiện có. Cần build lại đúng Frontend,
+kiểm tra compiled chunks và giữ rollback image trước khi duyệt recreate.
+Sau đổi image, người dùng reload trang để lấy bundle mới; không sửa credentials,
+CORS hoặc RBAC nhằm làm một API origin sai trở thành hợp lệ.
