@@ -5,8 +5,10 @@ các số liệu được cập nhật tại chỗ khi có bằng chứng mới.
 
 **Kết luận tổng hợp: NOT VERIFIED.** Source ADMIN/STUDENT đã review; TLS Windows và
 kết nối nội bộ có kiểm tra thu hồi PASS sau triển khai được phê duyệt ngày 28/10/2026.
-Runtime 10/10 healthy; database, credentials/MFA, JWT signing keys và Trusted Device
-được bảo toàn. Browser Flow, nghiệp vụ có user login và LOW/MEDIUM/HIGH thực tế còn
+Runtime đạt 10/10 healthy khi nghiệm thu TLS lúc 07:14; kiểm tra lúc 08:30 cho thấy
+cả 10 container đã dừng từ khoảng 07:41, trước commit source lúc 08:28. Giữ nguyên
+trạng thái dừng, không tự start/recreate. Database, credentials/MFA, JWT signing keys
+và Trusted Device được bảo toàn trong đối chiếu trước/sau TLS. Browser Flow, nghiệp vụ có user login và LOW/MEDIUM/HIGH thực tế còn
 NOT VERIFIED. Source được chốt và push theo phê duyệt trực tiếp của chủ đồ án;
 bằng chứng là commit chứa báo cáo này và remote branch khớp sau push. Cleanup trước đó đã hoàn tất;
 không cleanup bổ sung trong workflow TLS này.
@@ -49,8 +51,11 @@ Snapshot source review (không gồm narrative docs):
 Application artifacts vẫn thuộc snapshot triển khai cũ vì mã app không đổi.
 
 **PASS — commit/push:** chủ đồ án đã duyệt đúng 69 file và push lên
-`NguyenTruong-An/zerotrust`, branch `zerotrust-v4-risk-scoring`. Commit chứa chính
-phiên bản báo cáo này; parent là baseline trên. Đối chiếu remote branch bằng
+`NguyenTruong-An/zerotrust`, branch `zerotrust-v4-risk-scoring`. Source commit
+`a09e4caf5900c8088d83d4c5075a75e5f365f2e3` có parent là baseline trên, lưu đúng
+69 paths được duyệt (Git hiển thị 68 entries nếu gộp rename School validator).
+Bản cập nhật báo cáo sau đó chỉ ghi nhận runtime đã dừng trước commit; không thay
+source ứng dụng hoặc Docker. Đối chiếu remote branch bằng
 `git ls-remote --heads origin zerotrust-v4-risk-scoring` với local `git rev-parse HEAD`
 sau push, không force push/amend. Working tree được kiểm tra sạch sau commit.
 Bằng chứng Git cụ thể được trả kèm kết quả thực thi; không cần ghi hash của chính
@@ -419,9 +424,9 @@ hoặc dữ liệu để ép các mục chưa xác minh thành PASS. Source đư
 | Tiêu chí | Trạng thái | Bằng chứng/giới hạn |
 |---|---|---|
 | Source ADMIN/STUDENT review | **PASS** | 69 paths: 36 sửa, 28 xóa, 5 mới; không còn Teacher dependency production; app source khớp bản đã kiểm thử |
-| Commit/push | **PASS** | Chủ đồ án đã duyệt; commit chứa báo cáo này có parent `da16120`; local/remote branch khớp sau push, working tree sạch |
+| Commit/push | **PASS** | Source commit `a09e4ca`, parent `da16120`, đúng allowlist 69 paths; cập nhật báo cáo riêng, local/remote branch khớp sau push, working tree sạch |
 | Windows TLS/CRL | **PASS** | Schannel HTTP 200 hai endpoint, online native chain và CRL ký hợp lệ |
-| Docker | **PASS** | 10/10 healthy; IDs/images/mounts và data volumes giữ nguyên |
+| Docker hiện tại | **NOT VERIFIED** | 10/10 healthy tại nghiệm thu 07:14; cả 10 đã dừng khoảng 07:41, chưa start lại; IDs/images/mounts giữ nguyên |
 | OIDC discovery/PKCE entrypoint | **PASS** | Discovery sau TLS; tái sử dụng bằng chứng S256 form/missing+plain bị từ chối của cùng client config; chưa hoàn tất user login/code exchange |
 | JWT/service authorization | **PASS** | Chữ ký/issuer/audience/expiry thật, 401/403, 6 service-JWT checks; wrong-issuer live độc lập chưa xác minh |
 | ADMIN/STUDENT live/RBAC/ownership và CRUD ghi | **NOT VERIFIED** | Cần user session hợp lệ; regression tests đã PASS không thay thế nghiệm thu live |
@@ -448,3 +453,23 @@ Kiểm thử tái sử dụng: 324 Portal, 20 Gateway, 6 Python, frontend lint/t
 PASS và scan 525 files không có findings theo mẫu secret đã kiểm tra. Không tuyên bố
 source review là chứng nhận toàn hệ thống an toàn. Không có blocker TLS còn biết;
 blocker nghiệm thu đồ án còn lại là kết quả đăng nhập/OTP và Adaptive/ownership thực.
+
+### Quan sát runtime sau khi chốt Git — 28/10/2026, 08:30 giờ Việt Nam
+
+**PASS — Git:** source commit `a09e4caf5900c8088d83d4c5075a75e5f365f2e3`
+đã push đúng branch; remote khớp local và working tree sạch. Không force/amend,
+không đưa runtime/evidence/keys vào Git. Bổ sung tài liệu này trong một commit
+riêng để giữ nguyên lịch sử và phản ánh đúng trạng thái runtime quan sát được.
+
+**NOT VERIFIED — runtime hoạt động hiện tại:** cả 10 canonical containers đang
+`exited`. Docker `FinishedAt` ghi thời điểm dừng khoảng 07:40:59–07:41:32, trước
+source commit lúc 08:28:39. Cả 10 vẫn cùng IDs, image IDs và mounts; không ghi nhận
+OOMKilled. Chưa xác định tác nhân dừng từ những bằng chứng này, không quy kết lỗi
+TLS hoặc lỗi code. Lượt commit/push không chạy stop/start/restart/recreate, không
+thay runtime files hoặc volume. Giữ nguyên trạng thái, không tự bật lại hệ thống.
+
+Các PASS TLS/HTTP/JWT/data preservation ở trên là bằng chứng lần nghiệm thu trước
+khi runtime dừng; không tuyên bố HTTPS đang phục vụ khi containers đã dừng. Dùng
+lệnh start hiện có ở mục 12 khi chủ đồ án muốn chạy lại; không init/import/migration.
+Evidence riêng tư: `git-post-push-runtime-observation-20261028.json`.
+Browser/OTP/Adaptive và live ADMIN/STUDENT vẫn NOT VERIFIED.
