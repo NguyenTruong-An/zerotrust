@@ -1,8 +1,19 @@
 # Legacy-data Docker candidate
 
+> Cập nhật 28/10/2026: runtime canonical đã chạy Backend/Frontend/Gateway từ source
+> ADMIN/STUDENT mới và cleanup đã được duyệt đã thực hiện. Xem [báo cáo tổng hợp](../../ZEROTRUST_FINAL_CONSOLIDATION_REPORT.md)
+> để biết exact IDs, bảo toàn dữ liệu và các hạng mục NOT VERIFIED. Windows Schannel
+> còn lỗi CRL Distribution Point nội bộ; không dùng kết quả cũ để ghi Windows/Browser PASS.
+> Các cấu hình synthetic bên dưới chỉ giữ để tham chiếu, không phải môi trường cần tạo lại.
+
 Status 2026-10-26: approved copy migrations/import completed; focused ADMIN/STUDENT
 password+OTP, JWT/RBAC and trusted-device relogin verified. Full acceptance remains
-NOT_VERIFIED because positive Teacher ownership and a real HIGH login are outstanding.
+NOT_VERIFIED because manual Windows browser confirmation and a real HIGH login are outstanding.
+
+Current scope confirmed by the owner on 2026-10-27: ADMIN/STUDENT score viewing and
+score administration only. Teacher, teaching assignments and timetables have been removed
+from source and are not acceptance requirements. Historical runtime results below belong
+to their dated builds; rebuilding and deploying the changed source is a separate step.
 One source codebase supplies three configurations:
 
 | Configuration | Purpose | Data/bootstrap |
@@ -60,7 +71,9 @@ Các kiểm thử pool dùng HTTP server giả lập, không thay thế kiểm t
 ## Boundaries and outstanding decisions
 
 - Source/operational/frozen restore databases are never application test destinations.
-- School migration adds three empty teaching tables plus a version/checksum ledger.
+- The original 2026-10-26 deployment added three empty teaching tables and a ledger.
+  They are retained as historical data; the score portal does not map or use them.
+  New provisioning performs a read-only School check with no additive DDL.
   Five existing tables/49 rows, scores.version and six BINARY16 subjects must remain identical.
 - Initial V5 inspection found one DoAn subject with two TRUSTED devices and no
   subject_device_trust row/reset audit. The owner approved exactly one generation-zero
@@ -69,8 +82,8 @@ Các kiểm thử pool dùng HTTP server giả lập, không thay thế kiểm t
   generalize this reconciliation to other subjects or reimport into this existing copy.
 - Two non-realm trust IDs (generation0, no devices/audits) and five events for one of
   those IDs remain unchanged. Their provenance is unresolved; never delete/remap them.
-- No TEACHER role/real teacher ownership exists in the legacy dataset. Teaching tables
-  stay empty; positive legacy Teacher acceptance is blocked until real business mappings exist.
+- The historical check found no TEACHER role or teaching data in the legacy dataset.
+  No new role, account or mapping is required; only ADMIN/STUDENT belong to the current scope.
 - Existing ADMIN and STUDENT credentials were supplied privately and verified through
   normal password+OTP login. No replacement account or credential reset was needed.
 
@@ -197,9 +210,9 @@ do not clean/repair, reset credentials or alter security contracts.
 ## Acceptance and rollback
 
 Migration success alone is not LEGACY_DOCKER_INTEGRATION_VERIFIED. Focused Browser/API
-acceptance covers real LOW/MEDIUM/HIGH outcomes, MFA, Student/Teacher/Admin ownership,
+acceptance covers real LOW/MEDIUM/HIGH outcomes, MFA, Student ownership and Admin authorization,
 logout/relogin, persistence and TLS/JWT/RBAC without bypass. Keep original grade rows unchanged.
-Teacher mapping and real HIGH reproduction remain explicit gaps, never synthetic PASS.
+Real HIGH reproduction remains an explicit gap, never synthetic PASS. Teacher mapping is outside the project scope.
 Manual Windows browser remains NOT_VERIFIED until the owner confirms it.
 
 ### Manual Windows demo checklist — owner confirmation pending
@@ -212,26 +225,29 @@ Open `https://localhost:28443/` and use existing credentials supplied privately.
 - ADMIN: sign in, use the existing authenticator OTP when requested, view users/classes/subjects and the score sheet.
 - Sign out completely, then STUDENT: sign in with the old password/OTP, check own personal information and grades.
 - A trusted device may correctly skip OTP on relogin. To demonstrate the OTP challenge, use the preserved, privately prepared separate QA browser profile without an issued device cookie; do not revoke existing devices or reset OTP.
-- Confirm Student cannot open Admin/Teacher resources; sign out and sign in again, checking the expected account and page.
+- Confirm Student cannot open Admin resources; sign out and sign in again, checking the expected account and page.
 - Review Admin management screens. Do not save changes to the 49 preserved rows merely to demonstrate buttons; a write demonstration needs an explicitly approved disposable record and cleanup plan.
 
 No manual PASS is recorded until the project owner confirms these steps.
 
-### Teacher data required for a legitimate demonstration
+### Phạm vi xem điểm và bảo toàn dữ liệu cũ
 
-Read-only candidate checks found **no DoAn TEACHER realm role, no users assigned that
-role, and zero teachers/teaching_assignments/schedule_entries rows**. Six School users
-remain linked to their existing Keycloak IDs. A TEACHER JWT alone would still need an
-active teacher profile linked through `users.keycloak_user_id`, then an owned assignment.
+Chủ đồ án xác nhận ngày 27/10/2026 chỉ dùng ADMIN/STUDENT. Không tạo role/tài khoản
+Teacher, không cần phân công giảng dạy hoặc dữ liệu lịch học để nghiệm thu. Source
+không còn API `/api/teachers/**`, `/api/admin/teachers`, `/api/admin/teaching-assignments`,
+`/api/admin/schedules` và `/api/students/me/schedule`.
 
-If the owner chooses to add real Teacher data, first approve the TEACHER realm role
-and the actual person's identity/teacherCode. The existing ADMIN API
-`POST /api/admin/teachers` creates a new legitimate Keycloak user and linked School
-user/teacher profile; it rejects existing usernames and compensates on failure. It
-does not adopt a current Student/Admin as a teacher. After role provisioning, assign
-real existing class/subject IDs through `POST /api/admin/teaching-assignments`; add a
-real timetable through `POST /api/admin/schedules` when needed. The teacher must enroll
-and verify their own MFA. None of these writes or permission grants were performed.
+Nếu bản cài trước đã có các bảng mở rộng hoặc role cũ, giữ nguyên chúng cùng dữ liệu
+và migration ledger; việc gỡ source không tự xóa hay thu hồi tài khoản trên Keycloak.
+Không chạy SQL DROP, reset volume hoặc import lại realm. Runtime JPA validate chỉ dùng
+năm entity học vụ gốc; `scores.version` vẫn được giữ để chống ghi đè điểm.
+
+Provisioning mới dùng job `school-check` với [school_validate.py](../../scripts/legacy/school_validate.py)
+để đối chiếu schema/row hash của năm bảng gốc bằng truy vấn chỉ đọc. Job tạo bảng
+Teacher cũ đã được loại khỏi Compose. Các SQL cũ được giữ như [lịch sử migration](../../database/migrations/school/README.md).
+Plan/approval cho một destination mới phải được chuẩn bị lại với scope
+`score-portal-admin-student`; không tái sử dụng approval của kế hoạch mở rộng cũ.
+Start/stop thông thường của candidate hiện có vẫn không chạy provisioning hoặc migration.
 
 ### Real HIGH limitation
 
@@ -255,3 +271,44 @@ No Windows certificates were installed or removed. Never remove existing certifi
 or another project's containers/volumes.
 
 See [School migration contract](../../database/migrations/school/README.md).
+
+## Windows TLS và bảo trì CRL
+
+Gateway/Keycloak phục vụ Windows tại `https://localhost:28443` và
+`https://localhost:28444`. Chứng chỉ mới dùng một DistributionPoint với hai URI
+của cùng CRL DER: `http://localhost:28445/ca.crl` cho Windows và
+`http://crl:8080/ca.crl` cho Docker. Đây là các địa chỉ thay thế theo
+[RFC 5280 §4.2.1.13](https://www.rfc-editor.org/rfc/rfc5280.html#section-4.2.1.13).
+Không đổi DNS/hosts, không mở CRL ra ngoài loopback Windows và không cài CA vào
+Windows Root. Backend/Risk tiếp tục dùng SAN và CDP nội bộ hiện có.
+
+`prepare.py` chỉ chuẩn bị một destination mới. Không chạy lại để sửa TLS của
+runtime đã có dữ liệu. Công cụ sau chỉ đọc hoặc tạo ứng viên riêng, không cài
+chứng chỉ, không restart và không tác động database:
+
+```powershell
+# $Runtime: runtime_directory từ CANONICAL_COMPOSE_ENTRYPOINT.json riêng tư.
+# $PkiPython: Python có cryptography >= 44; dùng môi trường PKI hiện có.
+& $PkiPython -X utf8 deploy/legacy/tls_material.py --state $Runtime --check
+# Kiểm tra mỗi ngày khi sử dụng và trước buổi demo; gia hạn khi còn <= 2 ngày.
+# Gia hạn CRL: giữ nguyên mọi entry thu hồi, tăng CRLNumber, ký bằng CA cũ.
+& $PkiPython -X utf8 deploy/legacy/tls_material.py --state $Runtime --output .local-legacy/tls-renewal-YYYYMMDD
+```
+
+CRL mới có hạn tối đa 7 ngày và không vượt hạn CA. Manifest ghi hash đầu vào,
+file ứng viên và file `before/` để rollback. Thư mục output phải mới, nằm trong
+`.local-legacy` bị Git/Docker ignore và phải có ACL riêng tư tương đương runtime.
+Không commit output, CA key, keystore, mật khẩu hoặc evidence riêng tư.
+Chỉ thêm `--reissue-public-certificates` khi đã review việc cấp lại Gateway/Keycloak;
+giữ nguyên private keys, SAN, EKU, thời hạn và CA. Không dùng thao tác này để
+thay thế chứng chỉ đã bị thu hồi hoặc đã hết hạn.
+
+Trước khi cài, đối chiếu **toàn bộ** `inputs_sha256` với runtime, kiểm tra chữ ký,
+issuer, hạn CRL, SAN/EKU, key matching và danh sách thu hồi. Xin duyệt nhóm thay
+đổi runtime. Cài đúng allowlist `changes` và giữ bản `before/`; chỉ CRL đổi thì
+HTTP server đọc file mới ngay, không cần restart. Khi đổi leaf, restart đúng
+Gateway/Keycloak hiện có và kiểm tra Windows Schannel mặc định bằng
+`curl.exe --cacert "$Runtime/public-ca/ca.crt" https://localhost:28443/`
+cùng OIDC discovery tại Keycloak. Kiểm tra kết nối Gateway→Backend/Keycloak và
+Backend→Risk; nếu lỗi, khôi phục allowlist `before/` rồi restart đúng hai service.
+Không dùng tùy chọn bỏ xác minh hay bỏ kiểm tra thu hồi. Không sửa MFA/JWT keys.

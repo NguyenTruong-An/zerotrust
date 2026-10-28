@@ -97,7 +97,7 @@ def prepare():
     cfg = {'owner':'zerotrust-demo','realm':'zerotrust-demo','namespace':str(uuid.uuid4()),
            'passwords':{k:secrets.token_urlsafe(30) for k in ['root','keycloak','risk','school','migrator','redis','bootstrap','pepper','history']},
            'clients':{k:secrets.token_urlsafe(32) for k in ['zerotrust-risk-caller','zerotrust-portal-risk-admin','zerotrust-provisioner']},'users':{}}
-    for actor, role in [('student','STUDENT'),('student_b','STUDENT'),('teacher','TEACHER'),('teacher_b','TEACHER'),('admin','ADMIN'),('high','STUDENT')]:
+    for actor, role in [('student','STUDENT'),('student_b','STUDENT'),('admin','ADMIN'),('high','STUDENT')]:
         cfg['users'][actor]={'id':str(uuid.uuid5(uuid.UUID(cfg['namespace']),actor)), 'username':'demo_'+actor,
                              'password':secrets.token_urlsafe(20), 'role':role}
     for role, uid in [('mysql',999),('redis',999),('keycloak',1000),('backend',10001),('risk',10001),('gateway',10001),('migrate',10001)]:
@@ -137,7 +137,7 @@ def prepare():
         sql+=f"CREATE USER '{user}'@'%' IDENTIFIED BY '{password}' REQUIRE SSL; GRANT {grant} ON `{database}`.* TO '{user}'@'%';\n"
     sql+="GRANT SELECT ON performance_schema.threads TO 'demo_migrator'@'%';\nUSE demo_school;\n"
     schema=Path('/source/database/schema.sql').read_text();schema=schema[schema.index('-- ========================================================='):]
-    sql+=schema+'\n'+Path('/source/database/migrate_teacher_assignment_schedule.sql').read_text()+'\n'+school_seed(cfg)
+    sql+=schema+'\n'+school_seed(cfg)
     save(ROOT/'mysql/10-demo.sql',sql)
     save(ROOT/'redis/redis.conf',f'bind 0.0.0.0\nport 0\ntls-port 6379\ntls-cert-file /run/demo/server.crt\ntls-key-file /run/demo/server.key\ntls-ca-cert-file /run/demo/ca.crt\ntls-auth-clients no\nrequirepass {pw["redis"]}\nappendonly yes\nappendfsync everysec\n')
     save(ROOT/'redis/redis-password',pw['redis'],999)

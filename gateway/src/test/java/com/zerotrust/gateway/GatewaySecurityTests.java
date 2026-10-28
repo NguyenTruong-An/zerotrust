@@ -51,9 +51,9 @@ class GatewaySecurityTests {
     @Test void realmRolesAndForgedHeadersDoNotGrantHigherPrivilege() throws Exception {
         String student=upstream.token("STUDENT",upstream.issuer(),"zerotrust-api",Instant.now().plusSeconds(60));
         client.get().uri("/api/admin/users").headers(h -> {h.setBearerAuth(student);h.set("X-Role","ADMIN");h.set("X-Subject","admin");}).exchange().expectStatus().isForbidden();
-        client.get().uri("/api/teachers/me").headers(h -> h.setBearerAuth(student)).exchange().expectStatus().isForbidden();
         String teacher=upstream.token("TEACHER",upstream.issuer(),"zerotrust-api",Instant.now().plusSeconds(60));
         client.get().uri("/api/admin/users").headers(h -> h.setBearerAuth(teacher)).exchange().expectStatus().isForbidden();
+        client.get().uri("/api/students/me/scores").headers(h -> h.setBearerAuth(teacher)).exchange().expectStatus().isForbidden();
     }
     @Test void publicSpaIsNotABffAndDoesNotForwardTokensOrCookies() throws Exception {
         String token=upstream.token("STUDENT",upstream.issuer(),"zerotrust-api",Instant.now().plusSeconds(60));

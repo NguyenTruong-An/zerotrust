@@ -2,13 +2,15 @@
 
 **Trạng thái quyết định:** Kiến trúc đích đã chấp nhận (Accepted).
 
-**Ngày đối chiếu source:** 2026-10-27. Teacher/schedule được bổ sung trong commit `894e7fc`; source và legacy-data Docker integration đã hợp nhất trong `7ffe0be`. [Legacy integration](docs/operations/LEGACY_INTEGRATION.md) mô tả cấu hình hiện tại; [kiến trúc Development/Demo](docs/architecture/SYSTEM.md) là cấu hình synthetic riêng. Các quyết định bảo mật bên dưới giữ nguyên; kết quả runtime phải được đọc theo ngày và môi trường kiểm chứng.
+**Ngày đối chiếu source:** 2026-10-27. Chủ đồ án xác nhận phạm vi hệ thống xem điểm với hai role ADMIN/STUDENT và yêu cầu loại bỏ Teacher, phân công giảng dạy, lịch học. Phần mở rộng từ commit `894e7fc` được gỡ khỏi source hiện tại; lịch sử Git và các báo cáo kiểm chứng cũ vẫn được giữ. [Legacy integration](docs/operations/LEGACY_INTEGRATION.md) mô tả cấu hình dữ liệu legacy; [kiến trúc Development/Demo](docs/architecture/SYSTEM.md) là cấu hình synthetic riêng. Kết quả runtime phải được đọc theo ngày, bản build và môi trường kiểm chứng.
 
 **Phạm vi:** Trách nhiệm dịch vụ, hiện trạng repository và các quyết định còn mở.
 
 ## 1. Mục đích và cách đọc
 
-Hệ thống quản lý học vụ và xác thực thích ứng theo rủi ro đăng nhập. Keycloak
+Hệ thống xem điểm sinh viên và xác thực thích ứng theo rủi ro đăng nhập. STUDENT
+xem hồ sơ và điểm của chính mình; ADMIN quản lý tài khoản, sinh viên, lớp hành chính,
+môn học và nhập/sửa điểm. Không quản lý giảng viên, phân công giảng dạy hoặc lịch học. Keycloak
 kiểm tra mật khẩu/MFA và phát token; Risk Service đánh giá ngữ cảnh đăng nhập;
 Portal API kiểm tra quyền khi đọc/sửa hồ sơ và điểm.
 
@@ -31,11 +33,11 @@ Chạy local theo [LOCAL_SETUP](docs/operations/LOCAL_SETUP.md). Mục lục ở
 
 | Thành phần | Trách nhiệm và nguồn |
 |---|---|
-| Frontend SPA | OIDC + PKCE, UI admin/sinh viên/giảng viên; [PortalRoute](frontend/components/portal-route.tsx), [package.json](frontend/package.json) |
+| Frontend SPA | OIDC + PKCE, UI admin/sinh viên; [PortalRoute](frontend/components/portal-route.tsx), [package.json](frontend/package.json) |
 | Portal API | Java 17, Spring Boot 3.5.7, resource server và học vụ; [POM](pom.xml), [SecurityConfig](src/main/java/com/zerotrust/zerotrust/config/SecurityConfig.java) |
 | Keycloak SPI | Java 17, Keycloak 26.7.0, chạy trong Keycloak; [POM](keycloak-risk-extension/pom.xml) |
 | Risk Service | Java 17, Spring Boot 3.5.7, scoring/history/device trust; [POM](risk-scoring-service/pom.xml) |
-| Portal DB | Người dùng, sinh viên, lớp, môn, điểm, giảng viên, phân công và lịch; [entity](src/main/java/com/zerotrust/zerotrust/entity/) |
+| Portal DB | Người dùng, sinh viên, lớp hành chính, môn và điểm; [entity](src/main/java/com/zerotrust/zerotrust/entity/) |
 | Risk DB | Thiết bị, event thành công, generation, audit revoke; [Flyway V1–V5](risk-scoring-service/src/main/resources/db/migration/) |
 | Redis Risk | Counter thất bại và marker chống trùng; [failure store](risk-scoring-service/src/main/java/com/zerotrust/risk/repository/RedisAuthenticationFailureStore.java) |
 | GeoLite local | City/ASN `.mmdb` tùy chọn; [provider](risk-scoring-service/src/main/java/com/zerotrust/risk/service/MaxMindGeoIpProvider.java) |
@@ -157,11 +159,9 @@ mới nhưng cho flow tiếp tục.
 Risk kiểm tra chữ ký/JWKS, issuer, `exp`, `nbf`, audience, `azp` và role theo endpoint.
 Realm role hoặc role của client khác không cấp quyền Risk.
 Portal kiểm tra user JWT, realm role và quyền sở hữu: STUDENT đọc dữ liệu của
-mình theo `sub`; TEACHER chỉ đọc/sửa điểm trong phân công lớp/môn thuộc mình;
-ADMIN quản lý học vụ. [TeacherAcademicService](src/main/java/com/zerotrust/zerotrust/service/impl/TeacherAcademicService.java)
-kiểm tra tài khoản, trạng thái và ownership ở backend. UI ẩn nút không thay quyền backend.
-Source đã có Teacher/schedule; dữ liệu legacy chưa có role TEACHER/hồ sơ/phân công thực tế,
-nên positive Teacher acceptance trên legacy vẫn chưa được kiểm chứng.
+mình theo `sub`; ADMIN quản lý tài khoản và dữ liệu xem điểm. UI ẩn nút không thay quyền backend.
+JWT chỉ có role cũ TEACHER không cấp quyền truy cập API ADMIN/STUDENT. Source không còn
+controller giảng viên, phân công hoặc lịch học; Gateway vẫn định tuyến và kiểm tra JWT cho hai role hiện tại.
 Chi tiết: [RISK_API_SECURITY](docs/security/RISK_API_SECURITY.md).
 
 `ClientConnection.getRemoteAddr()` phụ thuộc proxy tin cậy của Keycloak.
@@ -222,9 +222,11 @@ Giữ các ràng buộc đã chốt:
 - Không bỏ Reverse Proxy/API Gateway hoặc JWT/JWKS trong kiến trúc đích.
 - Không tự chọn policy số chính thức, thay weighted scoring bằng ML hoặc đổi
   ranh giới dịch vụ khi chưa được chủ đồ án chấp thuận.
-- STUDENT chỉ xem điểm/lịch của mình; TEACHER chỉ quản lý điểm của lớp/môn được
-  phân công; ADMIN quản lý học vụ. Mô hình hiện có gắn giảng viên với lớp sinh viên
-  và môn học qua teaching assignment; chưa phải hệ thống đăng ký lớp học phần/enrollment.
+- STUDENT chỉ xem hồ sơ/điểm của mình; ADMIN quản lý nhập/sửa điểm và các danh mục liên quan.
+  Không thêm role giảng viên, phân công giảng dạy hoặc lịch học khi chưa có yêu cầu mới của chủ đồ án.
+- Mô hình học vụ hiện tại có năm bảng: `users`, `student_classes`, `students`, `subjects`, `scores`.
+  Các bảng/role cũ nếu đã tồn tại được giữ để bảo toàn dữ liệu, không được ứng dụng sử dụng.
+  SQL tạo Teacher/lịch học chỉ còn là lịch sử, không thuộc bootstrap hoặc điều kiện nghiệm thu hiện tại.
 
 Đề xuất phải nêu vấn đề, phương án, đánh đổi, tác động và kế hoạch kiểm chứng;
 được chủ đồ án chấp thuận rồi cập nhật tài liệu trước hoặc cùng code.

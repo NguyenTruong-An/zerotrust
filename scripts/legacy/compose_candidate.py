@@ -75,16 +75,13 @@ def generate():
         'extra_hosts':{'host.docker.internal':'127.0.0.1'},
         'healthcheck':copy.deepcopy(base['services']['keycloak']['healthcheck'])}
     # No init service, no import-realm startup switch, no bootstrap admin or synthetic users.
-    for name in ['school-migrate','risk-migrate','keycloak-import','keycloak-export']:
+    for name in ['school-check','risk-migrate','keycloak-import','keycloak-export']:
         services[name]={**copy.deepcopy(runtime),'profiles':['migration'],'container_name':PROJECT+'-'+name,
                         'restart':'no','mem_limit':'512m','read_only':True}
-    services['school-migrate'].update({'image':'zerotrust-legacy-tools:20261026-candidate','build':{'context':'.','dockerfile':'deploy/demo/Dockerfile.tools'},
-        'entrypoint':['/opt/tools/bin/python'],'command':['/candidate/scripts/legacy/school_migrate.py','apply',
-            '--config','/run/demo/migration.private.json','--baseline','/run/demo/baseline.private.json',
-            '--migration','/candidate/database/migrations/school/V20261026_01__legacy_teacher_schedule.sql',
-            '--approval','/approval/owner-approval.private.json'],
-        'volumes':[private('school'),{'type':'bind','source':'.','target':'/candidate','read_only':True},
-                   {'type':'bind','source':STATE+'/approval','target':'/approval','read_only':True}]})
+    services['school-check'].update({'image':'zerotrust-legacy-tools:20261026-candidate','build':{'context':'.','dockerfile':'deploy/demo/Dockerfile.tools'},
+        'entrypoint':['/opt/tools/bin/python'],'command':['/candidate/scripts/legacy/school_validate.py','check',
+            '--config','/run/demo/migration.private.json','--baseline','/run/demo/baseline.private.json'],
+        'volumes':[private('school'),{'type':'bind','source':'.','target':'/candidate','read_only':True}]})
     services['risk-migrate'].update({'image':'zerotrust-legacy-risk:20261026-candidate',
         'entrypoint':['java','@/run/demo/jvm.args','-cp','/app/tools:/app/unpacked/BOOT-INF/classes:/app/unpacked/BOOT-INF/lib/*',
                       'MigrateLegacyRisk','/run/demo/migration.properties'], 'volumes':[private('migrate')]})

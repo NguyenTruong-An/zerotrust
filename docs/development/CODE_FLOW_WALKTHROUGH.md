@@ -4,6 +4,11 @@
 
 **Ngày đối chiếu:** 2026-10-05.
 
+Phạm vi nghiệp vụ được chủ đồ án xác nhận lại ngày 27/10/2026: ADMIN quản lý và
+nhập/sửa điểm; STUDENT xem hồ sơ/điểm của mình. Source đã gỡ phần Teacher, phân công
+và lịch học từng thêm ngày 22/10. Các luồng xem điểm bên dưới vẫn thuộc phạm vi hiện tại;
+topology Gateway/Docker xem [SYSTEM](../architecture/SYSTEM.md).
+
 **Phạm vi:** Mã trong working tree; không xác nhận realm/deployment hiện tại.
 Tài liệu giải thích các class chính theo đường gọi, thay vì liệt kê mọi getter,
 factory helper hoặc type do framework sinh. Quyết định kiến trúc ở

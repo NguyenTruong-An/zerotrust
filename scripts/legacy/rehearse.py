@@ -19,6 +19,7 @@ def main():
     args = parser.parse_args()
     plan = json.loads(args.plan.read_text())
     assert plan['project'] == PROJECT and plan['baseline'] == '8e10c1f902f3efeb899792cb91dc4cbfaa0e3708'
+    assert plan.get('scope') == 'score-portal-admin-student' and plan.get('school_schema_change') is False, 'REVIEW_SCORE_PORTAL_PLAN_REQUIRED'
     state = Path(plan['private_state']); evidence = state/'evidence'; evidence.mkdir(exist_ok=True)
     for file, expected in plan['source_files'].items():
         assert hashlib.sha256((ROOT/file).read_bytes()).hexdigest() == expected, 'REVIEWED_SOURCE_CHANGED'
@@ -47,7 +48,7 @@ def main():
     assert approval.get('approved') is True and approval['project']==PROJECT
     assert approval['plan_sha256']==hashlib.sha256(args.plan.read_bytes()).hexdigest(), 'APPROVAL_PLAN_DRIFT'
     assert approval.get('risk_generation_zero_backfill_approved') is True, 'RISK_RECONCILIATION_DECISION_REQUIRED'
-    assert approval['school_migration_sha256']==plan['school_migration_sha256']
+    assert approval.get('scope') == plan['scope'], 'APPROVAL_SCOPE_DRIFT'
     authorization=state/'approval/owner-approval.private.json'
     if args.approval.resolve()!=authorization.resolve():authorization.write_bytes(args.approval.read_bytes())
     journal=evidence/'execution.private.json'
@@ -113,9 +114,8 @@ def main():
     assert sql('school',"SELECT COUNT(*) FROM information_schema.SCHEMATA WHERE SCHEMA_NAME='vip_pro'")=='0'
     assert sql('keycloak-db',"SELECT COUNT(*) FROM information_schema.SCHEMATA WHERE SCHEMA_NAME='keycloak_legacy'")=='0'
     sql('school',file=plan['backups']['school']['file'],label='import-school-backup')
-    sql('school',file=state/'school/grants-before.private.sql',label='school-migrator-grants')
-    run(compose+['run','--rm','--no-deps','--name',PROJECT+'-school-migrate','school-migrate'],'school-additive-migration')
-    sql('school',file=state/'school/grants-after.private.sql',label='school-application-grants')
+    sql('school',file=state/'school/grants-before.private.sql',label='school-application-and-readonly-validation-grants')
+    run(compose+['run','--rm','--no-deps','--name',PROJECT+'-school-check','school-check'],'school-readonly-validation')
     sql('keycloak-db',file=state/'keycloak-db/initialize.private.sql',label='fresh-keycloak-database-grants')
     run(compose+['run','--rm','--no-deps','--name',PROJECT+'-keycloak-import','keycloak-import'],'official-keycloak-import')
     run(compose+['run','--rm','--no-deps','--name',PROJECT+'-keycloak-export','keycloak-export'],'official-keycloak-export')
@@ -162,7 +162,7 @@ def main():
     j['LEGACY_DOCKER_INTEGRATION_VERIFIED']=False
     save()
     print(json.dumps({'status':j['status'],'manual_browser':'NOT_VERIFIED',
-                      'teacher_ownership':'BLOCKED_WITHOUT_REAL_MAPPING','project':PROJECT},indent=2))
+                      'scope':'score-portal-admin-student','project':PROJECT},indent=2))
 
 
 if __name__=='__main__':main()

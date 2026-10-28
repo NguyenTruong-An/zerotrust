@@ -1,5 +1,12 @@
 # Bàn giao Development/Demo — 2026-10-23
 
+> **Báo cáo lịch sử.** Ngày 27/10/2026, chủ đồ án xác nhận chỉ làm hệ thống xem điểm
+> với ADMIN/STUDENT và yêu cầu gỡ Teacher, phân công, lịch học. Các kết quả Teacher,
+> schedule và A04 bên dưới chỉ áp dụng cho bản build ngày 23/10, không còn là yêu cầu
+> nghiệm thu hiện tại và không được dùng làm PASS cho source mới. Xem
+> [kiến trúc hiện tại](../../ARCHITECTURE.md), [runbook đã cập nhật](DEMO_RUNBOOK.md)
+> và [kiểm tra phát triển](../development/DEVELOPMENT_CHECKS.md).
+
 Môi trường `zerotrust-demo` hoạt động độc lập QA02C, build từ parent baseline GitHub **894e7fcb1adb960e7c1c057b0d0713fcb2307c26** và35 paths packaging. Đã xác minh ancestry FIX-01–08/POSTFIX03A/03B, source dùng cho QA02C và A04 trong committed Backend. Commit packaging là commit chứa tài liệu này trên branch `zerotrust-v4-risk-scoring`; exact SHA có thể đọc bằng `git log -1 --format=%H`. [GitHub branch](https://github.com/NguyenTruong-An/zerotrust/tree/zerotrust-v4-risk-scoring).
 
 Candidate: `output/development-demo/workspace` trong original checkout. Bộ evidence ở thư mục cha `output/development-demo`; không đưa secret hoặc private backups vào patch. Original HEAD/index và43 tracked dirty paths được giữ nguyên. Tất cả22 container cũ giữ nguyên ID/image/state; chưa cleanup lịch sử.

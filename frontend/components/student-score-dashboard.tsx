@@ -35,8 +35,6 @@ import {
 } from '../lib/admin-api';
 import { academicYearOptions } from '../lib/academic-years';
 import { formatScore, scoreGradeTone } from '../lib/score-calculation';
-import { studentSchedule, weekdayName } from '../lib/teaching-api';
-import type { Schedule } from '../lib/teaching-api';
 
 type ScoreFilters = {
   keyword: string;
@@ -90,17 +88,6 @@ export function StudentScoreDashboard({
   onAuthenticationExpired,
 }: StudentScoreDashboardProps) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
-  const [schedule, setSchedule] = useState<Schedule[]>([]);
-  const [scheduleError, setScheduleError] = useState('');
-  useEffect(() => {
-    let active = true;
-    studentSchedule().then((entries) => { if (active) setSchedule(entries); }).catch((e) => {
-      if (!active) return;
-      if (e instanceof AuthenticationExpiredError) onAuthenticationExpired();
-      else setScheduleError(e instanceof Error ? e.message : 'Chưa tải được lịch học.');
-    });
-    return () => { active = false; };
-  }, [onAuthenticationExpired]);
   const [account, setAccount] = useState<UserAccount | null>(null);
   const [student, setStudent] = useState<Student | null>(null);
   const [summary, setSummary] = useState<StudentScoreSummary | null>(null);
@@ -281,11 +268,6 @@ export function StudentScoreDashboard({
             <article className={summary?.failedSubjects ? 'student-failed-stat' : undefined}><span className="metric-icon metric-red"><TriangleAlert aria-hidden="true" size={19} /></span><div><p>Trượt môn</p><strong>{summary?.failedSubjects ?? '—'}</strong><small>Điểm F dưới 4,0</small></div></article>
           </section>
 
-          <section className="teaching-card" data-testid="student-schedule"><h2>Lịch học của tôi</h2>
-            {scheduleError && <p role="alert">{scheduleError}</p>}
-            <div className="teaching-table-wrap"><table><thead><tr><th>Ngày</th><th>Giờ</th><th>Môn</th><th>Giảng viên</th><th>Phòng</th></tr></thead><tbody>{schedule.map((s) => <tr key={s.id}><td>{weekdayName(s.weekday)}</td><td>{s.startTime.slice(0,5)}–{s.endTime.slice(0,5)}</td><td>{s.subjectName}</td><td>{s.teacherName}</td><td>{s.room}</td></tr>)}</tbody></table></div>
-            {!schedule.length && !scheduleError && <p>Chưa có lịch học được công bố cho lớp của bạn.</p>}
-          </section>
           <section className="student-profile-panel" id="student-profile" aria-labelledby="student-profile-heading">
             <div className="student-profile-heading">
               <div><p className="eyebrow">Thông tin đã được xác thực</p><h2 id="student-profile-heading">Hồ sơ sinh viên</h2></div>

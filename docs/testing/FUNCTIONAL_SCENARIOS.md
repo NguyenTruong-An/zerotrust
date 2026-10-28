@@ -2,6 +2,11 @@
 
 # 40 kịch bản kiểm thử chức năng và tích hợp
 
+Phạm vi hiện tại được xác nhận ngày 27/10/2026: chỉ ADMIN/STUDENT, quản lý và xem điểm.
+Teacher, phân công và lịch học không thuộc các ca nghiệm thu. Kiểm tra tự động bổ sung
+trong `ZerotrustApplicationTests` xác nhận các API cũ không còn được cung cấp; Gateway
+kiểm tra token chỉ có role TEACHER không truy cập được API điểm Student hoặc API Admin.
+
 Fixture, mức ưu tiên và ký hiệu `T/M/G` được định nghĩa trong [kế hoạch](TEST_PLAN.md). Mỗi bộ dữ liệu trong một ca phải ghi kết quả riêng. Tên test bên dưới chỉ là điểm bắt đầu đối chiếu; các ca E2E vẫn cần chạy với hệ thống thật. Trạng thái ban đầu: **NOT_RUN**.
 
 ## 1. Đăng nhập và phiên — 6 ca

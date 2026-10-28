@@ -31,16 +31,16 @@ def complete(source, state, assets=None):
     for name in ['approval','evidence']:(state/name).mkdir(exist_ok=True)
     approval=state/'approval/owner-approval.private.json'
     if not approval.exists():
-        save(approval,{'approved':False,'project':cfg['owner'],'school_migration_sha256':'FILL_FROM_REVIEWED_SOURCE',
+        save(approval,{'approved':False,'project':cfg['owner'],'scope':'score-portal-admin-student',
                        'risk_generation_zero_backfill_approved':False})
-    tables=['scores','student_classes','students','subjects','users','teachers','teaching_assignments','schedule_entries']
+    tables=['scores','student_classes','students','subjects','users']
     sql="CREATE USER 'legacy_school'@'%' IDENTIFIED BY '"+pw['school']+"' REQUIRE SSL;\n"
     sql+="CREATE USER 'legacy_school_migrator'@'%' IDENTIFIED BY '"+pw['school-migrator']+"' REQUIRE SSL;\n"
-    sql+="GRANT SELECT,CREATE,ALTER,INDEX,REFERENCES,INSERT ON vip_pro.* TO 'legacy_school_migrator'@'%';\n"
-    # The app can access future teaching tables only after the migration creates them.
-    sql+=''.join("GRANT SELECT,INSERT,UPDATE,DELETE ON vip_pro.`"+t+"` TO 'legacy_school'@'%';\n" for t in tables[:5])
+    sql+="GRANT SELECT ON vip_pro.* TO 'legacy_school_migrator'@'%';\n"
+    # The validation account is read-only; the app uses only the five score-portal tables.
+    sql+=''.join("GRANT SELECT,INSERT,UPDATE,DELETE ON vip_pro.`"+t+"` TO 'legacy_school'@'%';\n" for t in tables)
     save(state/'school/grants-before.private.sql',sql)
-    save(state/'school/grants-after.private.sql',''.join("GRANT SELECT,INSERT,UPDATE,DELETE ON vip_pro.`"+t+"` TO 'legacy_school'@'%';\n" for t in tables[5:]))
+    save(state/'school/grants-after.private.sql','-- No additional School grants or schema changes are required.\n')
     save(state/'keycloak-db/initialize.private.sql',
         "CREATE DATABASE keycloak_legacy CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;\n"
         "CREATE USER 'legacy_keycloak'@'%' IDENTIFIED BY '"+pw['keycloak']+"' REQUIRE SSL;\n"

@@ -8,6 +8,7 @@ output
 **/.wrangler
 **/.env*
 docs
+ZEROTRUST_FINAL_CONSOLIDATION_REPORT.md
 
 # Private legacy integration state, never part of source or build context.
 .local-legacy/

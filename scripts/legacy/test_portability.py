@@ -93,6 +93,12 @@ class ComposePortabilityTests(unittest.TestCase):
         self.assertEqual(len(model['volumes']), 4)
         self.assertEqual(len(model['networks']), 2)
         self.assertEqual(model['services']['risk']['environment']['SPRING_FLYWAY_ENABLED'], 'false')
+        self.assertNotIn('school-migrate', model['services'])
+        school_check = model['services']['school-check']
+        self.assertIn('/candidate/scripts/legacy/school_validate.py', school_check['command'])
+        self.assertIn('check', school_check['command'])
+        self.assertNotIn('apply', school_check['command'])
+        self.assertNotIn('V20261026_01__legacy_teacher_schedule.sql', json.dumps(model))
 
 
 if __name__ == '__main__':

@@ -53,7 +53,6 @@ public class GatewaySecurityConfig {
                 .headers(h -> h.frameOptions(f -> f.mode(XFrameOptionsServerHttpHeadersWriter.Mode.SAMEORIGIN)))
                 .authorizeExchange(a -> a.pathMatchers(HttpMethod.OPTIONS,"/**").permitAll()
                         .pathMatchers("/api/admin/**").hasRole("ADMIN")
-                        .pathMatchers("/api/teachers/**").hasRole("TEACHER")
                         .pathMatchers("/api/students/**").hasRole("STUDENT")
                         .pathMatchers("/api","/api/**").authenticated().anyExchange().permitAll())
                 .oauth2ResourceServer(o -> o.jwt(j -> j.jwtAuthenticationConverter(converter))

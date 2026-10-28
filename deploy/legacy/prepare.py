@@ -71,6 +71,7 @@ def prepare(source, state):
     crl = (x509.CertificateRevocationListBuilder().issuer_name(ca.subject).last_update(now)
            .next_update(now+dt.timedelta(days=7))
            .add_extension(x509.AuthorityKeyIdentifier.from_issuer_public_key(ca_key.public_key()), False)
+           .add_extension(x509.CRLNumber(int(now.timestamp())), False)
            .sign(ca_key, hashes.SHA256()))
     (state / 'public-ca/ca.crl').write_bytes(crl.public_bytes(serialization.Encoding.DER))
     (state / 'public-ca/ca.crl').chmod(0o644)
@@ -88,7 +89,11 @@ def prepare(source, state):
                 .add_extension(x509.KeyUsage(True, False, True, False, False, False, False, False, False), True)
                 .add_extension(x509.SubjectKeyIdentifier.from_public_key(key.public_key()), False)
                 .add_extension(x509.AuthorityKeyIdentifier.from_issuer_public_key(ca_key.public_key()), False)
-                .add_extension(x509.CRLDistributionPoints([x509.DistributionPoint(full_name=[x509.UniformResourceIdentifier('http://crl:8080/ca.crl')], relative_name=None, reasons=None, crl_issuer=None)]), False)
+                .add_extension(x509.CRLDistributionPoints([x509.DistributionPoint(
+                    full_name=[x509.UniformResourceIdentifier(uri) for uri in
+                               (['http://localhost:28445/ca.crl', 'http://crl:8080/ca.crl']
+                                if role in ['gateway', 'keycloak'] else ['http://crl:8080/ca.crl'])],
+                    relative_name=None, reasons=None, crl_issuer=None)]), False)
                 .sign(ca_key, hashes.SHA256()))
         password = secrets.token_urlsafe(24); passwords[role] = password
         save(directory / 'ca.crt', pem.decode())

@@ -44,7 +44,9 @@ PowerShell helper tương đương là `scripts/demo/demo.ps1 -Action start|stop
 
 ## Dữ liệu và kiểm chứng
 
-Tài khoản synthetic `demo_student`, `demo_student_b`, `demo_teacher`, `demo_teacher_b`, `demo_admin`, `demo_high`; mật khẩu mới ở trường `users.<actor>.password` trong private credentials. Mỗi tài khoản enroll TOTP qua Keycloak chính thức ở lần đầu, không có OTP seed hardcode/import từ QA. Nếu verifier đã enroll actor, seed Base32 nằm riêng trong `.local-demo/otp-seeds.json`: nhập đúng seed vào Authenticator ngoài màn hình chia sẻ. Dataset có2 lớp,2 môn,3 sinh viên,2 giảng viên,3 điểm,2 phân công,2 lịch; IDs khớp subject Keycloak của lần cài đặt.
+Tài khoản synthetic của bản cài mới: `demo_student`, `demo_student_b`, `demo_admin`, `demo_high`; chỉ có role ADMIN/STUDENT. Mật khẩu mới ở trường `users.<actor>.password` trong private credentials. Mỗi tài khoản enroll TOTP qua Keycloak chính thức ở lần đầu, không có OTP seed hardcode/import từ QA. Nếu verifier đã enroll actor, seed Base32 nằm riêng trong `.local-demo/otp-seeds.json`: nhập đúng seed vào Authenticator ngoài màn hình chia sẻ. Dataset có 2 lớp, 2 môn, 3 sinh viên và 3 điểm; IDs khớp subject Keycloak của lần cài đặt. Không tạo giảng viên, phân công hoặc lịch học.
+
+Private store và volume đã có được giữ nguyên khi start; tài khoản/role/bảng Teacher của bản cũ nếu còn tồn tại không tự bị xóa. Source mới không cung cấp giao diện/API cho chúng. Rebuild Backend/Gateway/Frontend rồi triển khai image mới để áp dụng thay đổi; không xóa volume, import lại realm hoặc chạy SQL Teacher/lịch học để cập nhật phạm vi.
 
 Focused acceptance có thể chạy rõ ràng bằng tools profile, không nằm trong startup mặc định:
 

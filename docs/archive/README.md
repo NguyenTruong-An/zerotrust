@@ -7,6 +7,7 @@
 | KEEP/PRESERVE | `docs/qa-audit`, `docs/qa-fixes`, `docs/qa-postfix`, evidence, review theo ngày | Giữ nguyên tại vị trí cũ để không phá nguồn chứng cứ; không đưa vào quick start. |
 | UPDATE | README, docs index, Compose, env examples, frontend scripts/build config | Một đường setup chính cho Development/Demo. |
 | ARCHIVE | Local setup trước packaging | Nội dung giữ tại `LEGACY_LOCAL_SETUP.md`, đường cũ thành trang chuyển tiếp. |
+| ARCHIVE | SQL tạo Teacher/phân công/lịch học, School migration V20261026_01 và kết quả QA tương ứng | Lịch sử của phần mở rộng đã gỡ ngày 27/10/2026; giữ nguyên SQL/checksum và evidence, loại khỏi bootstrap/Compose hiện tại. Không chạy để chuẩn bị hệ thống xem điểm. |
 | DELETE | `frontend/vite.config.ts`, `frontend/.openai/hosting.json` | Chỉ phục vụ vinext/Sites cũ; native Next scripts/build không còn tham chiếu. Có thể khôi phục từ baseline Git. |
 | DELETE dependency | Vinext/Vite/Cloudflare/Sites tooling và override liên quan | npm lock được cập nhật; không xóa Next/React/Keycloak dependencies đang dùng. |
 

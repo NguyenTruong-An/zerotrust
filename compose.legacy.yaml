@@ -630,7 +630,7 @@
         }
       }
     },
-    "school-migrate": {
+    "school-check": {
       "restart": "no",
       "profiles": [
         "migration"
@@ -649,7 +649,7 @@
           "max-file": "2"
         }
       },
-      "container_name": "zerotrust-legacy-integration-20261026-school-migrate",
+      "container_name": "zerotrust-legacy-integration-20261026-school-check",
       "mem_limit": "512m",
       "read_only": true,
       "image": "zerotrust-legacy-tools:20261026-candidate",
@@ -661,16 +661,12 @@
         "/opt/tools/bin/python"
       ],
       "command": [
-        "/candidate/scripts/legacy/school_migrate.py",
-        "apply",
+        "/candidate/scripts/legacy/school_validate.py",
+        "check",
         "--config",
         "/run/demo/migration.private.json",
         "--baseline",
-        "/run/demo/baseline.private.json",
-        "--migration",
-        "/candidate/database/migrations/school/V20261026_01__legacy_teacher_schedule.sql",
-        "--approval",
-        "/approval/owner-approval.private.json"
+        "/run/demo/baseline.private.json"
       ],
       "volumes": [
         {
@@ -683,12 +679,6 @@
           "type": "bind",
           "source": ".",
           "target": "/candidate",
-          "read_only": true
-        },
-        {
-          "type": "bind",
-          "source": "${LEGACY_STATE_DIR:?Set LEGACY_STATE_DIR to the prepared private runtime directory}/approval",
-          "target": "/approval",
           "read_only": true
         }
       ]

@@ -1,6 +1,6 @@
 # Bảo vệ và giới hạn Development/Demo
 
-Giữ nguyên security contract của baseline894e7fc: JWT issuer/audience/expiry/signature, mandatory subject và RBAC/ownership; Risk LOW/STEP_UP_MFA/DENY, cold-start/incomplete guard, priority deny; OTP thực do Keycloak xác thực. A04 mapping native FK-conflict đã có trong committed Backend, không dùng QA JAR override.
+Giữ JWT issuer/audience/expiry/signature, mandatory subject và RBAC/ownership; Risk LOW/STEP_UP_MFA/DENY, cold-start/incomplete guard, priority deny; OTP thực do Keycloak xác thực. Hai role nghiệp vụ là ADMIN và STUDENT: Admin nhập/sửa điểm; Student chỉ xem dữ liệu của mình. API Teacher/phân công/lịch học đã được gỡ theo yêu cầu ngày 27/10/2026. Token cũ chỉ có TEACHER không cấp quyền Admin/Student. Các kiểm chứng A04 liên quan phân công giảng dạy trong báo cáo ngày 23/10 chỉ là lịch sử.
 
 Secrets và TLS keys sinh mới cho từng private store, không đặt trong Docker image/Git/Env inspect. Ứng dụng chỉ mount role config của mình. MySQL require secure transport, Redis authenticated TLS, Java trust CA/hostname. Chỉ HTTPS loopback8443/8444 và HTTP8445 phục vụ signed CRL công khai; CRL service không có secret và không phục vụ API đăng nhập. Windows Schannel verification đã PASS mà không tắt revocation. Runtime Risk không có DDL; migration job riêng dùng account khác và guard writers-quiesced thật. Flyway V1–V5 không sửa; V5=661092940, subject/client columns0900_bin/NO PAD.
 

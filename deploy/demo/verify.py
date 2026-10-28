@@ -178,36 +178,30 @@ def fixtures():
 
 def normal():
     fixtures();client=Client();rows=[]
-    for actor in ['student','teacher','admin']:
+    for actor in ['student','admin']:
         first=client.login(actor);rows.append(first)
         if first['enrollment']:
             client.logout();second=client.login(actor);assert second['OTP'],'REAL_OTP_REQUIRED';rows.append(second)
         else:assert first['OTP'],'REAL_OTP_REQUIRED'
         if actor=='student':
-            for path in ['/api/students/me','/api/students/me/scores','/api/students/me/schedule']:client.api('GET',path)
+            for path in ['/api/students/me','/api/students/me/scores','/api/students/me/scores/summary']:client.api('GET',path)
             assert client.api('GET','/api/students/me/scores')['data'],'SCORES_EMPTY'
-            client.api('GET','/api/teachers/me',expected=403);client.api('GET','/api/admin/users',expected=403)
+            client.api('GET','/api/admin/users',expected=403)
             token=client.tokens['access_token'];client.api('GET','/api/students/me',expected=401,token=token[:-3]+('AAA' if token[-3:]!='AAA' else 'BBB'))
             client.logout();low=client.evaluate(actor,'172.30.80.100');assert low['decision']=='ALLOW' and low['riskLevel']=='LOW','LOW_NOT_REACHED'
             third=client.login(actor);assert not third['OTP'] and not third['enrollment'];rows.append({**third,'real_risk':low})
-        if actor=='teacher':
-            assignments=client.api('GET','/api/teachers/me/assignments')['data'];assert len(assignments)==1
-            assignment=assignments[0]['id'];roster=client.api('GET','/api/teachers/assignments/'+assignment+'/students')['data'];assert roster
-            item=next(x for x in roster if x['studentId']==ident(cfg,'student_student'));old=item['score']['attendanceScore']
-            path='/api/teachers/assignments/'+assignment+'/students/'+item['studentId']+'/score'
-            changed=client.api('PATCH',path,{'attendanceScore':9.5})['data'];assert float(changed['attendanceScore'])==9.5
-            client.api('PATCH',path,{'attendanceScore':old})
-            client.api('GET','/api/teachers/assignments/'+ident(cfg,'assignment_teacher_b')+'/students',expected=404)
-            client.api('PATCH','/api/teachers/assignments/'+assignment+'/students/'+ident(cfg,'student_student_b')+'/score',{'attendanceScore':9},expected=404)
-            rows.append({'teacher_grade_update_restore':'PASS','foreign_assignment_and_student':404})
         if actor=='admin':
-            for path in ['/api/admin/teachers','/api/admin/students','/api/admin/subjects']:client.api('GET',path)
-            schedules=client.api('GET','/api/admin/schedules')['data'];entry=schedules[0]
-            body={k:entry[k] for k in ['assignmentId','weekday','startTime','endTime','room']};path='/api/admin/schedules/'+entry['id']
-            client.api('PUT',path,{**body,'room':'DEMO-CHECK'});client.api('PUT',path,body)
-            client.api('DELETE','/api/admin/teaching-assignments/'+entry['assignmentId'],expected=409)
-            client.api('GET','/api/admin/schedules')
-            rows.append({'admin_schedule_update_restore':'PASS','A04_referenced_assignment_delete':409})
+            for path in ['/api/admin/students','/api/admin/subjects','/api/admin/users']:client.api('GET',path)
+            student=ident(cfg,'student_student')
+            scores=client.api('GET','/api/admin/students/'+student+'/scores')['data'];assert scores
+            item=scores[0];old=item['attendanceScore'];path='/api/admin/scores/'+item['id']
+            try:
+                changed=client.api('PATCH',path,{'attendanceScore':9.5})['data']
+                assert float(changed['attendanceScore'])==9.5
+            finally:
+                client.api('PATCH',path,{'attendanceScore':old})
+            client.api('GET','/api/students/me/scores',expected=403)
+            rows.append({'admin_grade_update_restore':'PASS','admin_is_not_student':403})
         client.logout()
     result={'PASS':True,'mode':'real HTTPS OIDC/TOTP and APIs; no browser UI claim','cases':rows,'budget':budget}
     store(evidence/'smoke-normal.json',result);print(json.dumps(result))
@@ -237,8 +231,8 @@ def high():
 def fresh_proof():
     client=Client();result=client.login('student')
     assert result['enrollment'],'FRESH_USER_MUST_ENROLL'
-    for path in ['/api/students/me','/api/students/me/scores','/api/students/me/schedule']:client.api('GET',path)
-    client.api('GET','/api/teachers/me',expected=403)
+    for path in ['/api/students/me','/api/students/me/scores','/api/students/me/scores/summary']:client.api('GET',path)
+    client.api('GET','/api/admin/users',expected=403)
     client.logout()
     store(evidence/'fresh-install-proof.json',{'PASS':True,'initial_TOTP_enrollment':True,'student_apis':200,'RBAC':403,'budget':budget})
     print('Fresh source-only installation, OIDC subject, official TOTP enrollment and Student APIs PASS')

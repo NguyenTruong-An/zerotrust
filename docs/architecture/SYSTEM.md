@@ -2,6 +2,11 @@
 
 Parent baseline source: `894e7fcb1adb960e7c1c057b0d0713fcb2307c26`; cấu hình đóng gói nằm trên branch `zerotrust-v4-risk-scoring`. Ranh giới đã chốt vẫn nằm trong [ARCHITECTURE](../../ARCHITECTURE.md).
 
+Phạm vi nghiệp vụ hiện tại được chủ đồ án xác nhận ngày 27/10/2026: ADMIN quản lý dữ liệu
+và nhập/sửa điểm; STUDENT xem hồ sơ/điểm của mình. Frontend, Backend và Gateway không còn
+chức năng Teacher, phân công hoặc lịch học. Bootstrap mới tạo hai realm role ADMIN/STUDENT
+và năm bảng học vụ. Init giữ nguyên private store/volume cũ; không tự xóa role, user hoặc bảng cũ.
+
 ```mermaid
 flowchart LR
   B["Windows browser"] -->|"HTTPS localhost:8443"| G["Spring Cloud Gateway"]
@@ -26,4 +31,4 @@ Portal/Backend/Risk/Gateway giữ kiểm tra issuer, expiry, audience, role và 
 
 Phiên bản được giữ: Spring Boot3.5.7, Java17; SPI Keycloak26.7.0, Backend admin-client26.0.11; Next16.2.6/React19.2.6, Node24.16.0. Các digest upstream dùng trong Dockerfiles/Compose; không nâng dependency security để phục vụ demo. Công thức/ngưỡng Risk giữ nguyên development baseline. CIDR synthetic của mạng Demo được cấu hình riêng, không spoof địa chỉ nguồn.
 
-Đã có build/health và focused acceptance trong [completion report](../demo/COMPLETION_REPORT.md). Browser thủ công và cài CA Windows cần người trình bày xác nhận. Sơ đồ Mermaid mô tả cấu hình hiện tại; chưa render độc lập.
+Build/health và focused acceptance của bản đóng gói ngày 23/10 được giữ trong [completion report](../demo/COMPLETION_REPORT.md); đó là kết quả của source trước khi gỡ Teacher, không xác nhận bản sửa hiện tại. Browser thủ công và cài CA Windows cần người trình bày xác nhận. Sơ đồ Mermaid mô tả cấu hình; chưa render độc lập.

@@ -2,6 +2,12 @@
 
 # Kế hoạch kiểm thử và pentest cơ bản ZeroTrust
 
+Phạm vi nghiệp vụ hiện tại (chủ đồ án xác nhận 27/10/2026) chỉ có ADMIN/STUDENT:
+Student xem điểm của mình, Admin quản lý danh mục và nhập/sửa điểm. Teacher,
+phân công và lịch học đã được gỡ; không yêu cầu dữ liệu hoặc ca nghiệm thu cho chúng.
+Kiểm thử hồi quy phải xác nhận API đã gỡ trả 404 với tài khoản đã xác thực,
+role cũ TEACHER không cấp quyền Admin/Student, và các kiểm tra JWT/MFA/Risk vẫn giữ nguyên.
+
 **Ngày xây dựng:** 05/10/2026. **Cơ sở:** mã, cấu hình và test trong working tree hiện tại.
 
 Bộ này gồm **40 kịch bản chức năng/tích hợp** và **24 kịch bản pentest cơ bản**, dành cho Portal, SPA, Keycloak Risk Extension và Risk Scoring Service. Đây là kế hoạch thực hiện; trạng thái ban đầu của các kịch bản thủ công là **NOT_RUN**. Kết quả chạy test mục tiêu được ghi riêng ở cuối tài liệu.

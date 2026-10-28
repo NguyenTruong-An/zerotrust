@@ -1,27 +1,26 @@
-# Additive School legacy migration
+# Lịch sử migration School
 
-V20261026_01 adds teachers, teaching_assignments, schedule_entries and the
-school_schema_history ledger on a new restored MySQL9.1.0 copy. It creates no teacher,
-assignment, schedule, user or score rows. UUID storage, RESTRICT FKs, uniqueness and
-the weekday/time CHECK follow the published entities/schema. Foreign-key supporting
-indexes are provided by the unique key or InnoDB's FK index creation.
+Phạm vi hiện tại được chủ đồ án xác nhận ngày **27/10/2026**: hệ thống xem điểm,
+chỉ có ADMIN/STUDENT. Không quản lý giảng viên, phân công hoặc lịch học.
 
-Run scripts/legacy/school_migrate.py preflight before execution; apply requires the
-owner-approved project and exact migration SHA256. The connection must be the new
-school/vip_pro service with TLS certificate/hostname verification. Preflight compares
-all original table/row hashes, columns via normalized SHOW CREATE, scores.version,
-case setting and six distinct identity bytes; it rejects partial/existing teaching tables.
+`V20261026_01__legacy_teacher_schedule.sql` là migration lịch sử của phần mở rộng
+đã loại bỏ. File này từng tạo ba bảng `teachers`, `teaching_assignments`,
+`schedule_entries` và bảng ledger `school_schema_history` trên một bản sao legacy.
+Giữ nguyên file/checksum để đối chiếu lần triển khai cũ; **không chạy migration này
+cho bản cài mới hoặc khi cập nhật hệ thống xem điểm**.
 
-Postflight compares the five original schemas/49 business rows byte-for-value, five new
-RESTRICT FKs and one matching ledger record. All three teaching tables must remain empty.
-One ledger metadata row is additional; it is not a new business record.
+Compose hiện tại không có job `school-migrate`. Job `school-check` dùng
+[school_validate.py](../../../scripts/legacy/school_validate.py) chỉ đọc năm bảng
+`users`, `student_classes`, `students`, `subjects`, `scores`; đối chiếu schema,
+row hash, `scores.version` và liên kết Keycloak với baseline đã duyệt. Không tạo bảng,
+seed dữ liệu hoặc ghi ledger. Khởi động thông thường không chạy job này.
 
-Do not run schema.sql, fresh-only migrate_teacher_assignment_schedule.sql, fixture seeds,
-recalculate_score_results.sql or migrate_score_version.sql on this reviewed legacy data.
-The version column already exists. SQL recalculation rewrites grades and is outside the plan.
+Các bảng/ledger cũ nếu đã tồn tại được giữ nguyên; JPA không còn entity sử dụng chúng.
+Không DROP bảng, xóa volume hoặc sửa migration đã áp dụng để loại bỏ chức năng.
+File fresh-only `database/migrate_teacher_assignment_schedule.sql` cũng chỉ còn
+là lịch sử và đã được loại khỏi bootstrap Demo. Bootstrap mới dùng schema
+năm bảng và fixtures ADMIN/STUDENT.
 
-MySQL CREATE TABLE commits independently. A failure after any statement is a partial
-migration: stop candidate writers and retain evidence. Restore the verified logical dump
-to a clean, reviewed candidate destination; do not DROP existing business tables, reverse
-DDL or mark a failed migration successful. This migration has not yet run against a
-persistent database; real MySQL acceptance is part of the consolidated execution approval.
+Không chạy schema fresh, seed hoặc SQL tính lại điểm trên database legacy đã khôi phục.
+Cột `scores.version` của candidate hiện có được giữ nguyên. Kế hoạch cho database
+khác phải được đối chiếu riêng; việc gỡ Teacher không yêu cầu thay đổi điểm hoặc credential.

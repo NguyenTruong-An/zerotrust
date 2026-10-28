@@ -1,6 +1,21 @@
 # Tài liệu ZeroTrust Portal
 
-## Development/Demo hiện tại
+**Phạm vi hiện tại, xác nhận 27/10/2026:** web xem điểm sinh viên, chỉ có ADMIN và STUDENT.
+Student xem dữ liệu của mình; Admin quản lý tài khoản/danh mục và nhập/sửa điểm.
+Teacher, phân công và lịch học đã được gỡ. Các báo cáo cũ có phần đó là bằng chứng lịch sử,
+không phải yêu cầu hoặc điều kiện nghiệm thu hiện tại. Nguồn chính sách: [ARCHITECTURE](../ARCHITECTURE.md).
+
+Đợt đồng bộ source hai role với Docker và cleanup hiện tại được ghi trong một
+[báo cáo tổng hợp](../ZEROTRUST_FINAL_CONSOLIDATION_REPORT.md); đọc các trạng thái
+PASS/FAIL/BLOCKED/NOT VERIFIED tại đó trước khi sử dụng kết quả runtime lịch sử.
+
+## Runtime canonical hiện tại
+
+Dùng project `zerotrust-legacy-integration-20261026`, [hướng dẫn vận hành](operations/LEGACY_INTEGRATION.md)
+và [báo cáo tổng hợp](../ZEROTRUST_FINAL_CONSOLIDATION_REPORT.md). Không tạo môi trường mới
+hoặc khởi động cấu hình synthetic để thay cho canonical.
+
+## Tài liệu đóng gói synthetic lịch sử
 
 [Setup từ đầu](setup/DEVELOPMENT_DEMO.md) · [Kiến trúc runtime](architecture/SYSTEM.md) · [Runbook](demo/DEMO_RUNBOOK.md) · [Troubleshooting](setup/TROUBLESHOOTING.md) · [Bảo vệ/giới hạn](security/DEMO_SECURITY.md) · [Completion và cleanup](demo/COMPLETION_REPORT.md).
 
@@ -12,7 +27,7 @@
 
 1. **Hiểu đề tài:** [Kiến trúc](../ARCHITECTURE.md) — sơ đồ mã hiện có và kiến trúc đích, ranh giới, phần đã chốt/còn thiếu.
 2. **Hiểu đăng nhập:** [Login, PKCE và phiên](authentication/LOGIN_FLOW.md), rồi [Reset MFA và thiết bị tin cậy](authentication/MFA_RESET_LIFECYCLE.md).
-3. **Chạy thử:** [Development/Demo setup](setup/DEVELOPMENT_DEMO.md).
+3. **Vận hành hiện tại:** [Canonical Docker](operations/LEGACY_INTEGRATION.md), xem trạng thái nghiệm thu và build/start/stop trong [báo cáo tổng hợp](../ZEROTRUST_FINAL_CONSOLIDATION_REPORT.md).
 4. **Đọc mã và kiểm thử:** [Giải thích class theo luồng](development/CODE_FLOW_WALKTHROUGH.md) — frontend, SPI, scoring/history/device và học vụ Portal; [Các bước kiểm tra](development/DEVELOPMENT_CHECKS.md).
    Bộ kịch bản thực hành: [Kế hoạch kiểm thử và pentest](testing/TEST_PLAN.md), [40 ca chức năng](testing/FUNCTIONAL_SCENARIOS.md), [24 ca pentest cơ bản](testing/BASIC_PENTEST.md).
 5. **Đánh giá giới hạn:** [Rà soát ngày 02/10/2026](reviews/ADAPTIVE_AUTH_REVIEW_2026-10-02.md), [Đối chiếu bảo mật](security/SECURITY_REFERENCE_REVIEW.md).
