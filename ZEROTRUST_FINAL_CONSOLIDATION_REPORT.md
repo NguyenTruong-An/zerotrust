@@ -9,8 +9,10 @@ Windows native trust hiện PASS sau khi chủ đồ án duyệt thêm đúng pu
 CurrentUser Root. Portal, OIDC Discovery và Keycloak 3p-cookie iframe đều HTTP 200
 không cần CA file; System chain/online revocation PASS. Chủ đồ án đã xác nhận ADMIN/STUDENT đăng nhập được, có OTP và đã tải được dữ liệu
 sau sửa API origin. Ảnh Network xác nhận token, students và subjects trả 200.
-Cảnh báo iframe thuộc keycloak-js và lỗi onboarding chưa xác định URL nguồn được
-phân tích riêng; dấu “Không bảo mật” trên Cốc Cốc còn chờ xác nhận sau mở lại browser.
+Ảnh owner sau mở lại Cốc Cốc đã có ổ khóa HTTPS. Lỗi onboarding được xác định
+thuộc Content scripts → Tải video & audio của trình duyệt; cảnh báo iframe thuộc
+keycloak-js và không ngăn token/API thành công. Không gán lỗi browser component
+thành lỗi Portal hoặc sửa auth chỉ để dập Console.
 Runtime hiện **10/10 running/healthy** sau khi chủ đồ án bật lại Docker và yêu cầu
 chạy tiếp; đã kiểm tra lại lúc 08:35 ngày 28/10. Lần dừng khoảng 07:41 được giữ
 trong phần lịch sử bên dưới. Không start/restart/recreate thêm vì cả 10 đã hoạt động.
@@ -664,17 +666,18 @@ API request bị lỗi. Không bỏ sandbox flags, disable SSO/MFA hay sửa nod
 chỉ để dập cảnh báo. Không khẳng định mọi iframe cùng cờ đều an toàn; nhận định này
 chỉ dựa trên callback kiểm soát được của project và hành vi adapter hiện có.
 
-**NOT VERIFIED — nguồn onboarding.js:** không có file hoặc marker `onboarding.js`,
-`createOnboardingFrame`, `content-script.js` trong app assets đang chạy. Có khả năng
-script do trình duyệt/tiện ích đưa vào, nhưng ảnh chưa cho thấy Request URL nên chưa
-kết luận nguồn. Đã đề nghị owner gửi URL nguồn script (không query/token/cookie),
-không thay code Portal hoặc tắt tiện ích khi chưa xác định.
+**PASS — xác định nguồn onboarding.js:** app assets không có file/marker
+`onboarding.js`, `createOnboardingFrame`, `content-script.js`. Ảnh Sources owner gửi
+sau đó cho thấy `Content scripts → Tải video & audio → onboarding.js`; vậy nguồn
+lỗi là thành phần browser chèn vào. Lỗi component vẫn có thể xuất hiện trong Console,
+nhưng không phải file của Portal. Không chỉnh source project hoặc thay extension state.
+Không lưu OAuth code/session_state/fragment do owner dán trong chat vào báo cáo/Git.
 
-**NOT VERIFIED — dấu “Không bảo mật” trên Cốc Cốc:** ảnh vẫn hiển thị chỉ báo đó.
-Windows native Schannel và System chain/Online revocation hiện PASS, CA có đúng
-CurrentUser Root. Đã đề nghị owner lưu công việc, đóng/mở lại Cốc Cốc và vào đúng
-HTTPS URL; không chấp nhận warning nếu còn. Chưa có phản hồi sau mở lại thì không
-coi chỉ báo browser đã sạch, không đồng nhất native TLS PASS với mọi browser profile.
+**PASS — browser HTTPS được owner xác nhận bằng ảnh:** sau mở lại Cốc Cốc, thanh
+địa chỉ `/admin` hiển thị ổ khóa, hết dấu “Không bảo mật”. Kết quả này bổ sung cho
+Windows native Schannel/System chain/Online revocation PASS và CurrentUser CA đã
+được duyệt. Chỉ kết luận với browser/profile/hostname đang nghiệm thu, không suy
+mọi máy hoặc mọi browser đã tin CA. Không dùng thao tác bỏ qua warning để đạt PASS.
 
 School/mappings/Keycloak credentials/config trước/sau frontend deployment vẫn khớp.
 Risk chỉ đổi `authentication_success_events` trong cửa sổ owner login/refresh;
@@ -687,3 +690,23 @@ Bản sửa cấu hình và cập nhật hai tài liệu được lưu đúng 5 
 `fix(frontend): route portal API calls through the gateway`; commit chứa phiên bản
 báo cáo này tiếp nối `4a70337`. Kiểm tra staging không có private state/keys/evidence,
 `git diff --cached --check`, local/remote branch và working tree sau push.
+
+### Kết luận sau ảnh Sources cuối của chủ đồ án
+
+- **PASS:** HTTPS browser có ổ khóa; Windows native chain/revocation và 3 endpoint
+  Portal/Discovery/3p-cookie check đã đạt, CurrentUser CA đúng approval.
+- **PASS theo owner và ảnh HTTP:** ADMIN/STUDENT đăng nhập có OTP, dữ liệu đã tải;
+  token exchange và các GET students/subjects quan sát được trả 200.
+- **PASS — phân loại lỗi Console:** `onboarding.js` thuộc content script “Tải video
+  & audio”; đây là nguồn browser component, không thuộc build Portal. Cảnh báo iframe
+  vẫn tồn tại trong keycloak-js 26.2.4 như issue upstream đã ghi, không sửa thư viện
+  hoặc bỏ xác minh bảo mật để che thông báo.
+- **NOT VERIFIED:** LOW/MEDIUM/HIGH theo policy decision thực, HIGH deny, trusted
+  device relogin bỏ OTP, logout đầy đủ, cross-student/ADMIN negative RBAC trên phiên
+  thật và CRUD ghi bằng fixture được duyệt. Không tuyên bố toàn hệ thống PASS.
+
+Source fix nằm trong commit `39d9f55699521cb87a04880865025a65012d8589`, message
+`fix(frontend): route portal API calls through the gateway`; đúng 5 file đã duyệt
+và đã push. Bản bổ sung tài liệu này chỉ chốt evidence owner, không đổi app/runtime.
+Evidence `browser-final-owner-evidence-20261028.json` không chứa code/token/session
+values. Report vẫn là tài liệu tổng hợp duy nhất.
