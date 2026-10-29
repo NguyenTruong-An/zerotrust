@@ -1,6 +1,8 @@
 package com.zerotrust.risk.service;
 
 import com.zerotrust.risk.config.AuthenticationHistoryRiskProperties;
+import com.zerotrust.risk.config.RiskPolicyProperties;
+import com.zerotrust.risk.domain.RiskScoreModel;
 import com.zerotrust.risk.domain.AuthenticationHistoryRiskAssessment;
 import com.zerotrust.risk.domain.LoginContext;
 import com.zerotrust.risk.repository.AuthenticationFailureStore;
@@ -21,6 +23,7 @@ public class AuthenticationHistoryRiskCalculator {
 
     private final AuthenticationFailureStore failureStore;
     private final AuthenticationHistoryRiskProperties properties;
+    private final RiskPolicyProperties policy;
 
     public Optional<AuthenticationHistoryRiskAssessment> calculate(LoginContext context) {
         Objects.requireNonNull(context, "context must not be null");
@@ -56,6 +59,9 @@ public class AuthenticationHistoryRiskCalculator {
     }
 
     private BigDecimal scoreFor(long failureCount, long mediumMinimum, long highMinimum) {
+        if (policy.getModel() == RiskScoreModel.CONTINUOUS_B1) {
+            return BehavioralRiskNormalizer.failureRisk(failureCount, mediumMinimum, highMinimum);
+        }
         if (failureCount >= highMinimum) {
             return properties.getHighScore();
         }

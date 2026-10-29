@@ -20,7 +20,7 @@ class RedisRiskAuditTests extends RedisAuditSupport {
     void realFailureEventsFeedBoundaryClassificationAndMandatoryMfa(String scope, int count, String score, boolean high) {
         String subject = scope.equals("subject") ? "subject1" : null;
         for (int i = 0; i < count; i++) { track("event" + i, subject, "203.0.113.10"); assertThat(store().recordFailure("event" + i, subject, "203.0.113.10")).isTrue(); }
-        var assessment = new AuthenticationHistoryRiskCalculator(store(), thresholds()).calculate(RedisRiskHarness.context()).orElseThrow();
+        var assessment = new AuthenticationHistoryRiskCalculator(store(), thresholds(), new com.zerotrust.risk.config.RiskPolicyProperties()).calculate(RedisRiskHarness.context()).orElseThrow();
         assertThat(assessment.riskScore()).isEqualByComparingTo(score); assertThat(assessment.highRisk()).isEqualTo(high);
         var result = RedisRiskHarness.evaluate(store());
         assertThat(result.dataStatus()).isEqualTo(RiskDataStatus.COMPLETE);
@@ -58,7 +58,7 @@ class RedisRiskAuditTests extends RedisAuditSupport {
     void incrementMustNotTurnKnownCorruptionIntoSafeCompleteHistory(String scope) {
         track("launder", "subject1", "203.0.113.10");
         seed(scope.equals("subject") ? subject("subject1") : ip("203.0.113.10"), "-1");
-        assertThat(new AuthenticationHistoryRiskCalculator(store(), thresholds()).calculate(RedisRiskHarness.context())).isEmpty();
+        assertThat(new AuthenticationHistoryRiskCalculator(store(), thresholds(), new com.zerotrust.risk.config.RiskPolicyProperties()).calculate(RedisRiskHarness.context())).isEmpty();
         Throwable error = catchThrowable(() -> store().recordFailure("launder", "subject1", "203.0.113.10"));
         var result = RedisRiskHarness.evaluate(store());
         evidence("Negative " + scope + " before write=-1, after=" + get(scope.equals("subject") ? subject("subject1") : ip("203.0.113.10")) + " exception=" + error + " result=" + result);

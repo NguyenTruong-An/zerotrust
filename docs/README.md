@@ -13,6 +13,10 @@ Nghiệm thu Risk/MFA, Trusted Device và quyền theo phiên thật được đ
 [ADAPTIVE_AUTH_ACCEPTANCE_REPORT](../ADAPTIVE_AUTH_ACCEPTANCE_REPORT.md), gồm checklist
 owner, cấu hình đang chạy và các mục chưa đủ bằng chứng; không coi source tests là Browser PASS.
 
+Nghiên cứu mô hình tiếp theo: [Trust Score và thiết kế thực nghiệm](../TRUST_SCORE_RESEARCH_AND_EXPERIMENT_PLAN.md).
+Thiết kế B1 đã được duyệt và triển khai/kiểm thử trong source, B0 vẫn mặc định;
+chưa deploy Docker hoặc tạo fixture A5/A6. Không thay thế kết quả Browser đã nghiệm thu.
+
 ## Runtime canonical hiện tại
 
 Dùng project `zerotrust-legacy-integration-20261026`, [hướng dẫn vận hành](operations/LEGACY_INTEGRATION.md)

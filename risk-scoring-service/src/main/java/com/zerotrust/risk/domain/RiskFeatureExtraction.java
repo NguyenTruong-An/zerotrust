@@ -9,10 +9,12 @@ public record RiskFeatureExtraction(
         RiskDataStatus dataStatus,
         List<RiskReason> reasons,
         Optional<RiskReason> priorityViolation,
-        Optional<RiskReason> mandatoryStepUpReason
+        Optional<RiskReason> mandatoryStepUpReason,
+        RiskFeatureEvidence evidence
 ) {
     public RiskFeatureExtraction {
         reasons = List.copyOf(reasons);
+        Objects.requireNonNull(evidence, "evidence must not be null");
         priorityViolation = Objects.requireNonNull(
                 priorityViolation,
                 "priorityViolation must not be null"
@@ -21,6 +23,13 @@ public record RiskFeatureExtraction(
                 mandatoryStepUpReason,
                 "mandatoryStepUpReason must not be null"
         );
+    }
+
+    public RiskFeatureExtraction(RiskFactors factors, RiskDataStatus dataStatus,
+                                 List<RiskReason> reasons, Optional<RiskReason> priorityViolation,
+                                 Optional<RiskReason> mandatoryStepUpReason) {
+        this(factors, dataStatus, reasons, priorityViolation, mandatoryStepUpReason,
+                RiskFeatureEvidence.notObserved());
     }
 
     public RiskFeatureExtraction(

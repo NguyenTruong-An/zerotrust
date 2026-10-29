@@ -20,6 +20,10 @@ import java.util.List;
 @Setter
 public class RiskPolicyProperties {
 
+    @NotNull
+    private com.zerotrust.risk.domain.RiskScoreModel model =
+            com.zerotrust.risk.domain.RiskScoreModel.BASELINE_B0;
+
     @Valid
     @NotNull
     private Weights weights = new Weights();

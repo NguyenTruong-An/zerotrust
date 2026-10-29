@@ -74,7 +74,7 @@ final class AuditRiskFixture {
                 return ipFailures;
             }
         };
-        return new AuthenticationHistoryRiskCalculator(store, authentication);
+        return new AuthenticationHistoryRiskCalculator(store, authentication, policy);
     }
 
     TemporalRiskCalculator temporalCalculator() {
@@ -83,7 +83,7 @@ final class AuditRiskFixture {
                     if (temporalUnavailable) throw new DataRetrievalFailureException("synthetic history outage");
                     return history;
                 }, "findRecentAuthenticationTimes");
-        return new TemporalRiskCalculator(repository, temporal);
+        return new TemporalRiskCalculator(repository, temporal, policy);
     }
 
     NetworkRiskCalculator networkCalculator() { return new NetworkRiskCalculator(network, geoIp); }
@@ -95,7 +95,11 @@ final class AuditRiskFixture {
 
     RiskEvaluation evaluate() {
         return new RiskEvaluationService(new PrioritySecurityRuleEvaluator(List.of()), extractor(),
-                new RiskScoringService(policy)).evaluate(context());
+                new RiskScoringService(policy), trace(line -> { })).evaluate(context());
+    }
+
+    com.zerotrust.risk.trace.RiskScoreTrace trace(java.util.function.Consumer<String> sink) {
+        return new com.zerotrust.risk.trace.RiskScoreTrace(policy, devices, network, temporal, authentication, sink);
     }
 
     @SuppressWarnings("unchecked")

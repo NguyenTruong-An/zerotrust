@@ -23,10 +23,7 @@ public class RiskEvaluationController {
     public RiskEvaluationResponse evaluate(@Valid @RequestBody RiskEvaluationRequest request) {
         var snapshot = deviceTrustLifecycle.snapshot(request.subjectId());
         RiskEvaluation evaluation = snapshot.resetPending()
-                ? new RiskEvaluation(java.util.UUID.randomUUID(), null,
-                com.zerotrust.risk.domain.RiskLevel.HIGH, com.zerotrust.risk.domain.RiskDecision.DENY,
-                com.zerotrust.risk.domain.RiskDataStatus.NOT_EVALUATED,
-                java.util.List.of(com.zerotrust.risk.domain.RiskReason.MFA_RESET_IN_PROGRESS), java.time.Instant.now())
+                ? riskEvaluationService.denyForPendingReset()
                 : riskEvaluationService.evaluate(request.toDomain(java.time.Instant.now()));
         return RiskEvaluationResponse.from(request, evaluation, snapshot.generation());
     }

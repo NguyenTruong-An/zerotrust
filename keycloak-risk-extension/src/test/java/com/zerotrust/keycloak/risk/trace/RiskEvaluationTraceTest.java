@@ -239,6 +239,47 @@ class RiskEvaluationTraceTest {
         return JsonSerialization.readValue(f.lines.get(index), Map.class);
     }
 
+    @ParameterizedTest
+    @EnumSource(RiskDecision.class)
+    void timingUsesExistingCorrelationAndNeverImpliesMfaCompletion(RiskDecision decision) throws Exception {
+        Fixture f = new Fixture();
+        var evaluation = evaluation(decision, BigDecimal.TEN, RiskDataStatus.COMPLETE);
+        new RiskDecisionHandler(f.trace).handle(f.context, evaluation);
+        f.trace.riskCallTiming(f.context, evaluation, 1_234_567L);
+        Map<?, ?> timing = row(f, 2);
+        assertEquals("RISK_CALL_TIMING", timing.get("stage"));
+        assertEquals("RISK_RESPONSE_RECEIVED", timing.get("outcome"));
+        assertEquals(row(f, 0).get("correlation_id"), timing.get("correlation_id"));
+        assertEquals(EVALUATION.toString(), timing.get("evaluation_id"));
+        assertEquals(Boolean.TRUE, timing.get("valid_risk_response"));
+        assertEquals(new BigDecimal("1.234567"), new BigDecimal(timing.get("risk_call_duration_ms").toString()));
+        assertFalse(String.join("", f.lines).contains("MFA_COMPLETED"));
+        assertEnforcement(f, decision);
+    }
+
+    @Test
+    void unavailableTimingHasNoEvaluationIdAndCannotChangeFailSafeDeny() throws Exception {
+        Fixture f = new Fixture();
+        new RiskDecisionHandler(f.trace).handleUnavailable(f.context, RiskFailureMode.DENY, "TIMEOUT");
+        f.trace.riskCallTiming(f.context, null, 10_000L);
+        Map<?, ?> timing = row(f, 2);
+        assertEquals("RISK_CALL_FAILED", timing.get("outcome"));
+        assertEquals(Boolean.FALSE, timing.get("valid_risk_response"));
+        assertNull(timing.get("evaluation_id"));
+        assertEquals(row(f, 0).get("correlation_id"), timing.get("correlation_id"));
+        verify(f.context, never()).success();
+        verify(f.context).failure(eq(AuthenticationFlowError.ACCESS_DENIED), any(), anyString(), anyString());
+    }
+
+    @Test
+    void timingLoggerFailureNeverChangesDeny() {
+        Fixture f = new Fixture(line -> { throw new IllegalStateException("sensitive-canary"); });
+        var evaluation = evaluation(RiskDecision.DENY, new BigDecimal("75"), RiskDataStatus.COMPLETE);
+        new RiskDecisionHandler(f.trace).handle(f.context, evaluation);
+        assertDoesNotThrow(() -> f.trace.riskCallTiming(f.context, evaluation, 100));
+        assertEnforcement(f, RiskDecision.DENY);
+    }
+
     private static RiskEvaluationResponse evaluation(RiskDecision decision, BigDecimal score, RiskDataStatus status) {
         return new RiskEvaluationResponse(EVALUATION, "subject-person-canary", "auth-session-secret-canary",
                 score, switch (decision) {

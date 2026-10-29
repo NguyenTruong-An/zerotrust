@@ -41,7 +41,7 @@ public final class RiskEvaluationTrace {
     public static final RiskEvaluationTrace DEFAULT = new RiskEvaluationTrace(
             line -> LOG.info("ZEROTRUST_RISK_TRACE " + line), randomKey(), Clock.systemUTC());
 
-    public enum Stage { RISK_EVALUATION, KEYCLOAK_ENFORCEMENT, MFA_GATE, MFA_FORM,
+    public enum Stage { RISK_EVALUATION, RISK_CALL_TIMING, KEYCLOAK_ENFORCEMENT, MFA_GATE, MFA_FORM,
         DEVICE_REGISTRATION, AUTHENTICATION_EVENT }
     public enum Outcome { EVALUATED, RISK_STEP_PASSED, STEP_UP_REQUIRED, ACCESS_DENIED,
         SERVICE_UNAVAILABLE_DENY, SERVICE_UNAVAILABLE_STEP_UP, MFA_SUBFLOW_SELECTED,
@@ -49,7 +49,8 @@ public final class RiskEvaluationTrace {
         MFA_INPUT_REJECTED, NOT_ELIGIBLE, ENROLLMENT_PENDING, REGISTERED_204,
         COOKIE_ISSUED, REGISTRATION_REJECTED, REGISTRATION_UNAVAILABLE,
         REGISTRATION_ERROR, LOGIN_SUCCESS, LOGIN_ERROR, SSO_COOKIE_LOGIN,
-        REFRESH_SUCCESS_NO_BROWSER_FLOW, REFRESH_ERROR_NO_BROWSER_FLOW }
+        REFRESH_SUCCESS_NO_BROWSER_FLOW, REFRESH_ERROR_NO_BROWSER_FLOW,
+        RISK_RESPONSE_RECEIVED, RISK_CALL_FAILED }
 
     private final Consumer<String> sink;
     private final byte[] key;
@@ -101,6 +102,20 @@ public final class RiskEvaluationTrace {
         safely(() -> {
             attachEvent(context);
             write(base(context.getAuthenticationSession(), clientId(context), stage, outcome));
+        });
+    }
+
+    /** Called after enforcement so the existing evaluation correlation is already established.
+     * This duration includes client creation/token acquisition/retries/validation, not human OTP.
+     */
+    public void riskCallTiming(AuthenticationFlowContext context, RiskEvaluationResponse evaluation, long nanos) {
+        safely(() -> {
+            Map<String, Object> row = base(context.getAuthenticationSession(), clientId(context),
+                    Stage.RISK_CALL_TIMING, evaluation == null ? Outcome.RISK_CALL_FAILED : Outcome.RISK_RESPONSE_RECEIVED);
+            row.put("evaluation_id", evaluation == null ? null : evaluation.evaluationId().toString());
+            row.put("valid_risk_response", evaluation != null);
+            row.put("risk_call_duration_ms", java.math.BigDecimal.valueOf(Math.max(0, nanos), 6));
+            write(row);
         });
     }
 

@@ -11,6 +11,7 @@ import com.zerotrust.keycloak.risk.dto.RiskDecision;
 import com.zerotrust.keycloak.risk.policy.RiskAuthenticationNotes;
 import com.zerotrust.keycloak.risk.policy.RiskDecisionHandler;
 import com.zerotrust.keycloak.risk.policy.RiskFailureMode;
+import com.zerotrust.keycloak.risk.trace.RiskEvaluationTrace;
 import org.jboss.logging.Logger;
 import org.keycloak.authentication.AuthenticationFlowContext;
 import org.keycloak.authentication.Authenticator;
@@ -28,6 +29,7 @@ public final class RiskAuthenticator implements Authenticator {
     private final RiskAuthenticatorConfigResolver configResolver;
     private final RiskScoringClientFactory clientFactory;
     private final RiskDecisionHandler decisionHandler;
+    private final RiskEvaluationTrace trace;
 
     public RiskAuthenticator(
             LoginContextExtractor contextExtractor,
@@ -35,6 +37,12 @@ public final class RiskAuthenticator implements Authenticator {
             RiskScoringClientFactory clientFactory,
             RiskDecisionHandler decisionHandler
     ) {
+        this(contextExtractor, configResolver, clientFactory, decisionHandler, RiskEvaluationTrace.DEFAULT);
+    }
+
+    public RiskAuthenticator(LoginContextExtractor contextExtractor, RiskAuthenticatorConfigResolver configResolver,
+                             RiskScoringClientFactory clientFactory, RiskDecisionHandler decisionHandler,
+                             RiskEvaluationTrace trace) {
         this.contextExtractor = Objects.requireNonNull(
                 contextExtractor,
                 "contextExtractor must not be null"
@@ -48,21 +56,27 @@ public final class RiskAuthenticator implements Authenticator {
                 decisionHandler,
                 "decisionHandler must not be null"
         );
+        this.trace = Objects.requireNonNull(trace, "trace must not be null");
     }
 
     @Override
     public void authenticate(AuthenticationFlowContext context) {
         RiskFailureMode failureMode = RiskFailureMode.DENY;
+        RiskEvaluationResponse received = null;
+        Long callNanos = null;
         try {
             RiskAuthenticatorConfig config = configResolver.resolve(context.getAuthenticatorConfig());
             failureMode = config.failureMode();
 
             RiskEvaluationRequest request = contextExtractor.extract(context);
-            RiskEvaluationResponse evaluation = clientFactory
-                    .create(config)
-                    .evaluate(request);
-            decisionHandler.handle(context, evaluation);
-            rememberEvaluatorConfig(context, evaluation);
+            long started = System.nanoTime();
+            try {
+                received = clientFactory.create(config).evaluate(request);
+            } finally {
+                callNanos = System.nanoTime() - started;
+            }
+            decisionHandler.handle(context, received);
+            rememberEvaluatorConfig(context, received);
         } catch (RiskScoringClientException exception) {
             LOGGER.warnf(
                     "Risk Scoring Service call failed: type=%s, status=%d",
@@ -81,6 +95,8 @@ public final class RiskAuthenticator implements Authenticator {
                     RiskFailureMode.DENY,
                     "INTERNAL_ERROR"
             );
+        } finally {
+            if (callNanos != null) trace.riskCallTiming(context, received, callNanos);
         }
     }
 

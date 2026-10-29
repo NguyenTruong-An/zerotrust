@@ -39,7 +39,7 @@ class TemporalRiskCalculatorTests {
 
     @BeforeEach
     void setUp() {
-        calculator = new TemporalRiskCalculator(eventRepository, properties());
+        calculator = new TemporalRiskCalculator(eventRepository, properties(), new com.zerotrust.risk.config.RiskPolicyProperties());
         context = contextAt(EVALUATION_TIME);
     }
 
@@ -133,7 +133,7 @@ class TemporalRiskCalculatorTests {
     void buildsTheBaselineInTheConfiguredTimeZone() {
         TemporalRiskProperties localProperties = properties();
         localProperties.setZoneId(ZoneId.of("Asia/Ho_Chi_Minh"));
-        calculator = new TemporalRiskCalculator(eventRepository, localProperties);
+        calculator = new TemporalRiskCalculator(eventRepository, localProperties, new com.zerotrust.risk.config.RiskPolicyProperties());
         LoginContext localContext = contextAt(Instant.parse("2026-09-21T00:30:00Z"));
         historyFor(localContext, List.of(
                 "2026-09-13T23:30:00Z",

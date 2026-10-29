@@ -1,6 +1,8 @@
 package com.zerotrust.risk.service;
 
 import com.zerotrust.risk.config.TemporalRiskProperties;
+import com.zerotrust.risk.config.RiskPolicyProperties;
+import com.zerotrust.risk.domain.RiskScoreModel;
 import com.zerotrust.risk.domain.LoginContext;
 import com.zerotrust.risk.domain.TemporalRiskAssessment;
 import com.zerotrust.risk.repository.AuthenticationSuccessEventRepository;
@@ -26,6 +28,7 @@ public class TemporalRiskCalculator {
 
     private final AuthenticationSuccessEventRepository eventRepository;
     private final TemporalRiskProperties properties;
+    private final RiskPolicyProperties policy;
 
     public TemporalRiskAssessment calculate(LoginContext context) {
         Objects.requireNonNull(context, "context must not be null");
@@ -65,6 +68,12 @@ public class TemporalRiskCalculator {
                         current.getHour()
                 ) <= properties.getHourTolerance())
                 .count();
+
+        if (policy.getModel() == RiskScoreModel.CONTINUOUS_B1) {
+            return TemporalRiskAssessment.available(BehavioralRiskNormalizer.temporalRisk(
+                    matchingDays, matchingHours, history.size(),
+                    properties.getMinimumDayFrequency(), properties.getMinimumHourFrequency()));
+        }
 
         boolean unusualDay = isBelowMinimumFrequency(
                 matchingDays, history.size(), properties.getMinimumDayFrequency());

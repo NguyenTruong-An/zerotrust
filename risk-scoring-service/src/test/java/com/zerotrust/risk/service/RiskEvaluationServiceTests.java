@@ -145,7 +145,8 @@ class RiskEvaluationServiceTests {
         return new RiskEvaluationService(
                 new PrioritySecurityRuleEvaluator(rules),
                 extractor,
-                new RiskScoringService(policy)
+                new RiskScoringService(policy),
+                org.mockito.Mockito.mock(com.zerotrust.risk.trace.RiskScoreTrace.class)
         );
     }
 

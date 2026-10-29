@@ -127,7 +127,7 @@ class RedisAuthenticationFailureStoreTests {
         when(redisTemplate.opsForValue()).thenReturn(valueOperations);
         when(valueOperations.get(any(String.class))).thenReturn(value);
         AuthenticationHistoryRiskCalculator calculator = new AuthenticationHistoryRiskCalculator(
-                store, new AuthenticationHistoryRiskProperties());
+                store, new AuthenticationHistoryRiskProperties(), new com.zerotrust.risk.config.RiskPolicyProperties());
         LoginContext context = new LoginContext("subject-1", "session-1", "client-1",
                 "203.0.113.10", "test-agent", "device-1", Instant.parse("2026-10-07T00:00:00Z"));
 
@@ -139,7 +139,7 @@ class RedisAuthenticationFailureStoreTests {
         when(redisTemplate.opsForValue()).thenReturn(valueOperations);
         when(valueOperations.get(any(String.class))).thenReturn("0", "invalid");
         AuthenticationHistoryRiskCalculator calculator = new AuthenticationHistoryRiskCalculator(
-                store, new AuthenticationHistoryRiskProperties());
+                store, new AuthenticationHistoryRiskProperties(), new com.zerotrust.risk.config.RiskPolicyProperties());
         LoginContext context = new LoginContext("subject-1", "session-1", "client-1",
                 "203.0.113.10", "test-agent", "device-1", Instant.parse("2026-10-07T00:00:00Z"));
 

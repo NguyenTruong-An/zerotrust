@@ -25,6 +25,7 @@ import java.time.Duration;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.junit.jupiter.api.Assertions.*;
 
 class RiskAuthenticatorTest {
 
@@ -62,6 +63,38 @@ class RiskAuthenticatorTest {
                 RiskFailureMode.STEP_UP_MFA,
                 "TIMEOUT"
         );
+    }
+
+    @Test
+    void authenticatorEmitsClientCallTimingOnARealEvaluateInvocation() {
+        Fixture fixture = new Fixture();
+        RiskEvaluationResponse evaluation = mock(RiskEvaluationResponse.class);
+        when(evaluation.evaluationId()).thenReturn(java.util.UUID.fromString("5267b997-7d7e-4b0d-9da9-5bc1e98c05e0"));
+        when(evaluation.decision()).thenReturn(RiskDecision.ALLOW);
+        when(fixture.client.evaluate(fixture.request)).thenReturn(evaluation);
+        java.util.List<String> lines = new java.util.ArrayList<>();
+        var trace = new com.zerotrust.keycloak.risk.trace.RiskEvaluationTrace(lines::add, new byte[32], java.time.Clock.systemUTC());
+        var authenticator = new RiskAuthenticator(fixture.contextExtractor, fixture.configResolver,
+                fixture.clientFactory, fixture.decisionHandler, trace);
+        authenticator.authenticate(fixture.context);
+        verify(fixture.decisionHandler).handle(fixture.context, evaluation);
+        assertEquals(1, lines.size());
+        assertTrue(lines.get(0).contains("risk_call_duration_ms"));
+        assertTrue(lines.get(0).contains("RISK_RESPONSE_RECEIVED"));
+        assertFalse(lines.get(0).contains("device-123"));
+    }
+
+    @Test
+    void configurationErrorBeforeCallingRiskDoesNotInventCallTiming() {
+        Fixture fixture = new Fixture();
+        when(fixture.configResolver.resolve(fixture.authenticatorConfig)).thenThrow(new IllegalArgumentException("canary"));
+        java.util.List<String> lines = new java.util.ArrayList<>();
+        var trace = new com.zerotrust.keycloak.risk.trace.RiskEvaluationTrace(lines::add, new byte[32], java.time.Clock.systemUTC());
+        new RiskAuthenticator(fixture.contextExtractor, fixture.configResolver, fixture.clientFactory,
+                fixture.decisionHandler, trace).authenticate(fixture.context);
+        verify(fixture.decisionHandler).handleUnavailable(fixture.context, RiskFailureMode.DENY, "INTERNAL_ERROR");
+        assertTrue(lines.isEmpty());
+        org.mockito.Mockito.verifyNoInteractions(fixture.client);
     }
 
     private static final class Fixture {

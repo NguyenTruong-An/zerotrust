@@ -30,6 +30,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Transactional
 class RiskEvaluationControllerTests {
 
+    // Hermetic MVC test: never attempt a connection to the developer's Redis.
+    @org.springframework.test.context.bean.override.mockito.MockitoBean
+    private com.zerotrust.risk.repository.AuthenticationFailureStore failureStore;
+
     @Autowired
     private MockMvc mockMvc;
 

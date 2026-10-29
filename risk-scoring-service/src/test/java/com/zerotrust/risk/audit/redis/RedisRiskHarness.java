@@ -35,7 +35,8 @@ final class RedisRiskHarness {
         policy.getWeights().setTemporal(new BigDecimal("0.25")); policy.getWeights().setAuthenticationHistory(new BigDecimal("0.25"));
         policy.getThresholds().setMediumMinimum(new BigDecimal("40")); policy.getThresholds().setHighMinimum(new BigDecimal("75"));
         var extractor = new DatabaseBackedRiskFeatureExtractor(device, devicePolicy,
-                new AuthenticationHistoryRiskCalculator(store, RedisAuditSupport.thresholds()), temporal, network);
-        return new RiskEvaluationService(new PrioritySecurityRuleEvaluator(List.of()), extractor, new RiskScoringService(policy)).evaluate(context());
+                new AuthenticationHistoryRiskCalculator(store, RedisAuditSupport.thresholds(), policy), temporal, network);
+        return new RiskEvaluationService(new PrioritySecurityRuleEvaluator(List.of()), extractor, new RiskScoringService(policy),
+                mock(com.zerotrust.risk.trace.RiskScoreTrace.class)).evaluate(context());
     }
 }

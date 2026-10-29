@@ -10,6 +10,7 @@ import com.zerotrust.risk.domain.NetworkRiskUnavailableReason;
 import com.zerotrust.risk.domain.RiskDataStatus;
 import com.zerotrust.risk.domain.RiskFactors;
 import com.zerotrust.risk.domain.RiskFeatureExtraction;
+import com.zerotrust.risk.domain.RiskFeatureEvidence;
 import com.zerotrust.risk.domain.RiskReason;
 import com.zerotrust.risk.domain.TemporalProfileStatus;
 import com.zerotrust.risk.domain.TemporalRiskAssessment;
@@ -145,7 +146,19 @@ public class DatabaseBackedRiskFeatureExtractor implements RiskFeatureExtractor 
                 complete ? RiskDataStatus.COMPLETE : RiskDataStatus.INCOMPLETE,
                 reasons,
                 priorityViolation,
-                mandatoryStepUpReason
+                mandatoryStepUpReason,
+                new RiskFeatureEvidence(
+                        RiskFeatureEvidence.Status.AVAILABLE,
+                        networkAssessment.status() == NetworkRiskStatus.AVAILABLE
+                                ? RiskFeatureEvidence.Status.AVAILABLE : RiskFeatureEvidence.Status.UNAVAILABLE,
+                        switch (temporalAssessment.status()) {
+                            case AVAILABLE -> RiskFeatureEvidence.Status.AVAILABLE;
+                            case COLD_START -> RiskFeatureEvidence.Status.COLD_START;
+                            case UNAVAILABLE -> RiskFeatureEvidence.Status.UNAVAILABLE;
+                        },
+                        authenticationHistoryAssessment.isPresent()
+                                ? RiskFeatureEvidence.Status.AVAILABLE : RiskFeatureEvidence.Status.UNAVAILABLE,
+                        device.status(), networkAssessment.source())
         );
     }
 }

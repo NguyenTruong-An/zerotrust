@@ -29,7 +29,7 @@ class AuthenticationHistoryRiskCalculatorTests {
 
     @BeforeEach
     void setUp() {
-        calculator = new AuthenticationHistoryRiskCalculator(failureStore, properties());
+        calculator = new AuthenticationHistoryRiskCalculator(failureStore, properties(), new com.zerotrust.risk.config.RiskPolicyProperties());
         context = new LoginContext(
                 "subject-1",
                 "authentication-session-id",
