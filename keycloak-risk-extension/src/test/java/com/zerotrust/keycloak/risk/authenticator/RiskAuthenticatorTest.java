@@ -15,6 +15,11 @@ import com.zerotrust.keycloak.risk.policy.RiskAuthenticationNotes;
 import com.zerotrust.keycloak.risk.policy.RiskDecisionHandler;
 import com.zerotrust.keycloak.risk.policy.RiskFailureMode;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
+import org.keycloak.authentication.AuthenticationFlowError;
+import org.keycloak.forms.login.LoginFormsProvider;
+import jakarta.ws.rs.core.Response;
 import org.keycloak.authentication.AuthenticationFlowContext;
 import org.keycloak.models.AuthenticatorConfigModel;
 import org.keycloak.sessions.AuthenticationSessionModel;
@@ -95,6 +100,39 @@ class RiskAuthenticatorTest {
         verify(fixture.decisionHandler).handleUnavailable(fixture.context, RiskFailureMode.DENY, "INTERNAL_ERROR");
         assertTrue(lines.isEmpty());
         org.mockito.Mockito.verifyNoInteractions(fixture.client);
+    }
+
+    @ParameterizedTest
+    @EnumSource(RiskScoringClientException.FailureType.class)
+    void actualHandlerFailsClosedForEachRiskClientFailure(RiskScoringClientException.FailureType failureType) {
+        Fixture fixture = new Fixture();
+        RiskScoringClientException failure = mock(RiskScoringClientException.class);
+        when(failure.failureType()).thenReturn(failureType);
+        when(failure.statusCode()).thenReturn(-1);
+        when(fixture.client.evaluate(fixture.request)).thenThrow(failure);
+        LoginFormsProvider forms = mock(LoginFormsProvider.class);
+        Response forbidden = mock(Response.class);
+        when(fixture.context.form()).thenReturn(forms);
+        when(forms.setError("accessDenied")).thenReturn(forms);
+        when(forms.createErrorPage(Response.Status.FORBIDDEN)).thenReturn(forbidden);
+        java.util.List<String> lines = new java.util.ArrayList<>();
+        var trace = new com.zerotrust.keycloak.risk.trace.RiskEvaluationTrace(
+                lines::add, new byte[32], java.time.Clock.systemUTC());
+
+        // Exercise the real authenticator -> real policy handler, without stopping a service.
+        new RiskAuthenticator(fixture.contextExtractor, fixture.configResolver, fixture.clientFactory,
+                new RiskDecisionHandler(trace), trace).authenticate(fixture.context);
+
+        verify(fixture.context).failure(AuthenticationFlowError.ACCESS_DENIED, forbidden,
+                "risk_policy_denied", "accessDenied");
+        verify(fixture.context, org.mockito.Mockito.never()).success();
+        verify(fixture.authenticationSession).setAuthNote(RiskAuthenticationNotes.DECISION, "DENY");
+        verify(fixture.authenticationSession, org.mockito.Mockito.never()).setAuthNote(
+                RiskAuthenticationNotes.TRUST_DEVICE_ELIGIBLE, "true");
+        verify(fixture.authenticationSession, org.mockito.Mockito.never()).setAuthNote(
+                RiskAuthenticationNotes.STEP_UP_REQUIRED, "true");
+        assertTrue(lines.stream().anyMatch(line -> line.contains("SERVICE_UNAVAILABLE_DENY")));
+        assertFalse(lines.stream().anyMatch(line -> line.contains("MFA_COMPLETED") || line.contains("LOGIN_SUCCESS")));
     }
 
     private static final class Fixture {

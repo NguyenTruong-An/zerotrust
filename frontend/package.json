@@ -12,6 +12,7 @@
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "typecheck": "tsc --noEmit --incremental false",
     "test:student-scores": "node --test tests/student-score-dashboard.test.mjs",
+    "test:portal-route": "node --test tests/portal-route.test.mjs",
     "check": "npm run lint && npm run typecheck"
   },
   "dependencies": {

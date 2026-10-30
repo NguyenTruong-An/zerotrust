@@ -359,3 +359,56 @@ của container đã build không sửa bundle hiện có. Cần build lại đ�
 kiểm tra compiled chunks và giữ rollback image trước khi duyệt recreate.
 Sau đổi image, người dùng reload trang để lấy bundle mới; không sửa credentials,
 CORS hoặc RBAC nhằm làm một API origin sai trở thành hợp lệ.
+
+## Demo bảo vệ — checklist canonical hiện có (30/10/2026)
+
+Kết quả nghiệm thu cuối nằm trong
+[báo cáo tổng hợp](../../ZEROTRUST_FINAL_CONSOLIDATION_REPORT.md#final-system-acceptance--demo-readiness--30102026).
+B0 là mô hình runtime; B1 chỉ là ứng viên nghiên cứu đã lưu source, chưa deploy
+và chưa có bằng chứng tốt hơn. Source sửa Logout cần phê duyệt deployment và
+Browser/session retest; không coi local build là runtime đã cập nhật.
+
+1. Mở Docker Desktop, chờ Engine sẵn sàng. Trong PowerShell:
+
+   ```powershell
+   Set-Location 'C:\Users\DELL\Documents\zerotrust\zerotrust'
+   python -X utf8 scripts/legacy/operate.py status
+   # Chỉ khi các canonical containers hiện có đang stopped:
+   python -X utf8 scripts/legacy/operate.py start
+   ```
+
+   Cần10/10 healthy. Helper chỉ start các container đã có; nếu thiếu/sai owner,
+   dừng và điều tra, không tạo project khác, chạy init/import hay compose down -v.
+
+2. Kiểm tra HTTPS/CRL bằng quy trình bảo trì ở trên và native Schannel Portal/
+   Discovery. Hạn hiện tại06/11/2026 09:30:48 GMT+7; chuẩn bị gia hạn từ04/11/2026
+   09:30:48 GMT+7. Không vượt cảnh báo HTTPS, tắt revocation hoặc tự thêm CA.
+3. Vào `https://localhost:28443/`, tự login ADMIN và OTP khi được yêu cầu.
+   Mở quản lý tài khoản/sinh viên/lớp/môn/điểm, lọc và xem điểm. Dữ liệu gốc chỉ
+   đọc, không bấm Lưu/Xóa/Reset MFA. CRUD được minh họa bằng kết quả integration
+   tests H2 riêng; muốn demo ghi thật cần fixture/ownership/rollback được duyệt.
+4. Nhấn Đăng xuất một lần, hoàn tất xác nhận tại Keycloak nếu có; về màn hình
+   login, mở lại protected route để kiểm tra không tự trở lại dữ liệu. Nếu vẫn
+   còn phiên, ghi thời điểm và tên/status logout request, không copy query,
+   cookies/token. Chưa tuyên bố logout PASS chỉ vì giao diện quay về root.
+5. Login STUDENT hiện có, tự nhập OTP nếu yêu cầu. Xem hồ sơ/bảng điểm chính mình,
+   lọc/Đặt lại; giải thích subject mapping và quyền read-only. Màn hình ADMIN
+   không render cho STUDENT; backend/gateway vẫn là nơi quyết định truy cập.
+6. Minh họa Adaptive bằng trace đã lọc, không mở raw private evidence khi chiếu:
+   A1 LOW25/ALLOW; A2 trusted12.5/ALLOW; A3 mandatory guard32.5/MFA;
+   A4 priority HIGH/DENY score-null; A5 scored MEDIUM50/MFA;
+   A6 scored HIGH82.5/DENY. Đối chiếu evaluation/correlation, decision source,
+   enforcement và outcome; không suy MEDIUM từ OTP. Không tạo lại A5/A6,
+   revoke device hoặc cố gây thất bại đăng nhập chỉ để demo.
+7. Giải thích B0 có bốn nhóm25%, ngưỡng40/75; mandatory/priority và fail-safe
+   độc lập điểm. B1 làm mịn Temporal/History, giữ default B0 và chưa deploy.
+   Dữ liệu nghiên cứu là synthetic/controlled, không gọi là dữ liệu tấn công
+   thực hay Accuracy/FPR/FNR. Trình bày decision differences và giới hạn nhãn
+   từ báo cáo nghiên cứu, không chỉ chọn kết quả thuận lợi.
+8. Kết thúc: logout người dùng, lưu kết quả đã lọc. Nếu cần dừng hệ thống:
+
+   ```powershell
+   python -X utf8 scripts/legacy/operate.py stop
+   ```
+
+   Không xóa containers/volumes/backups hoặc dùng source archive thay canonical.

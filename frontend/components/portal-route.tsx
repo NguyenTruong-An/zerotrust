@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   ArrowRight,
@@ -22,7 +22,7 @@ type Identity = {
   roles: string[];
 };
 
-type AccessState = 'checking' | 'admin' | 'student' | 'unauthenticated' | 'forbidden' | 'offline';
+type AccessState = 'checking' | 'admin' | 'student' | 'unauthenticated' | 'forbidden' | 'offline' | 'logout-error';
 type PortalArea = 'root' | 'admin' | 'student';
 
 const ADMIN_PATH_VIEWS = Object.fromEntries(
@@ -106,6 +106,7 @@ export function PortalRoute({ area }: { area: PortalArea }) {
   const router = useRouter();
   const [accessState, setAccessState] = useState<AccessState>('checking');
   const [identity, setIdentity] = useState<Identity | null>(null);
+  const logoutAttempt = useRef<'idle' | 'pending' | 'failed'>('idle');
   const adminView = useMemo(() => ADMIN_PATH_VIEWS[pathname], [pathname]);
 
   useEffect(() => {
@@ -115,8 +116,12 @@ export function PortalRoute({ area }: { area: PortalArea }) {
         const authenticated = await initializeKeycloak();
         if (!active) return;
         const keycloak = getKeycloak();
-        keycloak.onAuthLogout = () => active && setAccessState('unauthenticated');
-        keycloak.onAuthRefreshError = () => active && setAccessState('unauthenticated');
+        // A root redirect here could cancel an in-flight IdP end-session navigation.
+        const sessionEnded = () => {
+          if (active && logoutAttempt.current === 'idle') setAccessState('unauthenticated');
+        };
+        keycloak.onAuthLogout = sessionEnded;
+        keycloak.onAuthRefreshError = sessionEnded;
         if (!authenticated) { setAccessState('unauthenticated'); return; }
 
         const loggedInIdentity = currentIdentity();
@@ -160,6 +165,7 @@ export function PortalRoute({ area }: { area: PortalArea }) {
   }, [accessState, adminView, area, router]);
 
   const authenticationExpired = useCallback(() => {
+    if (logoutAttempt.current !== 'idle') return;
     getKeycloak().clearToken();
     window.location.replace('/');
   }, []);
@@ -170,13 +176,25 @@ export function PortalRoute({ area }: { area: PortalArea }) {
     });
   }, []);
   const logout = useCallback(() => {
+    if (logoutAttempt.current === 'pending') return;
+    logoutAttempt.current = 'pending';
     setAccessState('checking');
     void getKeycloak().logout({ redirectUri: appRedirectUri() }).catch(() => {
-      getKeycloak().clearToken();
-      window.location.replace('/');
+      logoutAttempt.current = 'failed';
+      setAccessState('logout-error');
     });
   }, []);
 
+  if (accessState === 'logout-error') {
+    return (
+      <main className="access-page" role="alert"><div className="access-dialog">
+        <span className="access-mark"><LogOut aria-hidden="true" size={23} /></span>
+        <h1>Đăng xuất chưa hoàn tất</h1>
+        <p>Chưa xác nhận được phiên đăng nhập tại Keycloak đã kết thúc. Hãy thử đăng xuất lại.</p>
+        <button className="login-button" onClick={logout} type="button">Thử đăng xuất lại <LogOut aria-hidden="true" size={18} /></button>
+      </div></main>
+    );
+  }
   if (accessState === 'checking') return <AuthLoading />;
   if (accessState === 'unauthenticated') return area === 'root' ? <LoginScreen onLogin={login} /> : <AuthLoading />;
   if (accessState === 'offline') return <LoginScreen identityUnavailable onLogin={login} />;

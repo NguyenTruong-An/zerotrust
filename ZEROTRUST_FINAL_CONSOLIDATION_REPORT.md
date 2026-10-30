@@ -1170,3 +1170,163 @@ không tùy chọn bỏ xác minh. Source production và tests cũ không đổi
 research mới,2 SVG và4 docs trong allowlist checkpoint. Không thấy secrets khi
 đối chiếu kín21 runtime values và các mẫu đã kiểm tra. Raw artifacts/private TLS/
 evidence/plot cache không vào Git; hai cập nhật CRL trước đó được bảo toàn.
+
+## Final System Acceptance & Demo Readiness — 30/10/2026
+
+### Phạm vi và baseline
+
+Nghiệm thu này tiếp tục trên một canonical source/project, không lặp A1–A6,
+21 RBAC/ownership checks, các regression suites cũ hoặc tạo fixture trên runtime.
+Đầu nhiệm vụ: branch `zerotrust-v4-risk-scoring`, HEAD và remote cùng
+`8f4e61b94394d3ddada4b2427fb09b165656bdb4`, working tree sạch, ahead/behind0/0.
+`40fea6a` (B1 source), `38394f6` và nghiên cứu `8f4e61b` đã push; B1 chưa deploy.
+
+Baseline riêng tư 12:40:10 GMT+7: canonical project
+`zerotrust-legacy-integration-20261026`, 10/10 healthy; School49 business rows,
+23 scores/6 UUID mappings; Risk93 authentication-success rows/18 devices/8 subject
+states/3 revocations/FlywayV1–V5; Redis0 keys. Fingerprints24 tables/schema,
+runtime files, container IDs/images/mounts/restarts được giữ để hậu kiểm.
+Không đưa rowsets, thông tin cá nhân, session identifiers hoặc TLS material vào Git.
+
+### Functional acceptance matrix
+
+| Tiêu chí | Bằng chứng thực thi và giới hạn |
+|---|---|
+| ADMIN login/OTP và đọc users/students/classes/subjects/scores | **PASS** — tái sử dụng browser/helper5/5 đã lưu. Token ADMIN thực có cả STUDENT; không dùng nó để chứng minh trường hợp ADMIN-only bị từ chối Student API |
+| STUDENT profile/scores/summary, chặn ADMIN và đổi chủ sở hữu | **PASS** — tái sử dụng16 checks trên hai STUDENT thật; 6/4 score rows đúng subject. Không chạy lại |
+| UI STUDENT không render ADMIN | **PASS — test source mới**: PortalRoute thật + React/JSDOM; chuyển về Student route, không mount Admin view. Không gọi đây là Browser acceptance mới |
+| UI ADMIN-only và không có business role | **PASS — test source mới**: ADMIN-only render đúng; identity không business role không render protected views |
+| CRUD score, validation và lưu trữ | **PASS — test tích hợp H2/MockMvc mới**: HTTP201 → duplicate400 → invalid score400 không đổi giá trị → PATCH200 tính tổng8.7 → DELETE204; controller/security/service/JPA thật, không mock service nghiệp vụ |
+| Ownership sau cập nhật điểm | **PASS — H2/MockMvc mới**: owner đọc đúng điểm đã sửa, STUDENT khác không lấy được bằng studentId query; STUDENT DELETE403 không xóa row. Bổ sung chuỗi persisted workflow, không thay21 checks live đã PASS |
+| Class/subject create/delete và class đang sử dụng | **PASS — H2/MockMvc mới**: tạo/xóa resources riêng; lớp có sinh viên trả409 và sinh viên còn nguyên |
+| Student create/update, batch scores, validation/error contracts | **PASS — tests cũ được tái sử dụng**: AdminControllerSecurityTest và service tests trong baseline Portal324; IdP integration được mock. Không tạo tài khoản thật hoặc sửa hồ sơ gốc |
+| Cập nhật điểm đồng thời | **PASS — H2 service concurrency test và MVC exception-mapping cũ**: hai transactions tranh cùng version, write đầu giữ nguyên, write sau conflict409. Không kiểm chứng MySQL live mới; API không có If-Match/version precondition từ form nên không bảo đảm phát hiện mọi stale form gửi tuần tự |
+| CRUD qua Browser/database canonical | **NOT VERIFIED** — không tự sửa49 records gốc hoặc tạo fixture thật. Demo mặc định chỉ đọc; không biến H2 PASS thành live-write PASS |
+| Teacher/Scheduling | **PASS — evidence cũ**: source/route removal và endpoint404 đã nghiệm thu; không bổ sung lại |
+
+API chỉ được nghiệm thu theo hợp đồng thật: class/subject có create/list/delete;
+student có create/list/detail/update; scores có create/list/update/delete và batch.
+Không có generic account create/delete hoặc student DELETE endpoint để tự hứa demo.
+MFA reset thuộc API hiện có nhưng không thực thi trên tài khoản gốc trong nhiệm vụ này.
+
+### Security acceptance matrix
+
+| Tiêu chí | Kết quả và loại bằng chứng |
+|---|---|
+| Negative RBAC/cross-user ownership live | **PASS** —21 kết quả đã lưu; không coi401 thiếu token là thay thế cho những phiên này |
+| ADMIN-only authorization | **PASS — source tests**: method/filter security và PortalRoute; pure ADMIN negative với STUDENT endpoint đã có test. **NOT VERIFIED — live** với account chỉ ADMIN, không thay roles để ép case |
+| Gateway/Backend authorization consistency | **PASS — tests cũ**: Gateway20 và Portal security/decoder tests; cả hai xác minh JWT/issuer/audience/expiry và role. Backend tiếp tục kiểm quyền, Student owner lấy từ mapped subject |
+| Chữ ký JWT không hợp lệ | **PASS — test decoder mới**: key khác nhưng cùng kid vẫn bị production Nimbus decoder từ chối; RSA/JWKS chỉ trên loopback fixture, không gửi token tự ký tới runtime |
+| Expired/missing-exp/wrong issuer/audience/nbf | **PASS — tests cũ được tái sử dụng**: PortalJwtDecoderTest và GatewaySecurityTests. Không tạo token giả cho hệ thống thật |
+| Risk unavailable, failureMode DENY | **PASS —6 tests cô lập mới**: real RiskAuthenticator → real RiskDecisionHandler với serialization/connection/timeout/interrupted/HTTP/invalid-response failures; ACCESS_DENIED403, không success/step-up/trust eligibility. Trace không khai báo MFA_COMPLETED/LOGIN_SUCCESS |
+| Risk unavailable Browser/canonical outage | **NOT VERIFIED** — không dừng Risk, không đổi failureMode/realm/flow. Test cô lập không thay thế outage Browser evidence |
+| LOW/MFA/DENY/Trusted Device/cold-start | **PASS — A1–A6 cũ**: gồm score-threshold A5=50/MFA, A6=82.5/DENY và priority A4 score-null; không chạy lại hoặc tạo lại fixture |
+| HTTPS/CRL | **PASS — read-only12:53:32 GMT+7**: native Schannel Portal/Discovery200, không cacert override/no-revoke/insecure; public material check xác minh chain/SAN/EKU/chữ ký/thời hạn/thu hồi với0 writes. Java HTTPS4/4 có revocation đã PASS khi bảo trì CRL, được tái sử dụng vì mọi TLS/config hashes không đổi |
+
+Không thay đổi thuật toán, weights0.25 mỗi nhóm, ngưỡng40/75, mandatory/priority
+rules, MFA/trust semantics hoặc Browser Flow. Risk image B0 giữ
+`167274d5b40404e0bb47d763c2e322d5a8ae3c8d2722691d661f66419f2e60ee`;
+source B1 vẫn opt-in với default BASELINE_B0. Không tuyên bố B1 tốt hơn từ dữ liệu tổng hợp.
+
+### Logout/session: phát hiện, sửa và giới hạn
+
+**Quan sát lịch sử:** A6 setup báo Portal Logout nhưng Admin session readback còn1
+session lúc01:01:40 GMT+7; test subject đã được cleanup trong nghiệm thu trước.
+Không còn đủ network/logout-event evidence để kết luận nguyên nhân lịch sử.
+
+**Implementation thực tế:** keycloak-js26.2.4 dùng GET end-session navigation,
+client_id/post_logout_redirect_uri và id_token_hint khi còn ID token. Promise
+logout resolve sau khi bắt đầu navigation, không phải ACK session đã bị xóa.
+Portal cũ có gọi Keycloak logout, không phải chỉ xóa token cục bộ.
+GET navigation cũng không trả HTTP ACK cho JavaScript; một lỗi tải trang IdP sau
+khi navigation đã bắt đầu cần được quan sát ở Browser, không hứa catch bắt mọi lỗi mạng.
+Resource servers xác minh JWT stateless: logout kết thúc SSO/refresh session nhưng
+không hứa mọi access token đã cấp bị vô hiệu tức thì trước expiry. Không đổi
+token lifetime/revocation policy trong nhiệm vụ này.
+
+**FAIL trước sửa — hai cơ chế được tái hiện bằng component thật:**
+
+1. Callback onAuthRefreshError/onAuthLogout trong lúc logout có thể chuyển root,
+   cạnh tranh với navigation tới IdP end-session.
+2. Khi logout reject, handler cũ xóa token và chuyển root im lặng, có thể khởi động
+   check-sso lại dù chưa xác nhận logout ở IdP.
+
+Không suy hai cơ chế này chắc chắn đã xảy ra tại A6. Bản sửa tối thiểu trong
+`frontend/components/portal-route.tsx` đánh dấu logout pending/failed, chặn callback
+hoặc request cũ chuyển root khi đang logout, chặn bấm trùng, hiện lỗi chung với
+nút thử lại khi logout reject. Không xóa id_token_hint trước end-session/retry,
+không render protected views khi pending/failed, không log chi tiết lỗi/tokens.
+Không tự gán trạng thái server logout thành công từ promise resolve.
+
+**PASS — source regression9/9.** Trước sửa4/6 PASS và2 FAIL được lưu riêng;
+sau sửa thêm stale-request/duplicate-click và case expiry khi không logout,
+9/9 PASS, không skip; session hết hạn vẫn clear token và chuyển login bình thường.
+**NOT VERIFIED — L1 Browser/session:** đã gửi một checklist user tự login STUDENT A,
+quan sát logout request/status, logout một lần, mở lại protected route và không
+login lại. Snapshot trước12:41:45 có0 session; không thể gọi đây là1→0 evidence.
+Chờ kết quả user để đối chiếu scoped session readback; không tự nhập password/OTP.
+
+### Tests mới và deployment
+
+| Kiểm tra | Kết quả30/10/2026 |
+|---|---|
+| PortalRoute React/JSDOM regression | **PASS9/9**, actual component/hooks, mock các boundary navigation/Keycloak/business view |
+| SchoolPortalPersistenceAcceptanceTest | **PASS2/2**, H2 riêng, transactions rollback; verify không gọi IdentityProviderGateway/RiskDeviceAdminClient |
+| PortalJwtDecoderTest#rejectsDifferentSigningKeyEvenWhenTheKeyIdMatches | **PASS1/1**, production decoder và loopback JWKS |
+| RiskAuthenticatorTest#actualHandlerFailsClosedForEachRiskClientFailure | **PASS6/6**, real enforcement handler; không network/outage thật |
+| Frontend lint/typecheck/production build | **PASS**, lint0 errors và1 warning có sẵn tại postcss.config.mjs; Next build10 static pages. Node24.16.0, Java17 |
+
+Tổng18 tests mục tiêu mới PASS; không chạy lại toàn bộ Portal/Risk/SPI/Gateway
+suite hoặc A1–A6/RBAC. Test logs chứa dữ liệu tổng hợp được giữ riêng; source/test
+files đưa Git không chứa runtime secrets. Không sửa production Java/scoring.
+
+**Deployment: BLOCKED chờ phê duyệt build/recreate riêng Frontend.** Source sửa đã
+build local thành công; runtime vẫn image Frontend
+`ca0f65adff310127d0d0a8b1d92ec049d7131ccef94d8a4f61de44b20ccf6a4e` trước sửa Logout.
+Đề nghị build đúng canonical Compose context, giữ image này bằng rollback reference,
+thay riêng Frontend `--no-deps`; chín containers khác cùng data volumes/TLS/OTP/
+signing/realm/policy giữ nguyên. Image mới chỉ được ghi nhận sau build được duyệt.
+Rủi ro: ngắt Portal ngắn và cần reload bundle; lỗi thì phục hồi đúng image cũ,
+không restore database hoặc thay Keycloak. Không tự build/restart để đạt PASS.
+
+### Demo readiness và kết luận tạm thời
+
+**PARTIAL**: business read-only, Adaptive A1–A6 và RBAC có evidence; CRUD và các
+security gaps mới có targeted source execution. Còn L1 logout/session live và
+deployment/retest bản sửa Logout. Không gọi whole-system READY khi hai mục này
+chưa được kiểm chứng. Hướng dẫn demo an toàn được bổ sung tại
+`docs/operations/LEGACY_INTEGRATION.md`, dùng evidence HIGH/DENY đã lưu thay vì
+tái tạo fixtures. CRL còn hạn đến**06/11/2026 09:30:48 GMT+7**, bảo trì khi còn≤2
+ngày, khoảng**04/11/2026 09:30:48 GMT+7**, và kiểm tra trước mỗi demo.
+
+**PASS — hậu kiểm read-only12:59:10 GMT+7:**24 table/schema fingerprints không
+đổi;49 School rows/23 scores/6 mappings và FlywayV1–V5 khớp. Keycloak users,
+credentials/OTP/roles/realm/flows/signing components, Risk history/trust/revocations
+giữ nguyên; Redis0 keys, toàn bộ runtime file hashes không đổi. 12:53:32 kiểm tra
+10/10 healthy với cùng IDs/images/restarts và HTTPS200. Không có database write,
+restart/recreate/build Docker hoặc thay trust store do nhiệm vụ này thực hiện.
+12:57:25 readback failureMode là DENY, Risk image vẫn B0 và không có B1 opt-in.
+Các mốc này trước thao tác Browser L1 chưa được user xác nhận; không suy kết quả L1.
+
+### Git checkpoint của nhiệm vụ
+
+Phạm vi review8 files, đầu nhiệm vụ không có thay đổi chưa commit:
+
+- `frontend/components/portal-route.tsx`, `frontend/package.json`,
+  `frontend/tests/portal-route.test.mjs`.
+- `src/test/java/com/zerotrust/zerotrust/controller/SchoolPortalPersistenceAcceptanceTest.java`,
+  `src/test/java/com/zerotrust/zerotrust/config/PortalJwtDecoderTest.java`.
+- `keycloak-risk-extension/src/test/java/com/zerotrust/keycloak/risk/authenticator/RiskAuthenticatorTest.java`.
+- Báo cáo tổng hợp này và `docs/operations/LEGACY_INTEGRATION.md`.
+
+Chỉ PortalRoute là production code thay đổi; package chỉ thêm test command,
+production Java/Gateway/Risk không đổi. Rà soát kín10 runtime secret values và
+mẫu private-key/JWT/GitHub-token không thấy match; private evidence/generated
+outputs/runtime không nằm trong allowlist. User đã cho phép commit/push
+fast-forward đúng branch trong nhiệm vụ này; không force/amend/rebase. Kết quả
+publication và hash commit được lưu riêng sau khi review; không tự nhúng hash của
+chính commit vào nội dung của nó. CI không được coi PASS nếu chưa có kết quả.
+
+Private evidence của nhiệm vụ nằm dưới `.local-legacy/final-consolidation-evidence/`
+`final-system-acceptance-20261030/`, bị Git/Docker ignore. Không commit private
+evidence, generated outputs, keystores, credentials hoặc dumps.

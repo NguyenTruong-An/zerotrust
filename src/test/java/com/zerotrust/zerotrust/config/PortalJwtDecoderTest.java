@@ -17,6 +17,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtValidationException;
+import org.springframework.security.oauth2.jwt.JwtException;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -121,6 +122,18 @@ class PortalJwtDecoderTest {
     private JWTClaimsSet.Builder claims() {
         return new JWTClaimsSet.Builder().issuer(ISSUER).subject(SUBJECT).audience(AUDIENCE)
                 .issueTime(Date.from(Instant.now().minusSeconds(600)));
+    }
+
+    @Test
+    void rejectsDifferentSigningKeyEvenWhenTheKeyIdMatches() throws JOSEException {
+        // Isolated loopback JWKS fixture; this token is never sent to the canonical runtime.
+        RSAKey otherKey = new RSAKeyGenerator(2048).keyID(signingKey.getKeyID()).generate();
+        SignedJWT forged = new SignedJWT(new JWSHeader.Builder(JWSAlgorithm.RS256)
+                .keyID(signingKey.getKeyID()).build(),
+                claims().expirationTime(Date.from(Instant.now().plusSeconds(300))).build());
+        forged.sign(new RSASSASigner(otherKey));
+
+        assertThatThrownBy(() -> decoder.decode(forged.serialize())).isInstanceOf(JwtException.class);
     }
 
     private String sign(JWTClaimsSet claims) throws JOSEException {
