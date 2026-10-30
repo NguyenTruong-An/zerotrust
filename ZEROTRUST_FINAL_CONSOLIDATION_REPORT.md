@@ -3,6 +3,13 @@
 Bắt đầu27/10/2026; source/TLS lịch sử28/10, bổ sung Git/workspace checkpoint30/10/2026, Asia/Saigon. Đây là báo cáo tổng hợp duy nhất của nhiệm vụ;
 các số liệu được cập nhật tại chỗ khi có bằng chứng mới.
 
+**Bảo trì CRL30/10/2026: PASS.** Sau phê duyệt, đã thay đúng public-ca/ca.crl lúc
+09:37:21, hoàn tất hậu kiểm09:40:43 GMT+7; **không restart service**. Runtime phục
+vụ CRLNumber1793327448, hạn đến**06/11/2026 09:30:48 GMT+7**. Windows/Java HTTPS,
+Docker10/10 và bảo toàn dữ liệu PASS. CA/keys/leaf/MFA/policy/Compose giữ nguyên;
+hai cập nhật tài liệu CRL được giữ trong checkpoint nghiên cứu B0/B1 tiếp theo.
+Phạm vi và rollback ở mục bảo trì cuối báo cáo.
+
 **Cập nhật30/10:** B0 đã nghiệm thu A1–A6 và21 RBAC/ownership checks; A5/A6 fixture
 cleanup/data preservation PASS theo [báo cáo nghiên cứu](TRUST_SCORE_RESEARCH_AND_EXPERIMENT_PLAN.md#185-a6-scored-high--deny--pass).
 B1 source ở commit `40fea6a`, **chưa deploy**; B0 tiếp tục chạy. Chủ đồ án đã duyệt
@@ -996,3 +1003,170 @@ Source fix nằm trong commit `39d9f55699521cb87a04880865025a65012d8589`, messag
 và đã push. Bản bổ sung tài liệu này chỉ chốt evidence owner, không đổi app/runtime.
 Evidence `browser-final-owner-evidence-20261028.json` không chứa code/token/session
 values. Report vẫn là tài liệu tổng hợp duy nhất.
+
+## TLS/CRL maintenance — November2026
+
+### Preflight và chuẩn bị ngày30/10/2026
+
+Các bảng preflight/ứng viên ở hai mục đầu ghi trạng thái trước cài đặt. Hiện
+trạng sau phê duyệt nằm ở mục “Kết quả cài đặt và hậu kiểm sau phê duyệt”.
+
+**PASS — kiểm tra hiện trạng09:27–09:31 GMT+7; PREPARED, chưa cài đặt.** Đọc quy
+trình trong [LEGACY_INTEGRATION.md](docs/operations/LEGACY_INTEGRATION.md#windows-tls-và-bảo-trì-crl)
+và implementation [tls_material.py](deploy/legacy/tls_material.py). Các nhận định
+Windows/Browser NOT VERIFIED ở đầu hướng dẫn là mốc lịch sử; trạng thái kiểm
+chứng hiện tại dùng evidence mới trong báo cáo này. Không chạy lại provisioning,
+bootstrap Demo, A1–A6/RBAC hoặc các tests không liên quan.
+
+| Tiêu chí | Kết quả preflight |
+|---|---|
+| Git/source | Branch zerotrust-v4-risk-scoring, HEAD38394f6; sạch lúc bắt đầu. Mã/config không đổi; chỉ bổ sung phần báo cáo này, không commit/push |
+| Docker |10/10 canonical services running/healthy, IDs/images không đổi trong quá trình chuẩn bị |
+| CA |CN=ZeroTrust Legacy Integration CA; SHA1 thumbprint5DFA54E7FE9DC555E0A56BAE2DA635B05187ADA0; self-signature và CA/key matching hợp lệ; hạn26/10/2027 14:32:00 GMT+7 |
+| CRL hiện tại |DER complete CRL, issuer/AKI khớp CA; RSA/SHA-256 signature hợp lệ, CRLNumber1793126967;0 revocation entries |
+| ThisUpdate/NextUpdate hiện tại |28/10/2026 01:48:27 →04/11/2026 01:49:27 GMT+7, vẫn còn hạn; tls_material.py --check PASS,0 writes |
+| Đường phục vụ CRL |Windows http://localhost:28445/ca.crl và Docker http://crl:8080/ca.crl đều trả cùng DER/hash của runtime |
+| Leaf certificates |Gateway/Keycloak/Backend/Risk issuer/signature/SAN/EKU hợp lệ, không bị thu hồi; hạn24/01/2027 14:32:00 GMT+7; Gateway/Keycloak served DER khớp file runtime |
+| Windows |Native Schannel Gateway/Discovery HTTP200; X509Chain System trust, Online/ExcludeRoot/NoFlag PASS2/2, không status lỗi, root đúng CA đã duyệt |
+| Java |4/4 fresh JVM HTTPS PASS với checkRevocation=true và enableCRLDP=true: Gateway→Backend401, Gateway→Keycloak200, Backend→Keycloak200, Backend→Risk200; log thấy CRL DP fetch và Returning1CRLs |
+| Bảo toàn ở bước chuẩn bị |Toàn bộ runtime file hashes và source snapshot không đổi. Đã lưu read-only School/Keycloak/Risk/Redis baseline riêng để hậu kiểm khi được duyệt; không ghi DB hoặc tạo login/fixture |
+
+### CRL ứng viên đã chuẩn bị
+
+Dùng môi trường Python/cryptography có sẵn, chạy công cụ bảo trì hiện có chỉ với
+`--state` và `--output`; **không** dùng `--reissue-public-certificates`. Output
+riêng dưới .local-legacy, ACL chỉ user hiện tại/SYSTEM/Administrators, Git/Docker
+ignore. Không tạo environment, source checkout, container hoặc volume.
+
+| Thuộc tính | Ứng viên chưa cài |
+|---|---|
+| Issuer/chữ ký/AKI |Giữ cùng CA; RSA/SHA-256 hợp lệ, AKI khớp CA SKI |
+| CRLNumber |1793327448, lớn hơn1793126967 theo quy tắc tăng số của công cụ |
+| ThisUpdate |30/10/2026 09:29:48 GMT+7 (02:29:48 UTC) |
+| NextUpdate |**06/11/2026 09:30:48 GMT+7** (02:30:48 UTC),7 ngày kể từ lúc ký và không vượt hạn CA |
+| Revocation entries |Giữ nguyên toàn bộ0 entries; không thêm/bớt/chỉnh trạng thái thu hồi |
+| SHA-256 hiện tại |35ca7951afc189769ddac7980ad687c1847aa875ea5f1b35482ab3445f1d1282 |
+| SHA-256 ứng viên |0b01210ffb61071a1564bc18a89fe15decca59edf620ec12522fc24202256f54 |
+| Runtime delta |0 file đã cài,0 service đã restart; manifest changes chỉ public-ca/ca.crl |
+
+Bản hiện tại vẫn là CRL đang phục vụ. Ngày hết hạn mới **chưa có hiệu lực vận
+hành** đến khi cài và hậu kiểm PASS. Nếu dùng ứng viên này, kiểm tra hằng ngày và
+gia hạn khi còn≤2 ngày, tức khoảng04/11/2026 09:30:48 GMT+7; không coi lần gia
+hạn này là giải quyết vĩnh viễn nhu cầu bảo trì.
+
+### Allowlist cài đặt — kế hoạch đã được duyệt và thực hiện
+
+Phần sau giữ nguyên kế hoạch trước cài để đối chiếu; kết quả thực hiện ở mục kế
+tiếp. Không còn chờ phê duyệt cho thao tác CRL này.
+
+**Chỉ một live file được đề nghị thay:**
+
+`C:\Users\DELL\Documents\zerotrust-legacy-preservation\20261026-1344ea0d\integration-candidate-20261026\runtime\public-ca\ca.crl`
+
+Artifacts riêng tư đã chuẩn bị tại canonical:
+
+- `.local-legacy/final-consolidation-evidence/crl-maintenance-20261030/renewal/candidate/public-ca/ca.crl`: ứng viên có hash nêu trên.
+- Cùng thư mục renewal, `before/public-ca/ca.crl`: bản cũ đã hash verify để rollback;
+  `manifest.json`: exact input hashes và allowlist. Không đưa manifest hoặc private
+  artifacts vào Git; manifest chứa hash của private inputs, không phải báo cáo công khai.
+- Baseline/preflight/Windows chain/Java logs và installation-plan riêng tư được giữ
+  trong thư mục maintenance đó. Source PKI/tool/Compose không bị sửa.
+
+**Tác động dự kiến:** CRL HTTP server có directory bind read-only vào public-ca;
+host thay đúng file trong directory thì server đọc bản mới ở request sau. Không
+cần build/recreate/restart CRL, Gateway, Keycloak, Backend hoặc Risk. Chỉ metadata
+thu hồi mới được cập nhật; CA/private keys, leaf certificates/keystores, JWT keys,
+realm/OTP/MFA, databases/Redis, policy/weights/thresholds và Compose giữ nguyên.
+
+**Trình tự sau duyệt:** đối chiếu lại toàn bộ inputs_sha256/backup/candidate và
+hạn hiện tại, fresh data/runtime baseline; thay nguyên tử đúng ca.crl, giữ ACL.
+Xác nhận hai URL CDP trả đúng candidate DER/hash, kiểm tra issuer/number/chữ ký/
+hạn/entries; native Schannel và X509Chain Online/NoFlag;4 fresh JVM HTTPS với
+revocation/CRLDP và log fetch. Hậu kiểm10/10 healthy cùng IDs/images, runtime hash
+delta chỉ ca.crl, protected rowsets/schema và Redis so với baseline trước cài.
+Không tự restart nếu có lỗi; dừng đúng thao tác và báo blocker hoặc rollback
+đúng file theo phê duyệt. Không chạy login Browser hoặc tests nghiệp vụ.
+
+Windows có thể cache CRL cũ còn hạn; phải phân biệt direct CDP phục vụ DER mới với
+CRL cache dùng bởi native chain. Không tuyên bố Schannel đã tải bản mới chỉ từ
+HTTP200, không xóa URL cache toàn máy hoặc đổi trust store để ép PASS. Fresh JVM
+và log CRL fetch bổ sung evidence độc lập; không dùng insecure/trust-all/no-revoke.
+
+**Rollback đề nghị:** chỉ phục hồi before/public-ca/ca.crl với hash bản cũ nêu
+trên, giữ ACL và kiểm chứng lại CDP/HTTPS/health; không restart dự kiến. Chỉ dùng
+bản cũ khi vẫn còn hạn và revocation set không bị cập nhật thêm. Sau04/11/2026
+01:49:27 GMT+7 hoặc nếu có revocation mới thì không restore bản hết hạn/lạc hậu;
+dừng và chuẩn bị CRL hợp lệ với phê duyệt phù hợp. Không phục hồi database/realm.
+
+### Kết quả cài đặt và hậu kiểm sau phê duyệt
+
+**PASS — cài30/10/2026 09:37:21, hoàn tất09:40:43 GMT+7.** Chủ đồ án duyệt cài và
+rollback đúng một CRL, không restart/build/recreate/commit/push. Đã thay nguyên
+tử đúng live file trong allowlist, giữ ACL và bản before. Lần gọi File.Replace
+đầu tiên lỗi do PowerShell chuyển null backup thành chuỗi rỗng, trước khi thay
+file; hash live vẫn là bản cũ. Lần gọi với backup path riêng thực hiện thành
+công, giữ thêm bản cũ đã verify trong evidence. Không thay CA/leaf hoặc service.
+
+| Tiêu chí sau cài | Trạng thái/bằng chứng |
+|---|---|
+| CRL đang phục vụ |**PASS** — CRLNumber1793327448, SHA-256 0b01210ffb61071a1564bc18a89fe15decca59edf620ec12522fc24202256f54 |
+| Profile/chữ ký |**PASS** — complete CRL, issuer/AKI khớp CA, RSA/SHA-256 hợp lệ, giữ nguyên0 entries; NextUpdate06/11/2026 09:30:48 GMT+7 |
+| Windows/Docker CDP |**PASS** — localhost:28445 và crl:8080 trả cùng candidate DER/hash mới |
+| Công cụ bảo trì |**PASS** — tls_material.py --check trả hạn mới, bốn leaf vẫn hạn24/01/2027;0 writes |
+| Windows native Schannel |**PASS3/3** — Gateway, OIDC Discovery, Keycloak3p-cookie iframe HTTP200; không cacert override, insecure hoặc no-revoke |
+| Windows System chain |**PASS2/2** — Gateway/Keycloak Online/ExcludeRoot/NoFlag, root đúng CA, không status lỗi; trust store không sửa |
+| Native cache dùng đúng CRLNumber mới |**NOT VERIFIED** — Windows có thể dùng CRL cũ còn hạn trong cache; không xóa cache toàn máy để ép kết quả. Phân biệt với direct CDP bytes mới và fresh JVM evidence |
+| Java HTTPS |**PASS4/4** — Gateway→Backend401, Gateway→Keycloak200, Backend→Keycloak200, Backend→Risk200; fresh JVM bật revocation/CRLDP, log thấy DP fetch và Returning1CRLs |
+| Leaf phục vụ thật |**PASS** — Gateway/Keycloak peer DER vẫn khớp leaf trước cài; không cấp lại cert hoặc đổi TLS key/keystore |
+| Docker |**PASS** — cùng10 container IDs/images/mount definitions/restart counts,10/10 healthy;0 restart/recreate/build. Mount comparison chuẩn hóa thứ tự danh sách Docker API |
+| Runtime/source |**PASS** — delta toàn bộ runtime file hashes chỉ public-ca/ca.crl; source snapshot không đổi; B0 tiếp tục chạy, B1 không deploy; policy/weights/thresholds/Compose không đổi |
+| School/mappings |**PASS** —49 business rows/23 scores và6 mappings giữ nguyên |
+| Keycloak |**PASS** — original users/credentials/OTP/roles/realm/Browser Flow/config/signing components fingerprints khớp immediate-before snapshot |
+| Risk/Flyway/Trust |**PASS** —93 history/18 devices/8 subject states/3 revocations; FlywayV1–V5 và fingerprints giữ nguyên |
+| Redis và bảo toàn chung |**PASS** —Redis0 keys trước/sau;24 table/schema fingerprints School/Keycloak/Risk khớp, không database mutation/reset/import/migration |
+| Rollback |Không dùng; before CRL/bản backup thay nguyên tử và manifest được giữ. Bản cũ chỉ dùng đến04/11/2026 01:49:27 GMT+7 khi revocation set vẫn phù hợp; không restore bản hết hạn/lạc hậu |
+
+SQL/Java checks đã hoàn tất được tái sử dụng khi sửa check so sánh mount order:
+Docker API trả thứ tự mounts Keycloak DB khác nhau nhưng toàn bộ định nghĩa
+Type/Name/Source/Destination/RW giống nhau. Không thay mount hoặc lặp lại A1–A6,
+RBAC, test suites, user login hay fixture. Windows cache-specific CRLNumber là
+giới hạn evidence, không phải lỗi chain/revocation; không tuyên bố mục đó PASS.
+
+Evidence riêng tư tại thư mục maintenance đã nêu: completion-result.private.json,
+deployment-result.private.json, after-service-data-postcheck.private.json,
+after-windows-online-schannel.private.json, after-tool-check.private.json và logs/
+baseline/hash manifests. Không log secret values hoặc đưa artifacts/private TLS
+material vào Git. Source code không đổi; chỉ báo cáo này và phần thông tin trạng
+thái TLS trong LEGACY_INTEGRATION.md được cập nhật. Workflow TLS không commit/
+push; nhiệm vụ nghiên cứu tiếp theo được chủ đồ án cho phép chốt hai cập nhật này
+cùng source nghiên cứu và tài liệu sau khi review/test/secrets checks.
+
+**Bảo trì kế tiếp:** kiểm tra hằng ngày khi sử dụng/trước demo, gia hạn khi còn≤2
+ngày, khoảng**04/11/2026 09:30:48 GMT+7**; hạn cứng CRL mới**06/11/2026 09:30:48
+GMT+7**. Không tự tạo reminder/automation hoặc coi CRL tự gia hạn.
+
+## Bổ sung nghiên cứu offline B0/B1 — 30/10/2026
+
+Kết quả đầy đủ nằm trong [báo cáo nghiên cứu mục20](TRUST_SCORE_RESEARCH_AND_EXPERIMENT_PLAN.md#20-nghiên-cứu-thực-nghiệm-b0b1-hoàn-chỉnh--30102026),
+không tạo runtime hoặc báo cáo phase mới.1.008 snapshots tổng hợp có rubric được
+khóa trước lần chạy mới;4.032 outputs B0/B1/hybrid ablations khớp oracle,3 JVM
+benchmark forks và kiểm tra nghiên cứu mục tiêu PASS. Trên672 ca evaluation,
+40 quyết định khác; B1 agreement600/608 so B0=608/608 theo rubric tác giả có điều
+kiện, không phải Accuracy tấn công. **Giữ B0, chưa chứng minh B1 tốt hơn**.
+
+Không chạy lại A1–A6,21 RBAC,76 Risk/26 SPI hoặc4.500 Java replay cũ. Không sửa
+production scoring/policy/TLS, build/redeploy/restart/cleanup, database/Redis,
+account/role/OTP/trust hoặc tạo workspace khác. Hai cập nhật CRL được review và
+giữ đúng NextUpdate06/11/2026 09:30:48 GMT+7; cache limit đã ghi ở trên không đổi.
+Git checkpoint nghiên cứu được user cho phép commit/push fast-forward đúng branch;
+hash và kết quả publication/hậu kiểm được lưu riêng, không tự nhúng hash của chính
+commit vào nội dung tài liệu. CI mới chưa được ghi PASS nếu chưa có evidence.
+
+**Hậu kiểm10:28:36 GMT+7 PASS:**10/10 canonical healthy, cùng IDs/images/mounts/
+restart counts; runtime hashes không đổi so với đầu nghiên cứu (bao gồm CRL mới).
+24 table/schema fingerprints và Redis khớp;49 School rows/23 scores/6 mappings,
+credentials/OTP/signing/trust/Risk/Flyway bảo toàn. Schannel Gateway/Discovery200,
+không tùy chọn bỏ xác minh. Source production và tests cũ không đổi; chỉ4 file
+research mới,2 SVG và4 docs trong allowlist checkpoint. Không thấy secrets khi
+đối chiếu kín21 runtime values và các mẫu đã kiểm tra. Raw artifacts/private TLS/
+evidence/plot cache không vào Git; hai cập nhật CRL trước đó được bảo toàn.

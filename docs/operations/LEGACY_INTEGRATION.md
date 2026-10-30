@@ -1,10 +1,14 @@
 # Legacy-data Docker candidate
 
-> Cập nhật 28/10/2026: runtime canonical đã chạy Backend/Frontend/Gateway từ source
-> ADMIN/STUDENT mới và cleanup đã được duyệt đã thực hiện. Xem [báo cáo tổng hợp](../../ZEROTRUST_FINAL_CONSOLIDATION_REPORT.md)
-> để biết exact IDs, bảo toàn dữ liệu và các hạng mục NOT VERIFIED. Windows Schannel
-> còn lỗi CRL Distribution Point nội bộ; không dùng kết quả cũ để ghi Windows/Browser PASS.
-> Các cấu hình synthetic bên dưới chỉ giữ để tham chiếu, không phải môi trường cần tạo lại.
+> Cập nhật 30/10/2026: runtime canonical dùng source ADMIN/STUDENT; B0 tiếp tục chạy,
+> B1 chưa deploy. TLS/CDP đã sửa và CRL vừa gia hạn theo phê duyệt: CRLNumber1793327448,
+> NextUpdate **06/11/2026 09:30:48 GMT+7**; không restart service. Windows Schannel,
+> Java HTTPS có kiểm tra thu hồi, Docker10/10 và bảo toàn dữ liệu PASS. Xem
+> [báo cáo tổng hợp](../../ZEROTRUST_FINAL_CONSOLIDATION_REPORT.md#tlscrl-maintenance--november2026)
+> để biết phạm vi và giới hạn cache/evidence. Kiểm tra CRL hằng ngày/trước demo,
+> gia hạn khi còn≤2 ngày, khoảng04/11/2026 09:30:48 GMT+7 cho bản này. Các trạng thái
+> acceptance bên dưới thuộc lịch sử đã ghi ngày; cấu hình synthetic chỉ để tham
+> chiếu, không phải môi trường cần tạo lại.
 
 Status 2026-10-26: approved copy migrations/import completed; focused ADMIN/STUDENT
 password+OTP, JWT/RBAC and trusted-device relogin verified. Full acceptance remains

@@ -6,6 +6,14 @@
 
 **Phạm vi:** Trách nhiệm dịch vụ, hiện trạng repository và các quyết định còn mở.
 
+**Bổ sung trạng thái source/runtime30/10/2026:** B1 đã có trong source theo lựa
+chọn opt-in, baseline B0 vẫn là mặc định và Docker runtime. Risk/Trust explanation
+có contribution, coverage và decision source trong source; không suy các trường
+đó đã deploy lên Risk đang chạy. Keycloak Risk Trace và A1–A6 trên B0 đã nghiệm
+thu theo báo cáo có ngày. [Nghiên cứu B0/B1 mục20](TRUST_SCORE_RESEARCH_AND_EXPERIMENT_PLAN.md#20-nghiên-cứu-thực-nghiệm-b0b1-hoàn-chỉnh--30102026)
+ghi bộ dữ liệu, nhãn và giới hạn; chưa chứng minh B1 tốt hơn, không chốt trọng
+số/ngưỡng tối ưu hoặc thêm quyết định kiến trúc mới.
+
 ## 1. Mục đích và cách đọc
 
 Hệ thống xem điểm sinh viên và xác thực thích ứng theo rủi ro đăng nhập. STUDENT
@@ -191,11 +199,11 @@ partial/pending. Chi tiết/class: [MFA_RESET_LIFECYCLE](docs/authentication/MFA
 
 | Nội dung | Hiện trạng |
 |---|---|
-| Weighted engine, priority deny, mandatory MFA | Có mã; policy số còn là baseline development |
+| Weighted engine, priority deny, mandatory MFA | Có mã B0 và opt-in B1; B0 mặc định/runtime, policy số chưa được hiệu chỉnh với ground truth thực tế |
 | CIDR/GeoLite, Temporal Profile, failure history | Có calculator; Network provider mặc định tắt, Temporal có cold-start |
 | Device trust, generation, reset orchestration | Có mã/test; provisioning và flow thật cần xác minh theo môi trường |
-| Audit | Có `device_trust_revocations`; chưa lưu mọi evaluation/decision |
-| Trust Score riêng, location history/impossible travel | Chưa triển khai; response có `riskScore`, không có `trustScore` |
+| Audit/trace | Có `device_trust_revocations`, Keycloak Risk Evaluation Trace; source Risk Score Trace bổ sung explanation, không có bảng lưu mọi evaluation mới |
+| Trust Score, location history/impossible travel | Source trace có Trust=100−Risk cùng coverage/interval; API response vẫn `riskScore`, chưa thêm Trust DTO. Không có location history/impossible travel |
 | Redis cache hồ sơ, velocity/rate limiter riêng | Chưa có implementation tương ứng trong Risk |
 | Retention/purge, giám sát/cảnh báo | Chưa hoàn thiện; cửa sổ query không tự xóa event cũ |
 | Continuous authentication, thu hồi JWT tức thì | Chưa triển khai; không suy ra từ logout/reset trust |

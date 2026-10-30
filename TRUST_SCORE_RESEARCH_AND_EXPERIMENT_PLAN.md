@@ -1,5 +1,14 @@
 # Trust Score — phân tích baseline và thiết kế thực nghiệm
 
+**Kết quả nghiên cứu offline30/10/2026, mục20:** đã tạo1.008 snapshot tổng hợp
+và chạy4.032 kết quả B0/Temporal-only/History-only/B1 bằng component Java thật;
+oracle phân số khớp4.032/4.032,8 biên làm tròn đúng. Tập đánh giá672 ca có40
+decision changes, gồm8 MFA→ALLOW không phù hợp rubric có điều kiện của nghiên
+cứu. Chưa có ground truth ngoài thực tế để kết luận phát hiện tấn công. **Giữ B0
+trên runtime; B1 chưa được chứng minh tốt hơn.** Source scoring/policy không sửa,
+không deploy, không chạy lại A1–A6/RBAC/76 Risk/26 SPI. Mục1–19 giữ lịch sử theo
+ngày; mục20 là kết quả bổ sung và phương pháp tái hiện hiện tại.
+
 Khởi tạo 28/10/2026, checkpoint/preflight29/10 và nghiệm thu/cleanup A5–A6 ngày30/10/2026, Asia/Saigon. **B1 đã được duyệt triển khai và kiểm thử source;
 source đã hoàn thành, chưa deploy Docker.** Tiến độ sau phê duyệt ở mục13.
 
@@ -2096,3 +2105,401 @@ BLOCKED cho cleanup. Không suy cleanup worktree đồng nghĩa mọi source l�
 B1 được giữ nguyên. B1 Browser/ground truth/Risk unavailable Browser vẫn
 NOT VERIFIED. **CRL cần bảo trì trước04/11/2026 01:49:27 GMT+7**, ưu tiên03/11;
 lượt checkpoint này không thay TLS/trust store hoặc chính sách bảo mật.
+
+## 20. Nghiên cứu thực nghiệm B0/B1 hoàn chỉnh — 30/10/2026
+
+### 20.1 Câu hỏi, mô hình và cơ sở đối chiếu
+
+RQ1: B1 có tính đúng công thức, giữ guard và missingness khi chạy cùng snapshot?
+RQ2: thành phần nào gây thay đổi quyết định, đặc biệt các downgrade? RQ3: chuẩn
+hóa mịn hơn có làm quyết định ổn định hơn và giảm MFA hợp lệ? RQ4: chi phí tính
+toán offline thay đổi bao nhiêu? Đây là nghiên cứu prototype có đối chứng, không
+phải đánh giá hiệu quả phát hiện tấn công ngoài Internet.
+
+Baseline B0 và B1 source ở mục2/5/13 vẫn đúng: bốn nhóm D/N/T/H, trọng số.25,
+HALF_UP hai chữ số, ngưỡng40/75. B1 chỉ nội suy Temporal và History; Trust=100−R
+là biểu diễn dẫn xuất, không thêm thông tin hoặc một thuật toán phát hiện mới.
+Priority DENY → incomplete MFA → numeric HIGH DENY → mandatory MFA vẫn giữ.
+
+Đã đối chiếu source RiskEvaluationService, extractor, BehavioralRiskNormalizer,
+Temporal/History/Device/Network calculators, Redis failure store, repository
+window query, RiskScoreTrace và contract SPI. Không sửa production source.
+ARCHITECTURE.md có mốc khảo sát27/10; các dòng chưa có trace/Trust được làm rõ
+bằng ghi chú source/runtime hiện tại, không xem mô tả lịch sử là lỗi production.
+
+Nguồn sơ cấp được kiểm tra lại30/10: [NIST SP800-207 §3.3.1](https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-207.pdf)
+mô tả criteria/score-based và enterprise-configured weights, không cung cấp bộ
+25%/40/75 tối ưu cho đồ án. [NIST SP800-63B-4](https://pages.nist.gov/800-63-4/sp800-63b.html)
+cho phép dùng ngữ cảnh thích ứng hỗ trợ xác thực; OTP nhập tay không
+phishing-resistant. [OWASP Authentication Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html#adaptive-or-risk-based-authentication)
+hướng dẫn xác thực theo ngữ cảnh, không quy định công thức B1. Nghiên cứu
+[Wiefling et al., TOPS2023](https://arxiv.org/abs/2206.15139) dựa dữ liệu quy mô
+lớn và có dataset synthesized; không chuyển hiệu quả công bố đó thành kết quả
+của localhost. Phạm vi chuẩn/thiết kế riêng đã phân biệt tại mục4.
+
+### 20.2 Bộ dữ liệu đã tạo và quy tắc nhãn đã khóa
+
+Nguồn versioned: [controlled-v1.json](risk-scoring-service/src/test/research/controlled-v1.json)
+và [controlled_study.py](risk-scoring-service/src/test/research/controlled_study.py).
+Label spec SHA-256 **955b40fa95d27da150d5c619b4af0e331825c92fd8d0961cf6cc500ac4b34de0**;
+snapshots SHA-256 **53a2dd26e29a445be95e3246563e73ba92b587398e3dee73019c1fb65e1464b3**.
+Hai hash được lưu trước khi Java sinh prediction; không đổi nhãn sau khi xem kết quả.
+
+| Phân chia | Seed gốc | Nhóm history | Snapshot | Vai trò |
+|---|---:|---:|---:|---|
+| Calibration |2026103001 |84 |336 | Kiểm tra phương pháp; không tune tham số |
+| Evaluation |2026103002 |168 |672 | Giữ riêng cho so sánh cuối |
+| Tổng |Hai seed riêng |252 |1.008 |Mỗi nhóm4 biến thể, không coi là1.008 người độc lập |
+
+21 family gồm routine, legitimate unusual, unfamiliar/expired device, elevated/
+high context, shared NAT, cold-start, ba loại unavailable, security-revoked,
+blocked IP, reset pending, history window/cap, latent non-owner, counter TTL,
+sample-size, device lifecycle và threshold neighborhood. Các biến thể thông
+thường thay riêng day-match, counter hoặc kết hợp hai yếu tố; các family boundary
+có biến thể theo contract riêng, không trộn với phép nhiễu một tọa độ.
+
+History có timestamp tổng hợp trước evaluation; query stub áp dụng
+`windowStart <= t < evaluationTime`, sort mới nhất, cap200 theo JPA query thật.
+Bao phủ n0–4,5,10,20,50,199,200; raw window family240 events, gồm10 ngoài90 ngày,
+được chọn còn200. Counts hợp lệ, không âm, dùng subject/IP threshold3/5 và10/20.
+Các network band/source là CIDR/default **trong fixture**, không giả IP trên
+runtime hoặc nhận GeoIP lookup thật. Time variants gồm UTC0/7/8/23 giờ, cyclic
+hour tolerance theo source. Trust boundary gồm trước/đúng/sau30 ngày.
+
+**Chống leakage:**0 seed nhóm chung;0 nonempty raw history và0 selected history
+chung giữa calibration/evaluation. Mọi biến thể của một nhóm nằm cùng split.
+Empty history không chứa quan sát để chia sẻ, không phải bằng chứng về các người
+dùng độc lập. Hai tập vẫn cùng generator/family/rubric, nên không độc lập về
+population hoặc người thiết kế. Không hiệu chỉnh weights/thresholds trên tập nào.
+
+**Nguồn nhãn:** author-defined protection rubric trong JSON, chỉ đọc actor/context/
+điều kiện policy đã khai báo, không đọc score/decision B0/B1. CONTRACT dựa ràng
+buộc an toàn đã có; CONDITIONAL là kỳ vọng nghiên cứu theo threat model; không
+phải policy mới được đưa vào ứng dụng. Allowed set có thể chấp nhận ALLOW/MFA
+hoặc MFA/DENY; ma trận hành động và friction vẫn được báo riêng vì chúng không
+tương đương. LOW_UNOBSERVABLE và DIAGNOSTIC_ONLY không vào tỷ lệ agreement chính.
+
+**Giới hạn độc lập quan trọng:** analyst đã biết244 differences lịch sử khi xây
+rubric. Khóa nhãn trước lần chạy mới không biến nó thành nghiên cứu mù hoặc
+ground truth do chuyên gia độc lập xác nhận. Nhãn không sử dụng score làm đáp
+án, nhưng có thể thiên về policy B0; agreement100% của B0 dưới đây không phải
+Accuracy100% hoặc chứng minh B0 phát hiện mọi tấn công.
+
+### 20.3 Kiểm chứng implementation thực sự đã chạy
+
+[ControlledStudyExperiment.java](risk-scoring-service/src/test/java/com/zerotrust/risk/audit/ControlledStudyExperiment.java)
+dùng calculators/extractor/scorer/pipeline/trace thật; repository và counter
+store chỉ đọc dữ liệu trong bộ nhớ, mọi thao tác ghi của fixture bị chặn. Không
+Spring context hoặc canonical endpoints. B0/B1 nhận cùng immutable snapshot;
+không dùng hai login liên tiếp. So sánh determinism loại evaluation UUID/time,
+vốn được tạo mới hợp lệ; không yêu cầu chúng giống nhau.
+
+| Kiểm tra | Kết quả mới |
+|---|---|
+| Java paired replay và ablation |PASS —1.008×4=4.032 kết quả; thêm2.016 lượt lặp B0/B1 để assert score/decision/dataStatus không đổi |
+| Oracle độc lập |PASS4.032/4.032 — Python Fraction/quotient-remainder HALF_UP, không gọi Java normalizer để tạo kỳ vọng |
+| Arithmetic boundaries |PASS8/8 —39.994,39.995,39.99,40,74.994,74.995,74.99,75; đúng ngưỡng sau final rounding |
+| Guard/null/source |PASS trên miền đã chạy — priority score null/NOT_EVALUATED/DENY; incomplete score/Trust null/MFA; mandatory không ALLOW; score≥75 luôn DENY |
+| One-coordinate monotonicity |PASS trong các edge có kiểm tra; không suy đơn điệu chung khi đổi hai tín hiệu ngược chiều |
+| Correlation/giải thích |Evaluation UUID/trace join hợp lệ; không xuất raw identity/cookie/token/IP hoặc giả MFA_COMPLETED/LOGIN_SUCCESS |
+| Test tooling |6 Python test methods mới PASS qua các lượt mục tiêu;2 Java methods correctness/boundary PASS,3 benchmark forks PASS;0 failure/error/skip ở các lượt này |
+
+Hai ablation lấy T1/H0 hoặc T0/H1 từ extractor thật, cùng guard/availability,
+chạy scorer/pipeline thật. Chúng là **hybrid nghiên cứu offline**, không phải hai
+model identifiers production hoặc hai Docker deployments mới.
+
+Các76 Risk/26 SPI,4.500 pairs cũ và A1–A6/21 RBAC được tái sử dụng; không cộng vào
+số tests vừa chạy. FailureMode DENY khi Risk service unavailable chỉ có evidence
+source/SPI tests đã có, **không phải** một dòng numeric HIGH mới trong dataset
+hoặc Browser outage PASS. Lỗi device DB khiến evaluate không hoàn tất cũng không
+được đổi thành điểm0/INCOMPLETE giả. DTO/Browser Flow/MFA/trust semantics không sửa.
+
+Sửa tối thiểu một lỗi công cụ đánh giá: combined perturbation từng dùng bộ đếm
+monotonicity0 mặc định dù không có hướng đơn điệu chung; summary-v2 ghi **null/
+không áp dụng**, thêm regression test. Giữ bản summary đầu và mọi raw artifacts;
+không thay prediction/nhãn hoặc production algorithm. Biểu đồ được kiểm tra trực
+quan; legend được đặt ngoài vùng dữ liệu.
+
+### 20.4 Ma trận quyết định và phân bố
+
+Tập đánh giá672 snapshot, không phải confusion matrix với attack ground truth:
+
+| B0 \ B1 | ALLOW | MFA | DENY | Tổng |
+|---|---:|---:|---:|---:|
+| ALLOW |214 |10 |0 |224 |
+| MFA |8 |290 |0 |298 |
+| DENY |0 |22 |128 |150 |
+| Tổng |222 |322 |128 |672 |
+
+40/672 đổi quyết định (**5.95%**),632 giữ nguyên; không DENY→ALLOW. Calibration
+có19/336 đổi, trong đó5 ALLOW→MFA,4 MFA→ALLOW,10 DENY→MFA. Không pool hai tập
+để lựa chọn tham số. Tập mới không có MFA→DENY; **79 ca đó trong replay cũ vẫn
+tồn tại**, không được loại khỏi đánh giá vì cohort mới không chứa transition này.
+
+| Phân bố numeric, evaluation COMPLETE432 ca/model | B0 | B1 |
+|---|---:|---:|
+| Risk mean |23.634259 |23.420856 |
+| Risk median / p95 |15.00 /75.00 |19.17 /75.00 |
+| Risk min / max |0 /95 |0 /95 |
+| Risk population SD |25.938148 |23.528862 |
+| Trust mean |76.365741 |76.579144 |
+| Trust median / p95 |85.00 /100 |80.83 /100 |
+| Điểm cách40 không quá1 |0 |21 |
+| Điểm cách75 không quá1 |30 |16 |
+
+Null không điền0 hoặc đưa vào phân bố numeric.240 ca còn lại gồm136 incomplete
+và104 priority. Decision-source counts cùng320 SCORE_THRESHOLD/112 MANDATORY/
+136 INCOMPLETE/104 PRIORITY ở hai model không có nghĩa decision giống nhau:
+score có thể vượt ngưỡng khác mà vẫn cùng source. Mean Risk B1 giảm ở cohort này
+trong khi tăng ở grid cũ; đó là ảnh hưởng sampling, không phải mâu thuẫn công thức.
+
+![Controlled decision matrix và ablation](docs/research/trust-score-b1/figures/controlled-decisions.svg)
+
+### 20.5 Downgrade lịch sử và kết quả bổ sung
+
+Giữ nguyên toàn bộ bảng42 ca tại14.3 và caseP001096 ở14.2; hash CSV42 vẫn
+`3f1fec7de2f001adacd8005c4fce336f19b97532f28f02ad9217ceef95ebbf46`.
+
+- **42 DENY→MFA cũ:** tất cả B0 DENY do score, COMPLETE, không priority; T giảm
+  trong42/42, H giữ41/42 và tăng1 ca. R0=75–82.50, R1=59.38–74.69, ΔR từ−15.62
+  đến−0.31; cả42 còn guard MFA. Không vi phạm guard nhưng MFA không tương đương
+  từ chối; không tự kết luận là lỗ hổng hoặc giảm false positive.
+- **1 MFA→ALLOW cũ:** n20, trusted, N50, day/hour1/3, subject failures3; T100→37.5,
+  H50, R50→34.38; không có guard. Đây là giảm mức xác thực thật theo source.
+- **22 DENY→MFA mới trên evaluation:**14 high-context và8 diagnostic threshold
+  probes, cùng R0=75; R1=62.50–74.38.22/22 có mandatory,0 priority; tất cả do
+  Temporal. Tập mới không phải thêm22 sự cố tấn công độc lập để cộng với42 cũ.
+- **8 MFA→ALLOW mới:** family elevated_context lặp lại observable vector của
+  P001096 ở8 nhóm timestamps khác. Đều50→34.38, không mandatory, không priority;
+  vi phạm kỳ vọng CONDITIONAL “ít nhất MFA” của rubric, không bypass một guard
+  production. Không coi chúng là8 người dùng hoặc8 attack labels độc lập.
+
+Các cases có thể tạo được bằng state/timestamp hợp lệ trong harness; chưa chứng
+minh tần suất xuất hiện ngoài thực tế. MMDB/CIDR/NAT/lockout và cookies có thể
+ngăn cùng vector xuất hiện qua Browser. Không spoof header/IP, dùng JWT giả,
+tạo test users/counters hoặc reset trust để ép kết quả trong nhiệm vụ này.
+
+### 20.6 Sensitivity, stability và state dynamics
+
+Các edge bên dưới có **hai endpoint được Java chạy thật**, gồm cả calibration
+và evaluation; là descriptive stress analysis, không dùng tune mô hình. Chỉ giữ
+edge có các aggregate khác đúng điều kiện cố định, không tính window/cap làm đổi
+thêm feature vào một phép nhiễu đơn. Source controls không phải dữ liệu người dùng.
+
+| Phép nhiễu | Edges numeric/model | Score đổi B0/B1 | Decision flips B0/B1 | Max abs ΔR B0/B1 |
+|---|---:|---|---|---|
+| Day match ±1 |110 |9 /48 |2 /18 |12.50 /12.50 |
+| Subject counter +1 |120 |0 /90 |0 /24 |0 /6.25 |
+| Kết hợp day/counter |110 |9 /98 |2 /21 |12.50 /12.50 |
+
+Các flips trên có guard-presence giữ nguyên. Zero monotonicity violations chỉ
+áp dụng hai phép một tọa độ; combined ghi không áp dụng. B0 counter delta0 ở
+slice mới vì các edge không đi qua band3/5; không kết luận B0 không nhạy counter.
+Phân tích3.750 counter edges và ngưỡng what-if cũ ở14.4–14.5 vẫn được giữ, không
+chạy lại Java. B1 mở rộng vùng có gradient nên đổi điểm thường xuyên hơn; **hàm
+liên tục hơn không chứng minh decision ổn định hơn**. n nhỏ vẫn có bước lớn;
+các bound125/n và62.5/n trước rounding của Temporal đã nêu ở14.4.
+
+Sample-size family xác nhận n4→5 có thể đổi null/MFA thành numeric/ALLOW ở cả hai;
+n199/200 với frequency quen thuộc không tự tăng Risk. History-window family lọc
+10 event ngoài90 ngày và cap phần còn lại200; đây là query stub theo contract,
+không phải kiểm chứng JPA/MySQL mới. SSO frequency/provenance vẫn là hạn chế.
+
+TTL simulation giữ nguyên Lua semantics đã đọc: expiry từ INCR đầu, không gia
+hạn khi tăng tiếp. Ở elapsed898/899/900/901s, counts5/6/0/0; cả hai model có
+R25/MFA,25/MFA,0/ALLOW,0/ALLOW. **B1 không làm mịn bước xóa counter ở TTL.** Đây
+là clock simulation + calculator Java, không thực thi Redis Lua/distributed timing.
+Shared NAT dùng max(subject,IP), do đó một user hợp lệ có thể chịu IP count của
+người khác; N/default và H/IP không phải hai bằng chứng độc lập về người đó.
+
+### 20.7 Ablation bằng component thật
+
+| Variant, evaluation cùng672 snapshots | ALLOW | MFA | DENY | Agreement chính |
+|---|---:|---:|---:|---|
+| B0 |224 |298 |150 |608/608 |
+| Chỉ Temporal |240 |304 |128 |592/608 |
+| Chỉ History |211 |311 |150 |608/608 |
+| B1 cả hai |222 |322 |128 |600/608 |
+
+Temporal giảm DENY và có thể bỏ MFA; History kéo một phần score lên lại. Không
+cộng trực tiếp action-count effect vì threshold/guard là phi tuyến. Attribution
+trước rounding là ΔR=(T1−T0)/4+(H1−H0)/4. Ablation analytical4.500 cặp cũ vẫn
+ở14.2 (B0 A/M/D1180/3085/235, T-only1182/3128/190, H-only1015/3120/365,
+B1=1059/3169/272), không trộn hai phân bố thành một population mới.
+
+### 20.8 Benchmark tính toán offline
+
+Ba JVM Java17.0.10/HotSpot riêng, chạy **tuần tự**, cùng Windows11 amd64/12 logical
+processors, max heap4,223,664,128 bytes. Mỗi model/scope/fork warm-up6.000 calls,
+24 batches×24 operations; thứ tự B0/B1 đảo bằng seed20261030+fork. Cùng24 snapshot
+được chọn, có n5/10/20/50/199/200; construction/selection ngoài vùng đo.
+Mỗi model/scope có1.728 per-operation samples và72 batch means trên3 forks.
+
+| Phạm vi | B0 median / p95 µs | B1 median / p95 µs | Median B1 so B0 |
+|---|---|---|---|
+| Temporal + History + scorer, in-memory I/O stubs |6.70 /35.30 |7.60 /38.765 |+13.43% |
+| In-memory full pipeline + trace JSON, không log I/O |22.85 /51.90 |25.95 /52.565 |+13.57% |
+
+Core fork medians B0=6.5/6.2/7.9µs, B1=6.8/6.9/11.7µs; pipeline B0=28.8/20.0/
+21.7µs, B1=29.7/22.15/25.9µs. Pipeline maxima187.4/255.9µs; không bỏ outlier
+khỏi thống kê. Variability giữa fork đáng kể; không tạo p-value/CI giả từ samples
+phụ thuộc. Hai scope gồm RiskEvaluation allocation/UUID/clock; pipeline thêm
+trace serialization. Cả hai dùng cùng source tracing mới, **không so tốc độ Risk
+image B0 cũ với image B1 mới**. Không phải DB/Redis/HTTP latency, request throughput,
+production p95 SLA hoặc tổng thời gian Browser login; không dùng thời gian Maven
+suite thay latency. Đây là bounded exploratory microbenchmark, không JMH study.
+
+![Phân bố chi phí tính toán offline](docs/research/trust-score-b1/figures/controlled-latency.svg)
+
+Boxplot dùng log axis, ẩn fliers để dễ đọc; raw samples/max/p95 vẫn giữ trong
+JSON. Matplotlib3.10.7 và optional dependencies được tải vào ignored target/research/
+plotting-deps; không tạo virtualenv, sửa Python dùng chung hoặc Docker. Hai SVG
+là assets công khai chọn lọc của báo cáo; bulk data/log/XML/PNG/cache không stage.
+
+### 20.9 Chất lượng, usability và kết luận mô hình
+
+Evaluation có608 ca/152 nhóm thuộc rubric chính:352 CONTRACT và256 CONDITIONAL;
+32 latent-nonowner LOW_UNOBSERVABLE và32 diagnostic không vào denominator này.
+B0 agreement608/608, B1=600/608 (**98.68%**). CONTRACT352/352 ở cả hai; CONDITIONAL
+B0=256/256, B1=248/256. Đây là **scenario-level agreement với rubric tác giả**,
+không Accuracy/FPR/FNR/Precision/Recall thực tế. Do rubric biết baseline trước,
+không dùng chênh lệch này như một đánh giá ground truth độc lập chứng minh B0 ưu việt.
+
+32 latent-nonowner cases có actor giả định khác nhưng observable feature thuận
+lợi như owner, cả hai đều ALLOW. Điều này minh họa thiếu tín hiệu phân biệt;
+không thể yêu cầu model suy ra actor ẩn, không gọi đây là32 vụ bypass thực tế.
+
+Trong192 snapshot LEGITIMATE_BY_SCENARIO, B0 A/M/D=160/32/0, B1=150/42/0.
+MFA share tổng hợp16.67%→21.875% (+5.21 percentage points); không phải user MFA
+rate. Vì allowed set chấp nhận MFA cho ngữ cảnh hợp lệ bất thường, agreement có
+thể giữ nguyên trong khi friction tăng. Không có usability study hoặc đo thời gian
+OTP thật mới để quy đổi khác biệt này thành mức khó chịu của người dùng.
+
+| Tiêu chí | Kết luận trong phạm vi bằng chứng |
+|---|---|
+| Correctness/invariants |Cả hai PASS trên các miền kiểm tra; không phát hiện lỗi production B1 cần đổi semantics |
+| Explainability |Source có component/contribution/coverage/source; không biến explanation thành ground truth hoặc thêm thông tin bằng Trust complement |
+| Smoothness/stability |B1 có gradient rộng hơn; nhiều decision flips hơn trong slice mới; chưa chứng minh ổn định quyết định tốt hơn |
+| Protection trade-off |42 downgrade cũ và1 unguarded MFA→ALLOW vẫn chưa có nhãn thực tế để chấp nhận; cohort mới tái hiện cùng cơ chế |
+| Friction/overhead |Không thấy giảm MFA tổng hợp; computational median cao hơn trong3 fork, không ngoại suy production |
+| Runtime readiness |B0 có A1–A6 acceptance; B1 chưa Browser/deploy, chưa có evidence đủ để thay B0 |
+
+**Khuyến nghị cuối: giữ B0 làm runtime chính thức của prototype, giữ B1 như ứng
+viên source phục vụ nghiên cứu. B1 chưa được chứng minh tốt hơn B0.** Không tự
+thay weights/thresholds/guard để xóa8 disagreements hoặc42 downgrade. Kết luận
+này là quyết định thận trọng theo phạm vi evidence, không chứng minh B0 tối ưu
+hay B1 kém trên mọi phân bố tương lai.
+
+### 20.10 Threats to validity và phần chưa kiểm chứng
+
+- Construct validity: labels chỉ là rubric tác giả, attacker intent/cookie possession
+  chưa được quan sát thật; CONTRACT tests cố ý gần policy đang có. Không độc lập
+  chuyên gia, không blinded, không nhãn sự cố ngoài thực tế.
+- Sampling/external validity: generator cân theo family, không theo prevalence;
+  timestamps khác vẫn có thể cùng aggregate. Variants trong nhóm phụ thuộc; tách
+  seed/history không tạo độc lập dân số. Không dùng pseudo-replication để tính
+  attack confidence hoặc statistical power.
+- Internal validity: oracle độc lập implementation nhưng cùng công thức mô tả,
+  không xác nhận công thức là đúng về mặt đe dọa. Window/TTL là stub/simulation;
+  không kiểm tra mới Lua atomicity, MySQL locks hoặc network delivery.
+- Operational validity: NAT/IP/country, SSO history contamination, stolen cookie,
+  MMDB missing/stale, min5 và counters hết TTL vẫn ảnh hưởng cả hai. Không có
+  impossible travel/ASN/UA trong scoring và không tuyên bố chúng đã được đo.
+- Performance validity:3 fork trên một Windows host đang có workload nền, GC/JIT/
+  timer noise; không formal JMH/fleet benchmark, không HTTP/Browser latency.
+
+**NOT VERIFIED:** B1 Browser/runtime behavior; attack detection/FPR/FNR với
+ground truth thích hợp; user satisfaction và MFA completion time; service-unavailable
+Browser/fail-safe live; nguyên nhân Portal logout A6 còn session tại mốc đã ghi.
+Không biến giới hạn dữ liệu thành kết quả giả hoặc chặn hoàn tất phần offline.
+
+### 20.11 Cách tái hiện và artifacts
+
+Từ canonical Windows/JDK17; lần này generate/analyze dùng Python3.13.2 stdlib,
+plotting dùng Python3.12.14 có sẵn. Không chạy với runtime credentials hoặc
+production endpoints. Interpreter vẽ phải khớp ABI của binary dependency cache;
+không dùng Python3.13 với cache3.12 đã chuẩn bị trong lần chạy này.
+
+```powershell
+python -X utf8 risk-scoring-service/src/test/research/controlled_study.py --self-test
+python -X utf8 risk-scoring-service/src/test/research/controlled_study.py --generate
+.\mvnw.cmd --batch-mode --no-transfer-progress -f risk-scoring-service/pom.xml '-Dtest=ControlledStudyExperiment#pairedSnapshotsAndRealComponentAblations+roundingBoundaryContract' test
+foreach ($researchFork in 1..3) {
+  .\mvnw.cmd --batch-mode --no-transfer-progress -f risk-scoring-service/pom.xml '-Dtest=ControlledStudyExperiment#boundedBenchmark' "-Dresearch.fork=$researchFork" test
+}
+python -X utf8 risk-scoring-service/src/test/research/controlled_study.py --analyze
+# Optional plotting; this existing Python already has numpy/Pillow/packaging/dateutil.
+$PlotPython = 'C:\Users\DELL\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe'
+# Only needed when the matching plotting cache is absent; no shared Python install.
+& $PlotPython -m pip install --no-deps --target risk-scoring-service/target/research/plotting-deps -r risk-scoring-service/src/test/research/plot-requirements.txt
+& $PlotPython -X utf8 risk-scoring-service/src/test/research/controlled_study.py --plots
+```
+
+`ControlledStudyExperiment` là harness nghiên cứu được chọn explicit bằng
+`-Dtest`, không thuộc wildcard test suite thông thường. Các lệnh benchmark dành
+artifact set chưa có raw timing; công cụ từ chối ghi đè artifacts khác nội dung.
+Không xóa evidence hiện tại để thử lại. Numeric outputs/oracle tái hiện được;
+timing samples không được kỳ vọng giống bit-for-bit giữa lần chạy/máy.
+
+Analyze còn dùng legacy artifacts có sẵn đã hash verify. Trên máy chưa có cache,
+chỉ khi cần tái hiện từ đầu: chạy riêng
+`B1ImplementationTests#realModelsMatchExactRationalOracleAndExportPairedReplay`,
+rồi `python -X utf8 risk-scoring-service/src/test/research/evaluate_b1.py`.
+**Hai bước legacy này không được chạy lại trong nhiệm vụ hiện tại.** Legacy CSV
+hash gắn với Windows line endings; không tuyên bố hash đó portable sang OS khác.
+
+Ignored output `risk-scoring-service/target/research/controlled-v1/` gồm snapshots,
+dataset-manifest, java-results, rounding-boundaries,3 benchmark-fork JSON,
+study-summary-v2 và study-provenance. Summary đầu được giữ để audit việc sửa
+metadata monotonicity; dùng v2 cho kết luận. Raw input/output và version hashes
+được giữ, không cần database mới hoặc workspace phụ để tái hiện.
+
+### 20.12 Bảo toàn runtime, CRL và Git checkpoint
+
+Baseline read-only lúc10:01:02 GMT+7: Docker10/10 healthy,49 School rows/23 scores,
+6 mappings; Risk93 history/18 devices/8 states/3 revocations/FlywayV1–V5, Redis0
+keys. Đã giữ bản sao/hash hai docs CRL chưa commit trước khi nghiên cứu. Chúng
+phản ánh đúng CRLNumber1793327448, NextUpdate**06/11/2026 09:30:48 GMT+7**; không
+sửa TLS/runtime để sửa tài liệu. Chi tiết bảo trì trong báo cáo consolidation.
+
+**PASS — hậu kiểm10:28:36 GMT+7:** cùng10 container IDs/images/mount definitions/
+restart counts,10/10 healthy; runtime file hashes giữ nguyên, gồm CA/private keys,
+leaf/keystore, policy và CRL mới.24 table/schema fingerprints School/Keycloak/Risk
+khớp baseline;49 rows/23 scores/6 mappings, credentials/OTP/signing/trust và Flyway
+V1–V5 được bảo toàn; Redis vẫn0 keys. Native Schannel Gateway/Discovery HTTP200,
+không bypass validation. Sandbox mới chặn Docker read-only ban đầu; đã dùng quyền
+thực thi được cho phép để hậu kiểm, không thay service hoặc security setting.
+
+Review trước Git:10 file gồm4 source nghiên cứu,2 SVG assets và4 tài liệu (có
+hai cập nhật CRL được giữ). Không có thay đổi production hoặc tests cũ. Scan kín
+21 runtime secret values cộng private-key/JWT/PAT patterns:0 findings; private
+evidence, generated raw data/log/XML/PNG, plotting dependencies/runtime bị ignore,
+index rỗng trước stage; diff-check PASS. Commit message dự kiến:
+`test(research): complete controlled B0 and B1 evaluation`.
+
+Chỉ thêm source test/research, figures và cập nhật tài liệu liên quan. Không sửa
+Risk main code, SPI main code, weights/thresholds/default B0, account/role/trust/
+MFA, database/Redis/TLS/Compose hoặc runtime. Không cleanup archives/Demo/release
+source và không tạo worktree/clone/environment. Hậu kiểm cuối và Git publication
+được ghi bằng evidence riêng tư cùng kết quả hoàn tất, không tự nhúng hash của
+chính commit vào nội dung commit. Chỉ push fast-forward đúng branch đã được user
+cho phép, không force/amend/rebase/tag/deploy. CI mới không được coi PASS trước
+khi có bằng chứng.
+
+### 20.13 Nội dung đủ căn cứ đưa vào luận văn
+
+1. Kiến trúc adaptive auth mở, ranh giới service và enforcement B0 A1–A6 đã nghiệm
+   thu, cùng RBAC21/21; phân biệt Browser evidence với offline research.
+2. Định nghĩa B0/B1 minh bạch, công thức/normalization/guard/missingness và cách
+   giải thích Risk/Trust; không tuyên bố phép bù100−R là phát minh mới.
+3. Bộ fixtures versioned, split theo seed/history, rubric có công khai mức bất
+   định; pipeline cùng snapshot, oracle exact, transition matrix và attribution.
+4. Phân tích đủ42 downgrade/1 unguarded removal lịch sử, ablation component thật,
+   sensitivity/TTL/NAT và kết luận smoothness khác stability quyết định.
+5. Benchmark tính toán có warm-up/3forks và phân bố, kèm giới hạn không extrapolate
+   HTTP/Browser. Kết luận âm có căn cứ: **chưa chứng minh B1 tốt hơn, giữ B0**.
+
+Để tuyên bố hiệu quả phát hiện ngoài thực tế còn cần nguồn nhãn bên ngoài/threat
+adjudication và input snapshots tương ứng, như điều kiện cụ thể ở14.7; không
+đòi chạy lại cùng nghiên cứu tổng hợp hoặc triển khai B1 để lấp chỗ trống bằng
+suy diễn. Nhiệm vụ này hoàn thành nghiên cứu offline trong phạm vi dữ liệu hiện có.

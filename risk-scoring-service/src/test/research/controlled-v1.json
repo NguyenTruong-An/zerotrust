@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "study": "CONTROLLED_SYNTHETIC_B0_B1_V1",
+  "label_freeze": "Rules versioned before new-model outputs; analyst already knows the historical replay, so this is not a blind or externally adjudicated study.",
+  "not_ground_truth": "No real users, real attacks or population prevalence. Labels express a declared protection rubric, not attack detection truth.",
+  "splits": {"calibration": {"seed": 2026103001, "groups_per_family": 4}, "evaluation": {"seed": 2026103002, "groups_per_family": 8}},
+  "variants_per_group": 4,
+  "policy": {"weights": ["0.25", "0.25", "0.25", "0.25"], "medium": "40", "high": "75", "zone": "UTC", "history_days": 90, "minimum_events": 5, "maximum_events": 200},
+  "families": [
+    {"id": "routine", "actor": "LEGITIMATE_BY_SCENARIO", "expected_actions": ["ALLOW"], "confidence": "CONDITIONAL", "rationale": "Known device, familiar time/network and at most a small typing-error counter; author-defined usability target."},
+    {"id": "legitimate_unusual", "actor": "LEGITIMATE_BY_SCENARIO", "expected_actions": ["ALLOW", "STEP_UP_MFA"], "confidence": "CONDITIONAL", "rationale": "A legitimate schedule/network change permits a challenge; outright rejection is a usability cost in this rubric."},
+    {"id": "unfamiliar_device", "actor": "UNKNOWN", "expected_actions": ["STEP_UP_MFA"], "confidence": "CONTRACT", "rationale": "Unproven device requires fresh MFA, independently of a numeric score."},
+    {"id": "expired_trust", "actor": "UNKNOWN", "expected_actions": ["STEP_UP_MFA"], "confidence": "CONTRACT", "rationale": "Expired server trust requires reauthentication, not an automatic priority rejection."},
+    {"id": "elevated_context", "actor": "UNKNOWN", "expected_actions": ["STEP_UP_MFA", "DENY"], "confidence": "CONDITIONAL", "rationale": "Repeated failures plus an unfamiliar weekday/hour and nontrusted network warrant at least MFA under the analyst threat rubric; this is not a new production guard."},
+    {"id": "high_context", "actor": "SIMULATED_CREDENTIAL_EXPOSURE", "expected_actions": ["STEP_UP_MFA", "DENY"], "confidence": "CONDITIONAL", "rationale": "Multiple suspicious signals require additional protection. MFA and DENY are reported separately, not treated as equivalent access outcomes."},
+    {"id": "nat_shared", "actor": "LEGITIMATE_BY_SCENARIO", "expected_actions": ["ALLOW", "STEP_UP_MFA"], "confidence": "CONDITIONAL", "rationale": "Shared-IP failures may belong to other users; unnecessary DENY is a usability cost, not a measured real-world false positive."},
+    {"id": "cold_start", "actor": "DATA_CONDITION", "expected_actions": ["STEP_UP_MFA"], "confidence": "CONTRACT", "rationale": "Insufficient history has no valid numeric estimate; require MFA."},
+    {"id": "counter_unavailable", "actor": "DATA_CONDITION", "expected_actions": ["STEP_UP_MFA"], "confidence": "CONTRACT", "rationale": "Counter I/O failure is INCOMPLETE, not an observed zero count."},
+    {"id": "network_unavailable", "actor": "DATA_CONDITION", "expected_actions": ["STEP_UP_MFA"], "confidence": "CONTRACT", "rationale": "Missing network intelligence is INCOMPLETE."},
+    {"id": "temporal_unavailable", "actor": "DATA_CONDITION", "expected_actions": ["STEP_UP_MFA"], "confidence": "CONTRACT", "rationale": "History lookup failure is INCOMPLETE."},
+    {"id": "priority_device", "actor": "CONFIRMED_POLICY_VIOLATION", "expected_actions": ["DENY"], "confidence": "CONTRACT", "rationale": "Security-revoked device must be denied, even when other data is missing."},
+    {"id": "priority_ip", "actor": "CONFIRMED_POLICY_VIOLATION", "expected_actions": ["DENY"], "confidence": "CONTRACT", "rationale": "Explicit blocked-IP rule precedes extraction and scoring."},
+    {"id": "reset_pending", "actor": "DATA_CONDITION", "expected_actions": ["DENY"], "confidence": "CONTRACT", "rationale": "Pending MFA reset is a priority denial; it is not a score-based HIGH."},
+    {"id": "history_window", "actor": "LEGITIMATE_BY_SCENARIO", "expected_actions": ["ALLOW", "STEP_UP_MFA"], "confidence": "CONDITIONAL", "rationale": "Older events must be excluded and the selected history capped; evaluate a legitimate profile under that observation window."},
+    {"id": "latent_nonowner", "actor": "COUNTERFACTUAL_NONOWNER_WITH_SAME_OBSERVABLE_FEATURES", "expected_actions": ["STEP_UP_MFA", "DENY"], "confidence": "LOW_UNOBSERVABLE", "rationale": "Hidden actor intent cannot be recovered from identical observable context; excluded from primary agreement, retained to show the identifiability limit."},
+    {"id": "counter_ttl", "actor": "LEGITIMATE_BY_SCENARIO", "expected_actions": ["ALLOW", "STEP_UP_MFA"], "confidence": "CONDITIONAL", "rationale": "A fixed-window counter may expire; this family is a clock simulation of declared Lua semantics, not a Redis integration test."},
+    {"id": "sample_size", "actor": "DATA_CONDITION", "expected_actions": ["ALLOW"], "confidence": "CONTRACT", "rationale": "Familiar context with adequate observations allows; the variant below minimum-events instead requires MFA."},
+    {"id": "device_lifecycle", "actor": "DATA_CONDITION", "expected_actions": ["ALLOW"], "confidence": "CONTRACT", "rationale": "Variant labels follow the 30-day trust boundary or an explicit security revocation, not the model score."},
+    {"id": "network_context", "actor": "LEGITIMATE_BY_SCENARIO", "expected_actions": ["ALLOW", "STEP_UP_MFA"], "confidence": "CONDITIONAL", "rationale": "Trusted/default/elevated/high policy sources are distinguished; high network must at least challenge."},
+    {"id": "threshold_neighborhood", "actor": "UNKNOWN", "expected_actions": [], "confidence": "DIAGNOSTIC_ONLY", "rationale": "Mechanical neighborhood probes have no independent quality label; check numeric contracts against an exact oracle only."}
+  ],
+  "service_unavailable": "Outside a successful Risk evaluation: reuse existing SPI failureMode DENY tests/source evidence, do not manufacture Risk HIGH rows or claim new Browser acceptance."
+}
