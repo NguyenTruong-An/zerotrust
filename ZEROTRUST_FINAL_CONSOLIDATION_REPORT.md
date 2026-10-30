@@ -1219,7 +1219,7 @@ MFA reset thuộc API hiện có nhưng không thực thi trên tài khoản g�
 | Chữ ký JWT không hợp lệ | **PASS — test decoder mới**: key khác nhưng cùng kid vẫn bị production Nimbus decoder từ chối; RSA/JWKS chỉ trên loopback fixture, không gửi token tự ký tới runtime |
 | Expired/missing-exp/wrong issuer/audience/nbf | **PASS — tests cũ được tái sử dụng**: PortalJwtDecoderTest và GatewaySecurityTests. Không tạo token giả cho hệ thống thật |
 | Risk unavailable, failureMode DENY | **PASS —6 tests cô lập mới**: real RiskAuthenticator → real RiskDecisionHandler với serialization/connection/timeout/interrupted/HTTP/invalid-response failures; ACCESS_DENIED403, không success/step-up/trust eligibility. Trace không khai báo MFA_COMPLETED/LOGIN_SUCCESS |
-| Risk unavailable Browser/canonical outage | **NOT VERIFIED** — không dừng Risk, không đổi failureMode/realm/flow. Test cô lập không thay thế outage Browser evidence |
+| Risk unavailable runtime observation | **PASS — một failure quan sát được**, không phải controlled outage: 13:46:30 GMT+7 TIMEOUT → SERVICE_UNAVAILABLE_DENY ở evaluation và enforcement; score/evaluation ID null, không HIGH. **NOT VERIFIED** — controlled outage Browser, nguyên nhân timeout và token/session absence riêng lần lỗi; không dừng Risk hoặc đổi flow |
 | LOW/MFA/DENY/Trusted Device/cold-start | **PASS — A1–A6 cũ**: gồm score-threshold A5=50/MFA, A6=82.5/DENY và priority A4 score-null; không chạy lại hoặc tạo lại fixture |
 | HTTPS/CRL | **PASS — read-only12:53:32 GMT+7**: native Schannel Portal/Discovery200, không cacert override/no-revoke/insecure; public material check xác minh chain/SAN/EKU/chữ ký/thời hạn/thu hồi với0 writes. Java HTTPS4/4 có revocation đã PASS khi bảo trì CRL, được tái sử dụng vì mọi TLS/config hashes không đổi |
 
@@ -1261,10 +1261,29 @@ Không tự gán trạng thái server logout thành công từ promise resolve.
 **PASS — source regression9/9.** Trước sửa4/6 PASS và2 FAIL được lưu riêng;
 sau sửa thêm stale-request/duplicate-click và case expiry khi không logout,
 9/9 PASS, không skip; session hết hạn vẫn clear token và chuyển login bình thường.
-**NOT VERIFIED — L1 Browser/session:** đã gửi một checklist user tự login STUDENT A,
-quan sát logout request/status, logout một lần, mở lại protected route và không
-login lại. Snapshot trước12:41:45 có0 session; không thể gọi đây là1→0 evidence.
-Chờ kết quả user để đối chiếu scoped session readback; không tự nhập password/OTP.
+**PASS — L1 Browser/session trên Frontend cũ:** user xác nhận bảng điểm tải trước
+logout, một thao tác logout trong khoảng13:50–14:12 GMT+7, GET `/logout`302,
+hoàn tất trang xác nhận Keycloak, về màn hình đăng nhập. Mở lại protected route
+đòi login, không tải điểm mới hoặc tự SSO. Scoped Admin session readback14:18:45
+có**0 session STUDENT A**, không thực hiện Admin logout hoặc thay dữ liệu.
+Snapshot trước12:41:45 cũng0 nên không trình bày như hai snapshots1→0 trực tiếp.
+Logs/history ghi hai login thành công13:46:45 và13:47:02; không đồng nhất các mốc
+này với khoảng giờ owner ước lượng logout. Trace hiện có không phát LOGOUT event;
+không tự tạo event hoặc suy luận A6 đã được giải thích. Chỉ lưu endpoint/status
+và kết quả đã lọc; URL có ID token owner gửi nhầm không được lưu evidence/báo cáo/Git.
+
+**NOT VERIFIED — L2 Browser sau deploy:** đã gửi checklist một lần hard reload,
+login STUDENT A, xem điểm, logout và mở lại protected route; chờ owner xác nhận.
+L1 cũ không được tự gán thành Browser execution trên image mới.
+
+**Sự cố tạm thời được phát hiện read-only:** trước hai login thành công có
+TIMEOUT13:46:30, correlation `374519ea-9460-4cd9-b177-2989f2c7f7a7`, cả hai stages
+ghi SERVICE_UNAVAILABLE_DENY, score/level/evaluation ID null. Không có LOGIN_SUCCESS
+cùng correlation. Không cố tạo outage để nghiệm thu. Source dùng chung failure
+type TIMEOUT cho token endpoint và Risk evaluate; log hiện tại chưa phân biệt
+được chặng lỗi. Nguyên nhân sâu hơn **NOT VERIFIED**; không tự tăng timeout,
+đổi failureMode, retry login hoặc nới policy để che lỗi. Theo dõi trước demo;
+nếu lặp lại cần đo từng chặng transport/TLS/token/Risk và tái hiện cô lập trước sửa.
 
 ### Tests mới và deployment
 
@@ -1280,21 +1299,43 @@ Tổng18 tests mục tiêu mới PASS; không chạy lại toàn bộ Portal/Ris
 suite hoặc A1–A6/RBAC. Test logs chứa dữ liệu tổng hợp được giữ riêng; source/test
 files đưa Git không chứa runtime secrets. Không sửa production Java/scoring.
 
-**Deployment: BLOCKED chờ phê duyệt build/recreate riêng Frontend.** Source sửa đã
-build local thành công; runtime vẫn image Frontend
-`ca0f65adff310127d0d0a8b1d92ec049d7131ccef94d8a4f61de44b20ccf6a4e` trước sửa Logout.
-Đề nghị build đúng canonical Compose context, giữ image này bằng rollback reference,
-thay riêng Frontend `--no-deps`; chín containers khác cùng data volumes/TLS/OTP/
-signing/realm/policy giữ nguyên. Image mới chỉ được ghi nhận sau build được duyệt.
-Rủi ro: ngắt Portal ngắn và cần reload bundle; lỗi thì phục hồi đúng image cũ,
-không restore database hoặc thay Keycloak. Không tự build/restart để đạt PASS.
+**PASS — deployment sau phê duyệt, hoàn tất14:25:05 GMT+7.** Build riêng Frontend
+bằng canonical Compose context, API cùng origin, Keycloak HTTPS/DoAn; image mới
+`ec28b638e7dbd6f3cadfb95256d7548ae7bfbe956a935c45b9d9564189131f8c`, revision label
+`ffeb4655321a362268569a497fd32a49b12811a1`, source snapshot
+`1e1bddf1f27ff0ac1c162af3b6a52a843823e7577932c9d21e78c3290d542274`.
+Gateway HTTPS phục vụ chunk có `logout-error`/UI sửa mới và không fallback API
+localhost:8080; không coi container healthy là đủ để chứng minh bundle.
+
+Rollback giữ image cũ `ca0f65adff310127d0d0a8b1d92ec049d7131ccef94d8a4f61de44b20ccf6a4e`
+qua reference `zerotrust-legacy-frontend:rollback-pre-logout-ffeb465-20261030`.
+Lần1 đã rollback an toàn vì verifier so sánh cả TTL Redis thay vì mức giảm theo
+thời gian: cùng một key/type/value hash, TTL giảm31.308 giây trong khoảng đo32 giây.
+Đây là lỗi verifier, không phải dữ liệu Redis bị thay đổi bởi deployment.
+Giữ nguyên journal/snapshots lần1; sửa riêng verifier để kiểm giá trị và TTL
+theo elapsed time với sai số2 giây, reject giá trị đổi/TTL tự kéo dài. Ba kiểm tra
+verifier cô lập PASS. Lần2 dùng cùng image, không rebuild; deployment và hậu kiểm
+PASS, không rollback lần2. Không khôi phục/xóa Redis hoặc database.
+
+Cuối deployment10/10 healthy, chín containers khác giữ IDs/images/restarts;
+toàn bộ private runtime file hashes giữ nguyên.24 table/schema fingerprints và
+School mappings khớp immediate-before/after, Redis key/type/value nguyên vẹn,
+TTL giảm hợp lệ. Không restart/recreate Backend/Gateway/Risk/Keycloak/database,
+không migrate/import/reset, đổi OTP/trust/policy/CA/JWT keys hoặc deploy B1.
+
+**PASS — hậu kiểm14:27:20 GMT+7:** Portal/Discovery native Schannel200; project/
+working directory canonical; Frontend đúng image mới và source snapshot đã build,
+chín container còn lại cùng IDs/images/restarts, runtime hashes không đổi,
+rollback reference còn trỏ đúng image cũ. Java TLS evidence được tái sử dụng vì
+không thay TLS hoặc chín services đó. L2 Browser vẫn được theo dõi riêng.
 
 ### Demo readiness và kết luận tạm thời
 
-**PARTIAL**: business read-only, Adaptive A1–A6 và RBAC có evidence; CRUD và các
-security gaps mới có targeted source execution. Còn L1 logout/session live và
-deployment/retest bản sửa Logout. Không gọi whole-system READY khi hai mục này
-chưa được kiểm chứng. Hướng dẫn demo an toàn được bổ sung tại
+**PARTIAL**: business read-only, Adaptive A1–A6, RBAC và L1 normal Logout có
+evidence; CRUD/security gaps mới có targeted source execution. Bản sửa Logout
+đã deploy; còn L2 Browser trên image mới và nguyên nhân TIMEOUT tạm thời chưa
+xác minh. Không gọi toàn hệ thống PASS hoặc đánh đồng fail-closed với availability.
+Hướng dẫn demo an toàn được bổ sung tại
 `docs/operations/LEGACY_INTEGRATION.md`, dùng evidence HIGH/DENY đã lưu thay vì
 tái tạo fixtures. CRL còn hạn đến**06/11/2026 09:30:48 GMT+7**, bảo trì khi còn≤2
 ngày, khoảng**04/11/2026 09:30:48 GMT+7**, và kiểm tra trước mỗi demo.
@@ -1307,6 +1348,17 @@ giữ nguyên; Redis0 keys, toàn bộ runtime file hashes không đổi. 12:53:
 restart/recreate/build Docker hoặc thay trust store do nhiệm vụ này thực hiện.
 12:57:25 readback failureMode là DENY, Risk image vẫn B0 và không có B1 opt-in.
 Các mốc này trước thao tác Browser L1 chưa được user xác nhận; không suy kết quả L1.
+
+**PASS — bảo toàn qua L1 và deployment:** chỉ authentication_success_events tăng
+93→95 do hai login thật của STUDENT A, thời điểm history khớp LOGIN_SUCCESS.
+Lọc các rows recorded_at trước baseline05:40:09 UTC và đối chiếu cùng thuật toán
+fingerprint cho93 rows gốc: hash khớp hoàn toàn. School/Keycloak và mọi bảng Risk
+khác không đổi;18 devices/8 subject states/3 revocations/FlywayV1–V5 nguyên vẹn.
+Redis phát sinh một key TTL trong thời gian người dùng login; không reset key.
+Immediate-before/after deployment cùng key/type/value hash và TTL giảm hợp lệ.
+Đây là thay đổi login/history/cache bình thường, không phải ghi fixture hoặc sửa
+nghiệp vụ. Các lần đọc Admin sessions chỉ dùng machine grant hợp lệ, không giả
+user token hoặc tự logout user thật.
 
 ### Git checkpoint của nhiệm vụ
 
@@ -1323,9 +1375,18 @@ Chỉ PortalRoute là production code thay đổi; package chỉ thêm test comm
 production Java/Gateway/Risk không đổi. Rà soát kín10 runtime secret values và
 mẫu private-key/JWT/GitHub-token không thấy match; private evidence/generated
 outputs/runtime không nằm trong allowlist. User đã cho phép commit/push
-fast-forward đúng branch trong nhiệm vụ này; không force/amend/rebase. Kết quả
-publication và hash commit được lưu riêng sau khi review; không tự nhúng hash của
-chính commit vào nội dung của nó. CI không được coi PASS nếu chưa có kết quả.
+fast-forward đúng branch trong nhiệm vụ này; không force/amend/rebase.
+**PASS — commit source/tests/docs `ffeb465` đã push**, remote và HEAD khớp,
+working tree sạch sau checkpoint đầu. Deployment image mang revision này.
+Cập nhật docs sau phê duyệt/runtime/L1 được chốt riêng theo cùng quyền user đã
+cấp; không rebuild image chỉ vì docs thay đổi. Kết quả publication và hash commit
+docs được lưu riêng, không tự nhúng hash của chính commit vào nội dung của nó.
+**PASS — CI của source commit `ffeb465`**: GitHub Project checks run22 hoàn tất
+success; [workflow evidence](https://github.com/NguyenTruong-An/zerotrust/actions/runs/41011685736).
+Đây là CI tự kích hoạt sau push theo workflow hiện có, không phải yêu cầu chạy
+lại các nghiệm thu Browser hoặc toàn bộ suites local. Frontend component tests
+mới được chạy local9/9; workflow hiện chỉ chạy lint/typecheck cho Frontend.
+Commit docs tiếp theo không tự được coi CI PASS theo kết quả của source commit.
 
 Private evidence của nhiệm vụ nằm dưới `.local-legacy/final-consolidation-evidence/`
 `final-system-acceptance-20261030/`, bị Git/Docker ignore. Không commit private
