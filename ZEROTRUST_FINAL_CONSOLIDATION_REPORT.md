@@ -1,7 +1,24 @@
 # ZeroTrust — Source ADMIN/STUDENT, Windows TLS và nghiệm thu
 
-Bắt đầu 27/10/2026, cập nhật 28/10/2026, Asia/Saigon. Đây là báo cáo tổng hợp duy nhất của nhiệm vụ;
+Bắt đầu27/10/2026; source/TLS lịch sử28/10, bổ sung Git/workspace checkpoint30/10/2026, Asia/Saigon. Đây là báo cáo tổng hợp duy nhất của nhiệm vụ;
 các số liệu được cập nhật tại chỗ khi có bằng chứng mới.
+
+**Cập nhật30/10:** B0 đã nghiệm thu A1–A6 và21 RBAC/ownership checks; A5/A6 fixture
+cleanup/data preservation PASS theo [báo cáo nghiên cứu](TRUST_SCORE_RESEARCH_AND_EXPERIMENT_PLAN.md#185-a6-scored-high--deny--pass).
+B1 source ở commit `40fea6a`, **chưa deploy**; B0 tiếp tục chạy. Chủ đồ án đã duyệt
+xóa đúng worktree/marker/wrapper và commit hai báo cáo rồi push branch hiện tại.
+Đã xóa đủ allowlist bằng Git chuẩn và lệnh xóa literal không recursive/force;
+hậu kiểm Docker10/10 healthy, source và24 nhóm dữ liệu/cấu hình khớp baseline,
+native Windows HTTPS200. Backup/ref rollback, archives và release source65 staged
+được giữ nguyên. Inventory12 Git roots trước xóa còn11 sau xóa; chỉ C là canonical
+phát triển. Kết quả thực hiện ở phần bổ sung30/10; kế hoạch trước duyệt được giữ
+để đối chiếu. Commit/push được thực hiện sau khi ghi hậu kiểm vào đúng hai báo cáo;
+hash commit cuối và đối chiếu remote được lưu riêng, không tự ghi hash của chính nó.
+
+**Mốc source/TLS28/10 bên dưới là lịch sử**, gồm các trạng thái Browser chưa kiểm
+chứng lúc đó và các image đã được cập nhật tiếp ở nhiệm vụ sau. Hiện trạng nghiệm
+thu mới nhất nằm trong báo cáo nghiên cứu mục17–18; hiện trạng Git/workspace ở
+phần bổ sung30/10 cuối tài liệu này. Không dùng các bảng cũ để suy B1 đã deploy.
 
 **Kết luận tổng hợp: NOT VERIFIED.** Source ADMIN/STUDENT đã review; TLS Windows với CA file và
 kết nối nội bộ có kiểm tra thu hồi PASS sau triển khai được phê duyệt ngày 28/10/2026.
@@ -472,6 +489,275 @@ không triển khai production; không đồng nhất CI với Browser acceptanc
 
 Commit message:
 `fix(portal): restore admin-student scope and repair local TLS CRL discovery`
+
+## Final Git checkpoint và workspace cleanup — 30/10/2026
+
+Các bảng kế hoạch/inventory dưới đây ghi trạng thái **trước phê duyệt**. Kết quả
+thực hiện đã được duyệt nằm ở mục “Kết quả thực hiện và hậu kiểm” cuối phần này.
+
+### Hiện trạng đã đối chiếu
+
+- Canonical `C:\Users\DELL\Documents\zerotrust\zerotrust`; standalone `.git`,
+  branch `zerotrust-v4-risk-scoring`, HEAD
+  `40fea6a455a9a43eb9d68bcf86b884fbd23e97cd`. Không Git alternates/shared object
+  store phụ thuộc worktree/release source cũ.
+- `origin/zerotrust-v4-risk-scoring` và actual remote ls-remote cùng
+  `0893c09cebb80ccd9e559d0df00398716cad376f`; ahead2/behind0 tại thời điểm đọc.
+  Không fetch/reset/stash/rebase/amend hoặc rewrite history.
+- Trước lượt này chỉ `TRUST_SCORE_RESEARCH_AND_EXPERIMENT_PLAN.md` modified,
+  +409/−9 dòng sau commit B1, gồm actual A5/A6 acceptance và cleanup. Đã review
+  score50/82.50, COMPLETE, evaluation IDs/enforcement/session và các giới hạn
+  inferred decision_source/token observation, đối chiếu manifests riêng tư.
+- Cập nhật thêm chính báo cáo consolidation này để lưu workspace plan. Candidate
+  commit chỉ gồm **2 tài liệu**, không production source/config, index vẫn rỗng.
+- Scan47 blobs của hai commit chưa push và hai docs working tree bằng mẫu
+  private-key/JWT/PAT/access-key và đối chiếu kín21 current runtime secrets:
+  không phát hiện match hoặc private/generated path được commit. Review có phạm
+  vi, không phải bảo đảm phát hiện mọi dạng secret. Private reports/logs/CSV/XML,
+  credentials, keys, keystores, dumps, `.local-legacy` và backup ZIP không vào Git.
+- Không rerun A1–A6,21 RBAC,76 Risk/26 SPI hoặc build/redeploy. B0 giữ nguyên;
+  trường hợp B1 Browser/ground-truth detection/Risk unavailable Browser và nguyên
+  nhân Portal logout A6 còn1 session vẫn theo giới hạn đã ghi ở báo cáo nghiên cứu.
+
+Runtime ban đầu trong lượt này: Engine phản hồi nhưng cả19 containers stopped.
+Agent không start container. Sau khi chủ đồ án mở canonical runtime, actual
+10/10 healthy;6 build contexts từ effective canonical Compose đều trỏ C. Native
+Windows Schannel GET Gateway/Discovery HTTP200. Read-only data snapshot08:46:39
+GMT+7 xác nhận School49 rows/23 scores,6 mappings, Flyway V1–V5; Risk93 history,
+18 devices,8 subject states,3 revocations. Không tạo account, fixture hoặc ghi DB.
+Runtime file hashes vẫn khớp baseline A5/A6; Risk image vẫn B0
+`167274d5b40404e0bb47d763c2e322d5a8ae3c8d2722691d661f66419f2e60ee`.
+
+### Danh sách commit được duyệt push — trạng thái lúc chuẩn bị
+
+| Thứ tự | Commit / message | Trạng thái |
+|---|---|---|
+|1 | `917aeebdb672d04984c4eccc98fc57c5144df943` — `feat(auth): add risk tracing and fix student score reset` | Local, chưa push; đã được duyệt commit ở nhiệm vụ trước |
+|2 | `40fea6a455a9a43eb9d68bcf86b884fbd23e97cd` — `feat(risk): add opt-in B1 scoring and offline evaluation` | Local, chưa push; B0 vẫn mặc định/runtime |
+|3 | **Chưa tạo** — `docs: finalize adaptive acceptance and workspace inventory` | Đề nghị commit2 docs sau thao tác đã được duyệt/hậu kiểm; không tự có hash hoặc coi đã push |
+
+Allowlist của commit tài liệu:
+
+```text
+TRUST_SCORE_RESEARCH_AND_EXPERIMENT_PLAN.md
+ZEROTRUST_FINAL_CONSOLIDATION_REPORT.md
+```
+
+Đề nghị sau khi được duyệt: hoàn tất đúng cleanup allowlist/hậu kiểm, cập nhật
+kết quả thật vào cùng hai docs, scan lại phần mới, stage đúng2 paths, commit với
+message trên rồi **fast-forward push chỉ branch này**. Kiểm tra lại remote trước
+push; nếu có divergence/thay đổi chưa review thì dừng, không force. Không push
+tags/branch khác. `.github/workflows/ci.yml` chạy tests/frontend checks trên
+GitHub-hosted runner khi push; không có deployment job hoặc lệnh cập nhật Docker
+runtime. CI chưa chạy cho push mới, không gán CI PASS trước bằng chứng.
+
+### Workspace inventory trước xóa: KEEP / SAFE_TO_REMOVE / BLOCKED
+
+Các alias trong bảng là đường dẫn tuyệt đối sau:
+
+| Alias | Đường dẫn |
+|---|---|
+| C | `C:\Users\DELL\Documents\zerotrust\zerotrust` |
+| A | `C:\Users\DELL\Documents\zerotrust\zerotrust-archive-20261027` |
+| B | `C:\Users\DELL\Documents\zerotrust\zerotrust-archive-partial-move-preserved-20261027` |
+| W | `C:\Users\DELL\.codex\worktrees\legacy-data-integration\zerotrust` |
+| R | `C:\Users\DELL\Documents\zt-release-source-20261026` |
+| P | `C:\Users\DELL\Documents\zerotrust-legacy-preservation\20261026-1344ea0d` |
+
+Đã tái sử dụng inventory Phase1, kiểm tra existence/HEAD/common-dir/registrations
+của12 Git roots vật lý; không suy toàn hệ thống chỉ từ `git worktree list` tại C.
+C chỉ đăng ký C. W thực thuộc A: W/.git round-trip tới A/.git/worktrees/zerotrust.
+B có bản sao metadata registration W, nhưng W/.git không chọn B; giữ metadata
+backup đó, không repair/prune để che một snapshot lịch sử. App không có active
+worktree artifact attached chat này. Không tạo worktree/clone mới.
+
+| Git root trước xóa | HEAD rút gọn | Phân loại | Lý do |
+|---|---|---|---|
+| C |40fea6a | KEEP | Canonical phát triển; B1 source và evidence riêng tư phải giữ |
+| A |07701b6 | KEEP | Archive được bảo vệ; common Git owner của W, giữ refs/history/source |
+| B |07701b6 | KEEP | Partial-move preservation;368 entries không đọc được khi đo, không đổi ACL/force để xóa |
+| W |7ffe0be | **SAFE_TO_REMOVE**, chỉ sau duyệt và preflight lại | Clean tracked/untracked; toàn bộ files/registration đã backup/hash verify; không active CWD/handle hoặc functional Docker dependency tại lần kiểm tra cuối |
+| R |8e10c1f | **BLOCKED** |65 staged paths (33M/32A); chưa xác minh đủ việc bảo toàn current index/worktree state trong recovery package riêng cho R; không tự reset/commit/delete |
+| A/output/development-demo/final-source-verification |8e10c1f | KEEP | Snapshot trong archive; không phải linked worktree dư được phép xóa |
+| A/output/development-demo/workspace |8e10c1f | KEEP | Frozen Demo source có thay đổi và private runtime; Demo MySQL/Redis còn bind qua C/output junction |
+| A/output/postfix-03a-subject-identity/native-approved-20261016/git-final-workspace |1e15dc8 | KEEP | Historical Git/evidence snapshot trong archive |
+| A/output/postfix-03b-timestamp-lifecycle/candidate |c0b1b01 | KEEP | Historical Git/evidence snapshot trong archive |
+| A/output/qa02b-keycloak-runtime/candidate |c0b1b01 | KEEP | Historical Git/evidence snapshot trong archive |
+| A/output/qa02c-full-application-e2e/candidate |c0b1b01 | KEEP | Historical source/evidence, không xóa archive hoặc unique data |
+| A/output/qa02c-full-application-e2e/final-source-review-20261022/commit-workspace |894e7fc | KEEP | Frozen historical source review trong archive |
+
+Phạm vi tìm bổ sung: Documents/Codex, Desktop, Downloads, source/repos, Projects
+(max depth6, không đi theo reparse points/generated trees),339 directories, không
+thấy thêm related repository. Đây là bounded project inventory, không tuyên bố
+đã scan mọi ổ/thư mục trên máy. `C/output` là junction tới `A/output`, không phải
+bản source vật lý khác; **KEEP junction và archive target**.
+
+Các vùng ngoài Git roots vẫn KEEP:
+
+- P: private runtime, TLS/signing inputs, database backups, rollback evidence,
+  source bundles/ZIP và bản khôi phục mới. Khoảng1.16GB logic, không đưa vào xóa.
+- `C:\Users\DELL\Documents\zerotrust\qa-checkpoints`: khoảng382.96MiB checkpoint/
+  evidence; `...\qa-secrets`:4 files/311 bytes private inputs, không xóa.
+- `C:\Users\DELL\Documents\zt-release-empty-runtime-20261026`:76 bytes historical
+  input; chưa có đủ lý do/xác nhận thay thế để xóa, giữ nguyên.
+- Canonical `compose.legacy.yaml`, `scripts/legacy`, `deploy/legacy`, private
+  canonical Compose entrypoint/overrides trong P: vẫn dùng để vận hành/build.
+- Mọi Docker container/image/network/volume, rollback references, original
+  Keycloak/Demo data, databases/backups và `door_iot_mysql_data`: ngoài allowlist.
+
+### Điều kiện an toàn của W và bản khôi phục đã chuẩn bị
+
+W HEAD `7ffe0be2f0a423634bbf0e33d9933be342ea84d5` vẫn có ref
+`codex/legacy-data-integration` trong A, đồng thời là ancestor của canonical HEAD.
+C có object store độc lập, không Git alternates/hardlink dependency vào W.
+`git status --porcelain --untracked-files=all` tại W rỗng; không initialized
+workspace dependency được phát hiện. Không xóa branch/ref rollback khi remove W.
+
+Ignored files không bị coi mặc định là rác:541 files, gồm target/classes/JAR/
+Surefire XML/TXT/SQL, Python cache và5 evidence. Năm evidence đã bảo toàn trước
+vẫn SHA-256 khớp. Để giữ cả historical generated evidence, đã tạo một backup ZIP
+trong **existing P/backups**, không tạo source checkout/environment mới:
+
+`P/backups/legacy-worktree-files-before-remove-20261030.private.zip`
+
+-3,318,715 bytes; SHA-256
+  `b00e486188d277fe2b27724be0dcd14f4d6aea32334cc84ae29313ae577ee2da`.
+- Toàn bộ1.089 worktree files (kể cả ignored, trừ .git pointer) và10 registration
+  files được chứa trong ZIP; .git pointer/context được ghi riêng trong package.
+- CRC và SHA-256 từng file trong ZIP khớp source, source không đổi khi backup;
+  registry/index/reflog/config của W được bảo toàn. ACL ZIP explicit user hiện
+  tại/SYSTEM/Administrators, không publish Git. ZIP là KEEP sau cleanup.
+
+Process check ban đầu thấy TGitCache PID27456 giữ handle W/output/legacy-integration;
+không còn các CWD blockers cũ. Chủ đồ án đóng cache; agent không kill process.
+Lần đọc cuối:0 handle match dưới W/registration/R, process CWDs liên quan đều ở C;
+2.816 disk handles kiểm tra được,183 protected/inaccessible processes không đọc
+được. DELETE-access sharing probes của W và registration đều mở được; **không
+set delete-on-close, không thực hiện delete**. Đây là snapshot trong phạm vi
+quyền đọc, cần kiểm tra lại trước remove; nếu TGitCache/IDE/build hoạt động lại
+hoặc Git báo sharing lock thì dừng, không force/kill tự động.
+
+Docker kiểm tra cả19 containers, gồm stopped: không bind source vào W hoặc R.
+Effective canonical Compose có6 build contexts là C.9 private runtime mounts
+canonical đều ở P; Demo data mounts đi qua C/output tới A/output/development-demo/
+workspace/.local-demo nên Demo/Archive phải KEEP.4 data containers canonical còn
+**labels provenance lịch sử** trỏ W/config cũ, không phải functional mount/build
+dependency sau canonicalization. Docker Desktop mở link project cũ có thể hết
+đường dẫn sau remove; dùng canonical entrypoint trong P để vận hành. Không
+recreate DB containers chỉ để sửa labels. Không thấy W/R references trong scripts/
+legacy, deploy/legacy hoặc .idea runtime/development path configuration đã scan.
+
+### Allowlist đã được duyệt — kế hoạch trước thực hiện
+
+| Đường dẫn chính xác | Thao tác sau duyệt | An toàn/khôi phục | Bytes logic dự kiến |
+|---|---|---|---:|
+| `C:\Users\DELL\.codex\worktrees\legacy-data-integration\zerotrust` | `git -C A worktree remove W`, **không force**; Git tự gỡ registration thật `A/.git/worktrees/zerotrust` | Source clean, refs/ZIP bảo toàn, không runtime bind/build vào W; giữ A/B/C/P và branch rollback |7,694,503 +84,508 registration |
+| `C:\Users\DELL\.codex\worktrees\legacy-data-integration\.codex-worktree-name` | Chỉ sau remove W thành công, xác nhận file thường0 byte/không reparse rồi xóa đúng file | Marker wrapper rỗng, không source/evidence; trạng thái0 byte được ghi trong manifest để khôi phục nếu cần |0 |
+| `C:\Users\DELL\.codex\worktrees\legacy-data-integration` | Chỉ sau hai bước trên và **directory hoàn toàn rỗng**, Remove-Item literal path không recursive | Không xóa parent `.codex/worktrees`, không chạm folder/worktree khác |0 |
+
+Không `git worktree prune`, force removal, recursive delete rộng, `git clean`,
+Docker prune/cleanup hoặc xóa A/B/R/P. Bản sao registration W trong B là historical
+backup, giữ nguyên dù sau remove có thể được Git hiển thị stale/prunable.
+
+Khôi phục nếu cần: C vẫn nguyên; A giữ ref/commit7ffe. Sau khi xác nhận trạng
+thái actual removal, dùng Git bình thường khôi phục đúng worktree path/ref cũ
+nếu cần rollback, rồi phục hồi payload `worktree-files` từ ZIP. Không chép mù Git
+registration/index lên common repo hoặc overwrite canonical; phần registration
+đã backup phục vụ đối chiếu. Marker wrapper0 byte có thể tạo lại theo manifest.
+Không tạo checkout khôi phục trong lượt preflight này. Nếu remove thất bại một
+phần thì dừng và đối chiếu/khôi phục từ bản đã verify; không xóa tiếp cho xong.
+
+### Dung lượng, giới hạn và hậu kiểm sau duyệt
+
+W logical7,694,503 bytes; registration84,508 bytes; gross7,779,011 bytes
+(~7.78MB). Backup mới giữ lại3,318,715 bytes (~3.32MB), nên net logical so trước
+chuẩn bị backup là **4,460,296 bytes (~4.46MB,4.25MiB)**. Không có hardlink/reparse
+file trong W được đếm. Đây là ước lượng logical, không cam kết dung lượng vật lý
+NTFS/MFT/SSD hoặc chênh lệch ổ C đúng bằng giá trị này.
+
+Phần lớn dung lượng ngoài canonical nằm trong **protected archive A**, khoảng
+7,136,875,461 bytes (~6.65GiB); không đưa vào allowlist. B đo được ít nhất
+16,257,991 bytes, có368 errors nên đây là lower bound; R5,508,792 bytes vẫn
+BLOCKED. C khoảng719.24MiB không tính output junction; không xóa canonical cache
+hoặc research output. QA checkpoints khoảng382.96MiB KEEP. Không hứa thu hồi GB
+bằng việc xóa worktree nhỏ này.
+
+Ổ C free snapshot trong inventory116,484,079,616 bytes; sau backup/user mở Docker
+116,146,925,568 bytes. Chưa có deletion, không gán chênh lệch background/VM growth
+cho cleanup. Sẽ đo lại ngay trước/sau actual removal để báo số quan sát và lượng
+payload được xóa riêng, không thu nhỏ Docker VHDX.
+
+Sau duyệt, tuần tự: preflight lại path/HEAD/status/file hashes/backup/process/
+mounts/remote và data/TLS baseline; remove đúng3 targets; xác nhận canonical
+source/B1/Git không mất thay đổi, W không còn và real registration đã gỡ, các
+KEEP/BLOCKED còn nguyên; canonical Compose còn resolve/build từ C; container IDs,
+images/volumes, School/credentials/OTP/signing/Trust/Risk/Flyway/Redis và native
+TLS giữ nguyên. Không chạy lại A1–A6/RBAC hoặc build/redeploy. Nếu live runtime
+stopped hoặc TLS/preflight fail thì ghi BLOCKED, không giả định healthy hoặc tự
+start/disable verification. Cập nhật outcome vào cùng hai docs trước commit/push
+đã được duyệt. Rollback push nếu cần phải là commit sửa/revert mới có duyệt,
+không force push/rewrite history.
+
+**CRL cần bảo trì trước04/11/2026 01:49:27 GMT+7**
+(03/11/2026 18:49:27 UTC). File hash còn khớp bản có issuer/signature/expiry đã
+verify; native HTTPS hiện200. Nên xử lý trước ngày03/11 khi còn thời gian kiểm
+tra, không đợi nextUpdate. Lượt này không renew CRL/cert, sửa trust store/DNS/hosts
+hoặc tắt revocation check; bảo trì TLS là scope riêng cần duyệt.
+
+### Kết quả thực hiện và hậu kiểm — 30/10/2026
+
+**PASS — cleanup đúng allowlist, hoàn tất09:12:30 GMT+7:**
+
+- `git -C A worktree remove W` exit0, không force; W và registration thật
+  `A/.git/worktrees/zerotrust` đã hết. `git worktree list` tại C chỉ còn C, tại A
+  chỉ còn A. Bản sao metadata lịch sử trong B giữ nguyên, không prune.
+- Xóa marker sau khi xác nhận file thường0 byte/không reparse; xóa wrapper sau
+  khi xác nhận hoàn toàn rỗng. Cả hai dùng literal path, không recursive/force.
+- Lệnh gộp ban đầu bị automatic approval review chặn trước khi thực thi. Không
+  có thay đổi từ lệnh đó; ba lệnh literal riêng, phạm vi hẹp hơn được review cho
+  phép và thực hiện thành công. Không dùng force hoặc biện pháp phá hủy thay thế.
+- Preflight đối chiếu lại1.089 files/10 registration files với backup; clean
+  Git/HEAD, không active handle/CWD hay Docker dependency vào W. Backup ZIP SHA-256
+  vẫn khớp, ref `codex/legacy-data-integration` tại A vẫn trỏ `7ffe0be`.
+- C/A/B/P, junction C/output và các snapshot KEEP còn nguyên. R vẫn65 staged
+  paths (33M/32A), **BLOCKED** cho cleanup; không reset/commit hoặc xóa R.
+
+**PASS — hậu kiểm09:14:05–09:14:38 GMT+7:**
+
+| Kiểm tra | Bằng chứng sau xóa |
+|---|---|
+| Canonical source | Snapshot mã/config/test khớp trước xóa; B1 commit40fea6a còn nguyên, chỉ hai báo cáo thay đổi |
+| Docker | Cùng10 canonical container IDs/image IDs,10/10 healthy; tất cả19 containers/36 image-reference rows/8 networks/25 volumes giữ nguyên |
+| Compose và dependency | Effective canonical Compose resolve khi W không còn;6 build contexts đều là C;0 functional mounts vào W; không recreate data containers vì labels provenance cũ |
+| School |49 business rows/23 scores và6 School–Keycloak mappings khớp |
+| Keycloak | Các row hashes/schema được chọn của realm/users/roles/credentials/OTP/config/Browser Flow/signing components khớp baseline |
+| Risk/Flyway |93 success events/18 devices/8 subject states/3 revocations và V1–V5 khớp |
+| Đối chiếu dữ liệu | Toàn bộ24 row-hash multisets và normalized schemas khớp; không reset/import/restore/reseed sequence hoặc ghi dữ liệu để ép khớp |
+| Runtime/private/TLS | Runtime file hashes giữ nguyên; native Schannel GET Gateway và OIDC Discovery đều200 với xác minh mặc định, không bỏ kiểm tra certificate/revocation |
+| Phạm vi giữ lại | `door_iot_mysql_data`, original Keycloak/Demo/rollback resources, backups/private evidence và archives còn nguyên |
+
+Source publication được chủ đồ án duyệt gồm hai commit917aeeb/40fea6a và một
+commit mới **chỉ hai báo cáo** với message đã nêu. Sau ghi nhận kết quả này:
+scan lại docs, stage đúng hai paths, commit rồi push fast-forward chỉ branch
+`zerotrust-v4-risk-scoring`; đối chiếu remote SHA với local HEAD và working tree
+sạch. Hash commit cuối/kết quả push được lưu trong evidence riêng tư và thông
+báo hoàn tất để tránh tự tham chiếu hash trong nội dung commit. CI của push mới
+**NOT VERIFIED** ở thời điểm chuẩn bị commit này; không coi push là deployment B1.
+
+**Dung lượng thực tế quan sát:** payload logic đã xóa7,779,011 bytes; backup mới
+giữ lại3,318,715 bytes, net logic4,460,296 bytes (~4.46MB). Ổ C free tại approved
+preflight115,520,274,432 bytes, sau xóa115,100,020,736 bytes: giảm420,253,696 bytes
+trong khoảng quan sát. Có hoạt động hệ thống đồng thời, không đủ bằng chứng quy
+chênh lệch vật lý đó cho cleanup và **không tuyên bố C free tăng4.46MB**. Không
+dọn Docker/cache hoặc compact VHDX để làm đẹp số liệu.
+
+**Giới hạn còn lại:** R có thay đổi chưa bảo toàn đầy đủ nên vẫn BLOCKED; các Git
+snapshots trong archive/Demo là KEEP, không tuyên bố chỉ còn một Git directory
+vật lý. B1 chưa deploy; các hạn chế Browser B1/ground truth/Risk unavailable và
+logout A6 giữ nguyên trong báo cáo nghiên cứu. Không chạy lại A1–A6/RBAC hoặc
+tests/builds đã PASS. CRL vẫn cần bảo trì trước04/11/2026 01:49:27 GMT+7 như trên.
+
+## Tiếp tục phần ghi nhận lịch sử ngày28/10/2026
 
 Kiểm thử tái sử dụng: 324 Portal, 20 Gateway, 6 Python, frontend lint/typecheck/build
 đã PASS khi mã app hiện tại không đổi. Kiểm thử mới: 7 PKI PASS. `git diff --check`

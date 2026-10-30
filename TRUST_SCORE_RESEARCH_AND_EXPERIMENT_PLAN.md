@@ -1,13 +1,14 @@
 # Trust Score — phân tích baseline và thiết kế thực nghiệm
 
-Khởi tạo 28/10/2026, cập nhật đánh giá và checkpoint/preflight 29/10/2026, Asia/Saigon. **B1 đã được duyệt triển khai và kiểm thử source;
+Khởi tạo 28/10/2026, checkpoint/preflight29/10 và nghiệm thu/cleanup A5–A6 ngày30/10/2026, Asia/Saigon. **B1 đã được duyệt triển khai và kiểm thử source;
 source đã hoàn thành, chưa deploy Docker.** Tiến độ sau phê duyệt ở mục13.
 
 Canonical: `C:\Users\DELL\Documents\zerotrust\zerotrust`, branch
 `zerotrust-v4-risk-scoring`. HEAD khi nghiên cứu:
 `917aeebdb672d04984c4eccc98fc57c5144df943` — commit local Risk Trace/UI;
-không thực hiện push, commit hoặc thay đổi runtime trong nhiệm vụ này. Thay đổi
-B1 còn trong working tree; B0 tiếp tục là mặc định.
+đây là HEAD lịch sử khi nghiên cứu. B1 đã commit local thành
+`40fea6a455a9a43eb9d68bcf86b884fbd23e97cd` sau phê duyệt (mục16);
+B0 tiếp tục là mặc định và runtime. A5 PASS ở17.4, A6 PASS/cleanup ở18.5–18.6.
 
 **Ứng viên được duyệt nghiên cứu/triển khai source:** giữ bốn nhóm tín hiệu,
 làm mịn Temporal/Authentication History bằng các mốc baseline đã có, thể hiện
@@ -16,8 +17,9 @@ ngưỡng 40/75 làm đối chứng ban đầu, chưa coi chúng là tối ưu. 
 hoặc một phép đổi tên Risk thành Trust để tuyên bố đóng góp nghiên cứu mới.
 
 9 kiểm tra nghiên cứu offline ban đầu đã PASS qua hai lượt chạy có chọn lọc; A5 = 50.00
-và A6 = 75.00 được chứng minh ở pipeline Java với đầu vào kiểm soát. **A5/A6
-Browser Flow vẫn NOT VERIFIED.** So sánh tổng hợp cho thấy ứng viên có cả tăng
+và A6 = 75.00 được chứng minh ở pipeline Java với đầu vào kiểm soát. **A5 Browser
+trên B0 đã PASS với score50.00 (mục17.4); A6 Browser B0 đã PASS với score82.50
+(mục18.5), đều là thực nghiệm controlled fixture đã cleanup.** So sánh tổng hợp cho thấy ứng viên có cả tăng
 và giảm mức bảo vệ; chưa có dữ liệu gắn nhãn độc lập để kết luận tốt hơn. Sau duyệt,
 76 kiểm tra Risk và26 SPI khác nhau đã PASS qua các lượt mục tiêu; paired replay
 B0/B1 production với4.500 cặp đầu vào khớp oracle phân số chính xác (mục13).
@@ -27,8 +29,9 @@ B0/B1 production với4.500 cặp đầu vào khớp oracle phân số chính x�
 trong các ca này. Có1 ca MFA→ALLOW không guard cũng cần xem xét. B1 giảm một số
 bước nhảy điểm nhưng chưa chứng minh ổn định quyết định hoặc phát hiện tấn công
 tốt hơn. Kết quả mới, bộ dữ liệu có nhãn và kế hoạch Browser nằm ở mục14.
-Checkpoint Git và read-only preflight A5/A6 mới nhất ở mục15. Chưa commit/push;
-chưa tạo tài khoản/fixture hoặc thực hiện A5/A6 Browser.
+Checkpoint Git và read-only preflight trước phê duyệt ở mục15; commit local đã
+thực hiện ở16, actual Browser A5/A6 và cleanup ở17–18. Checkpoint/push branch đã
+được duyệt cùng hai báo cáo ngày30/10 (mục19); **B1 vẫn chưa deploy**.
 
 ## 1. Phạm vi, bằng chứng và trạng thái
 
@@ -45,10 +48,12 @@ Các loại kết luận trong tài liệu:
 | A1 LOW/ALLOW, A2 trusted relogin, A3 mandatory MFA, A4 priority DENY, cold-start MFA | PASS theo [nghiệm thu hiện có](ADAPTIVE_AUTH_ACCEPTANCE_REPORT.md); không chạy lại |
 | RBAC/ownership | PASS 21/21 đã thực thi; giữ nguyên giới hạn của báo cáo cũ |
 | A5 scored MEDIUM, A6 scored HIGH offline | PASS — component integration, không Spring/HTTP/DB/Redis thật |
-| A5/A6 Browser; Risk unavailable Browser | NOT VERIFIED — không tạo fixture hoặc ngắt service |
+| A5 scored MEDIUM Browser B0 | PASS — thực nghiệm có owned history/counter fixture, actual score50.00/COMPLETE, OTP và session (mục17.4); không phải B1 Browser |
+| A6 scored HIGH Browser B0 | PASS — actual82.50/COMPLETE/HIGH/DENY, không priority, ACCESS_DENIED, không session mới/token exchange quan sát được (18.5) |
+| Risk unavailable Browser; B1 Browser | NOT VERIFIED — không ngắt service hoặc deploy B1 |
 | B1 tốt hơn về phát hiện tấn công/giảm MFA hợp lệ | NOT VERIFIED — thiếu ground truth, chưa có đánh giá held-out |
 | Source B1 sau phê duyệt | PASS trong phạm vi test ở mục13; chưa chứng minh hiệu quả thực tế tốt hơn |
-| Deployment/commit mô hình mới | Chưa thực hiện; không có phê duyệt deployment/commit trong lượt này |
+| Commit/deployment mô hình mới | B1 commit local PASS sau duyệt (mục16); chưa push hoặc deploy; Docker vẫn B0 |
 
 Đọc thêm [kiến trúc](ARCHITECTURE.md), [login](docs/authentication/LOGIN_FLOW.md),
 [lifecycle](docs/authentication/MFA_RESET_LIFECYCLE.md),
@@ -1664,3 +1669,430 @@ minh explicit cleanup và giữ evidence trong cùng workflow.
 
 Cả hai hành động đang chờ phê duyệt; không hành động nào đã thực hiện. Kết quả
 A1–A4,21 RBAC,76 Risk/26 SPI và toàn bộ evidence nghiên cứu cũ được bảo toàn.
+
+## 16. Thực hiện sau phê duyệt checkpoint và A5/A6 — 29/10/2026
+
+Mục15 ghi trạng thái **trước phê duyệt**. Sau đó chủ đồ án đã duyệt riêng commit
+local30 file và thực nghiệm A5/A6/cleanup theo15.5–15.6; không duyệt push/deployment.
+
+### 16.1 Commit local — PASS
+
+Đã xác nhận HEAD/branch/index và SHA-256 cả30 file vẫn khớp checkpoint được duyệt,
+stage đúng allowlist, rồi commit:
+
+`40fea6a455a9a43eb9d68bcf86b884fbd23e97cd`
+
+`feat(risk): add opt-in B1 scoring and offline evaluation`
+
+Commit gồm đúng30 file; working tree sạch ngay sau commit. **Không push**;
+không rerun76 Risk/26 SPI, A1–A4 hoặc21 RBAC checks. Cập nhật tiến độ mục16 này
+được ghi sau commit, chưa nằm trong commit đó và chưa tự commit thêm.
+Docker vẫn B0; không build/redeploy hoặc kích hoạt CONTINUOUS_B1.
+
+### 16.2 Baseline và provisioning đã thực hiện
+
+Đã lưu evidence riêng tư, không đưa vào Git:
+
+- Ownership manifest với run ID, original UUID set, usernames/UUID mới, trạng thái
+  từng thao tác và giới hạn fixture/counter/cleanup đã được duyệt.
+- Snapshot/fingerprints baseline School49 business rows/23 scores,6 School–Keycloak
+  mappings; Risk93 success events,18 devices,8 subject states,3 revocations và
+  Flyway V1–V5. Redis baseline0 key.10 users ban đầu trong realm được bảo vệ.
+- Row-hash multisets original Keycloak/School/Risk, config/runtime file hashes và
+  container/image references để đối chiếu sau cleanup. Không lưu secrets vào báo cáo.
+
+Đã tạo đúng hai user `zt-a5-score-20261029-01`, `zt-a6-score-20261029-01` qua
+provisioner Admin API hiện có, business role chỉ STUDENT, không School mapping.
+Mỗi user ban đầu có1 password credential, chưa có OTP/session, được yêu cầu
+CONFIGURE_TOTP; người dùng tự enroll và nhập OTP trong Browser. Service-account
+token chỉ dùng quản lý hai user thử, không dùng thay bằng chứng Browser login.
+
+**Ownership marker:** Keycloak hiện bỏ custom unmanaged attributes khỏi user
+representation. Không thay User Profile/realm để sửa việc này. Guard dùng UUID
+từ POST Location đã lưu ngay sau create, absent trong original set, exact
+username/email thử/firstName A5 hoặc A6/lastName `Scored Acceptance`, cùng School
+mapping absent. Sau khi tạo A5, guard custom-attribute ban đầu đã dừng ở bước
+kiểm tra; chỉ đọc lại user, xác nhận các trường built-in rồi tiếp tục role
+assignment cho đúng UUID đã ghi. Không tạo account trùng hoặc sửa user gốc.
+
+Passwords thử được sinh ngẫu nhiên và chỉ ghi vào file riêng tư có ACL explicit
+cho user Windows hiện tại/SYSTEM/Administrators, không kế thừa nhóm đọc khác.
+Không in passwords/tokens ra tool output/báo cáo; file sẽ được gỡ trong cleanup
+đã duyệt. Không yêu cầu người dùng gửi password/OTP/QR/token/cookie.
+
+**PASS trong phạm vi kiểm tra sau provisioning:** original row-hash multisets
+của USER_ENTITY/CREDENTIAL/roles/realm/signing components/Browser Flow/config vẫn
+còn nguyên; các rows thêm thuộc hai user thử. Toàn bộ Risk table row counts/hash
+chưa thay đổi sau create; chưa có history fixture, device fixture hoặc Redis key
+được seed. Không sửa credentials/OTP/signing material/Trusted Device gốc.
+
+### 16.3 Trạng thái nghiệm thu và bước người dùng tiếp theo
+
+| Hạng mục | Trạng thái hiện tại |
+|---|---|
+| A5/A6 accounts, ownership và baseline | PASS cho phần chuẩn bị đã mô tả |
+| A5 setup OTP/trusted device | NOT VERIFIED — chờ thao tác thủ công |
+| A5 history/counter fixture | Chưa tạo; chỉ được seed sau setup/headroom/context đạt điều kiện |
+| A5 scored MEDIUM Browser | NOT VERIFIED |
+| A6 setup/trial fixture và scored HIGH Browser | NOT VERIFIED — chưa yêu cầu thao tác |
+| Cleanup hai user/fixture | Chưa đến bước; users/credentials thử đang tồn tại có chủ đích trong workflow đã duyệt |
+
+Tiếp theo **chỉ setup A5**: dùng Edge InPrivate thử nghiệm riêng tại
+`https://localhost:28443/`, login A5 và tự cấu hình OTP; logout Portal, login lần
+hai trong cùng cookie store và hoàn tất OTP thực; quay Portal rồi logout thêm
+lần nữa, giữ cửa sổ/device cookie và chưa login lần ba. Portal báo chưa có hồ
+sơ School là phù hợp. Ghi thời gian GMT+7, forms/OTP/outcome/logout; không chạy
+helper RBAC hoặc gửi thông tin xác thực. Chưa làm A6. Agent sẽ đối chiếu trace,
+history/registration204 và session trước khi tính/seed owned history/counter.
+Chưa gán setup MFA này thành A5 scored MEDIUM PASS.
+
+## 17. Đối chiếu setup A5 và chuẩn bị scored MFA — 30/10/2026
+
+### 17.1 Setup thực tế — PASS trong phạm vi OTP/registration/logout
+
+Người dùng báo hai lần login A5 có password form, lần đầu cấu hình OTP, lần hai
+hoàn tất OTP, đều quay Portal rồi logout; giữ Edge InPrivate/device cookie.
+Thời gian người dùng ghi12:33–12:36 GMT+7. Máy chủ/DB ghi **00:35–00:36 ngày30/10
+GMT+7** (17:35–17:36 UTC29/10). Cách ghi đồng hồ12 giờ chưa được xác nhận; giữ
+nguyên cả self-report và server timestamps, không sửa đồng hồ hệ thống để khớp.
+
+Đối chiếu chỉ đọc đúng UUID A5 trong manifest với2 success-history events:
+LOGIN_SUCCESS trace lệch timestamp DB tương ứng dưới1 giây, mỗi event có đúng
+một trace phù hợp; hai evaluation có cùng protected subject tag. Không dùng
+service-account token làm bằng chứng Browser login.
+
+| Lần setup | Risk Evaluation ID | Kết quả Risk | Evidence Keycloak |
+|---|---|---|---|
+| Lần1 | `ed14bf37-957a-40c3-9e2a-23f89cd25194` | score null, MEDIUM/STEP_UP_MFA, INCOMPLETE; DEVICE_IDENTIFIER_MISSING/NETWORK_RISK/TEMPORAL_PROFILE_COLD_START | ENROLLMENT_PENDING, LOGIN_SUCCESS00:35:28.920 GMT+7; mfa_execution NOT_OBSERVED, không tự gọi CONFIGURE_TOTP là OTP execution thành công |
+| Lần2 | `23dc9e65-9281-417b-9d13-01081d93eeea` | score null, MEDIUM/STEP_UP_MFA, INCOMPLETE, cùng reasons cold-start | OTP_EXECUTION_SUCCESS, REGISTERED_204, COOKIE_ISSUED, LOGIN_SUCCESS00:36:02.237 GMT+7, cùng correlation |
+
+DB xác nhận1 device của A5 ở TRUSTED, trustedAt00:36:02.038 GMT+7, generation0,
+không pending reset; Keycloak có1 password +1 OTP credential và **0 authenticated
+sessions** sau logout. Không đọc password/OTP secret hoặc cookie. Đây là setup
+MFA/trust hợp lệ; **chưa chứng minh A5 scored MEDIUM** vì score null/INCOMPLETE.
+
+### 17.2 Owned history fixture đã tạo theo phê duyệt
+
+Đã kiểm tra lại runtime/config B0 và ownership, không School mapping, OTP/trust
+đã xác minh, logged-out state; subject counter absent. HTTPS Discovery GET với
+chain/hostname validation và phép đọc connection mới tại Keycloak cho network
+prediction N50/DEFAULT_POLICY; counter IP tương ứng absent/count0. Không giả IP,
+thay headers/CIDR hoặc gọi Risk evaluate ngoài Browser để tạo score mong muốn.
+
+Tại planning: A5 có2 success events thật, cả2 cùng weekday/hour bucket của UTC
+evaluation window. Thêm đúng **38 synthetic success-history rows thuộc duy nhất
+A5/zerotrust-spa**, event IDs/timestamps/PKs và lineage ghi trong ownership manifest
+trước và sau ghi. Single INSERT có guard số lượng/PK events có sẵn; readback40
+rows đúng event allowlist. Không UPDATE/DELETE history có sẵn.
+
+Sau insert: n40, day_matches2, hour_matches2 → B0 Temporal100. Timestamps fixture
+được chọn khác weekday và ngoài hour±1 của toàn cửa sổ dự kiến; đã kiểm tra
+reachability trước seed, cap200 không bị vượt. Đây là **controlled history fixture**,
+không mô tả38 rows như hành vi đăng nhập thật hoặc dữ liệu tấn công. A6 chưa setup
+hoặc seed history/counter trong bước này.
+
+Vector kỳ vọng của A5 sau seed subject count3:
+`[D0, N50, T100, H50] → 50.00/MEDIUM/STEP_UP_MFA/COMPLETE`, không mandatory/priority.
+Đây là **tính toán từ source + input fixture**, chưa phải response Risk của lần
+Browser scored trial. Network/context và kết quả thực phải đối chiếu lại ở trace.
+
+**Preservation PASS trong phạm vi readback00:48:42 GMT+7:** row-hash multisets
+Risk history/devices/subject states/revocations khi loại đúng hai test UUID khớp
+baseline hoàn toàn; Flyway giữ nguyên. School users/mappings và23 scores khớp
+fingerprints trước thử. Original Keycloak credential rows và signing component
+config/realm vẫn được bảo toàn; OTP mới chỉ thuộc A5. Runtime file hashes, Risk
+image và container references không đổi. Không commit/push thêm hoặc chạy lại
+tests/acceptance cũ.
+
+### 17.3 Scored trial vẫn NOT VERIFIED, chờ thao tác Browser
+
+Trạng thái tại thời điểm chuẩn bị trước trial; kết quả thực tế sau đó ở17.4.
+
+Đã seed đúng subject key A5 đã manifest bằng SET NX count3/EX900 ở bước cuối
+trước lời nhắc Browser. Seed lúc **00:50:11 ngày30/10/2026 GMT+7**, readback value3,
+TTL899 giây; deadline khoảng **01:05:10 GMT+7**. Các điều kiện history/device/
+network/session được kiểm tra lại trước seed và đạt; không overwrite key đang
+tồn tại. Không ghi counter IP/shared/event, không đụng A6. Mốc này là fixture
+preparation, không phải một evaluation hoặc bằng chứng scored MFA đã thành công.
+
+Người dùng tiếp tục ở **đúng Edge InPrivate/device cookie đã setup**, login A5
+một lần qua password form, nhập OTP khi được yêu cầu rồi giữ trạng thái Portal
+để agent đối chiếu session/trace. Portal không có hồ sơ School là phù hợp. Cần
+báo giờ theo dạng24 giờ, có form password/challenge/OTP completion/Portal outcome;
+không gửi password, OTP, token, cookie, QR hoặc URL chứa code.
+
+Nếu đến muộn sau deadline hoặc window/context thay đổi, chưa login và báo lại;
+không tự retry để ép kết quả. Muốn PASS phải có evaluation score50/COMPLETE,
+không guard/priority, enforcement STEP_UP_REQUIRED, OTP execution SUCCESS,
+LOGIN_SUCCESS và authenticated session của đúng A5. OTP đơn lẻ hoặc setup2
+không đủ. Evidence này sẽ được thêm sau trial; cleanup owned state tiếp tục
+theo manifest/phê duyệt sau khi kết thúc hai case.
+
+### 17.4 A5 scored MEDIUM → MFA → LOGIN_SUCCESS — PASS
+
+Người dùng báo giữ đúng Edge InPrivate/cookie A5, có password form, OTP hoàn tất,
+quay Portal với thông báo chưa có hồ sơ School, không lỗi khác và giữ phiên mở.
+Self-report ghi12:51–12:52 GMT+7; server ghi **00:52:30–00:52:37 ngày30/10 GMT+7**.
+Giữ nguyên khác biệt cách ghi giờ như17.1; không thay timestamp để khớp.
+
+| Trường | Bằng chứng thực tế |
+|---|---|
+| Evaluation ID | `7e95c97e-3f60-449f-bfc5-444dfd7fc3f9` |
+| Correlation ID | `ed576dc3-179e-497b-9f27-cac6529340cc` |
+| evaluated_at | 2026-10-29T17:52:30.943164283Z, tương ứng00:52:30.943 ngày30/10 GMT+7 |
+| Risk Score / Level / Decision | **50.00 / MEDIUM / STEP_UP_MFA** |
+| Data Status / Source response | **COMPLETE / RISK_SERVICE_RESPONSE** |
+| Actual reasons | NETWORK_RISK, TEMPORAL_RISK, AUTHENTICATION_HISTORY_RISK; không device/mandatory/priority/unavailable/cold-start reason |
+| Keycloak enforcement | STEP_UP_REQUIRED00:52:30.979 GMT+7, cùng evaluation/correlation |
+| MFA gate/form | MFA_SUBFLOW_SELECTED → CHALLENGE_RENDERED, không suy chỉ từ lời người dùng báo OTP |
+| OTP completion | OTP_EXECUTION_SUCCESS00:52:37.593 GMT+7 |
+| Registration | REGISTERED_204 → COOKIE_ISSUED00:52:37.685–37.686 GMT+7 |
+| Authentication outcome | LOGIN_SUCCESS00:52:37.696 GMT+7, risk_execution CORRELATED, OTP_EXECUTION_SUCCESS |
+| Session readback | 1 authenticated user session của đúng A5, client zerotrust-spa, tại00:54:25 GMT+7; trước trial là0 |
+
+**Decision Source = SCORE_THRESHOLD, là kết luận đối chiếu, không phải trường
+log được phát ra bởi image B0 hiện tại.** Căn cứ: source/scorer B0, score50 trong
+[40,75), COMPLETE, prior owned device TRUSTED, Network50 không HIGH, subject
+count3 dưới high5, IP count0. Không có mandatory/priority reason, không service
+fallback; Keycloak thực thi decision Risk tương ứng. Chưa deploy Risk details
+trace nên không tự thêm field `decision_source` hoặc component fields vào log gốc.
+
+Tại evaluation thực, replay **chỉ đọc** timestamp history đã lưu với cutoff
+17:52:30.943 UTC cho đúng40 events, day_matches2/hour_matches2, Temporal100;
+LOGIN_SUCCESS17:52:37.696 UTC nằm sau cutoff, không được đưa ngược vào feature.
+Counter được seed trước evaluation, còn trong deadline; readback sau trial vẫn
+count3/TTL644 giây, không có reset/overwrite trong lúc thử. Vector được giải thích
+`[0,50,100,50]`, tổng50; đây là controlled fixture trên runtime B0, không dữ liệu
+tấn công tự nhiên hay chứng minh B1 hiệu quả hơn.
+
+History sau trial là41 rows:2 setup thật +38 fixture +1 LOGIN_SUCCESS thật của
+A5. Event mới khớp LOGIN_SUCCESS trace trong1 giây và được thêm vào ownership
+manifest để cleanup hẹp; không đụng history gốc. Evidence filtered trace và session
+readback giữ riêng, không lưu raw token/cookie/password/OTP. Người dùng chưa báo
+riêng HTTP status token endpoint; **quan sát token HTTP riêng NOT VERIFIED**,
+không tuyên bố đã kiểm token payload hoặc chữ ký lần nữa. Login success và phiên
+mới đã được xác nhận qua các trục độc lập nêu trên.
+
+**Tiếp theo A6:** logout A5, dùng cùng Edge InPrivate thử làm profile setup A6,
+login tài khoản A6 đã có để tự configure OTP; logout/login lần hai và hoàn tất
+OTP thực, logout cuối rồi giữ profile/cookie. Chưa mở Guest hoặc thử DENY.
+Agent sẽ xác nhận ownership/trust/registration204, history headroom và sessions0
+trước khi seed A6. Trial A6 sau đó cần một cookie store độc lập thực sự, tự nhiên
+MISSING; không copy/xóa/revoke trust để tạo HIGH. A6 vẫn NOT VERIFIED, chưa tạo
+history/counter fixture A6. Cleanup cuối workflow vẫn theo15.6.
+
+## 18. Setup A6, fixture và kiểm tra hoàn nguyên — 30/10/2026
+
+### 18.1 Setup OTP/trust — PASS; logout được chuẩn hóa về0 phiên
+
+Người dùng báo hai lần login A6 có password form; lần đầu cấu hình OTP, lần hai
+hoàn tất OTP, quay Portal rồi logout, giữ Edge InPrivate/cookie. Thời gian báo
+12:57–12:59 GMT+7; server ghi00:58–00:59 ngày30/10 GMT+7, giữ riêng khác biệt
+cách ghi giờ như17.1, không thay system clock.
+
+| Setup | Evaluation ID | Risk response | Keycloak outcome |
+|---|---|---|---|
+| Lần1 | `e6682639-22f0-450c-8cfa-dff4487a0698` | null/MEDIUM/STEP_UP_MFA/INCOMPLETE; NEW_DEVICE, NETWORK_RISK, TEMPORAL_PROFILE_COLD_START | LOGIN_SUCCESS00:58:54.774 GMT+7; mfa_execution NOT_OBSERVED, không gán enrollment thành OTP execution |
+| Lần2 | `9add2ee7-8e41-473d-a135-40ef148b65be` | cùng trạng thái cold-start, không numeric HIGH | OTP_EXECUTION_SUCCESS, REGISTERED_204, COOKIE_ISSUED, LOGIN_SUCCESS00:59:34.826 GMT+7, cùng evaluation/correlation |
+
+Hai success events của đúng UUID A6 khớp timestamp trace tương ứng dưới1 giây,
+cùng protected subject tag khác A5. DB có1 device TRUSTED, trustedAt00:59:34.801
+GMT+7, generation0, không pending reset;1 password và1 OTP credential. Setup
+dùng cùng cookie store thử trước đó nên NEW_DEVICE của subject mới là phù hợp;
+không coi setup này là scored HIGH hoặc một Guest trial.
+
+**Chênh lệch logout cần ghi nhận:** API tại01:01:40 GMT+7 vẫn có1 session A6/
+zerotrust-spa, dù người dùng báo logout cuối. Đọc lại vẫn còn1; agent đã dùng
+Admin logout **đúng UUID A6 được sở hữu**, trong phạm vi logout/revoke test
+sessions đã duyệt, và xác nhận0. Không reset OTP, revoke trust hoặc đổi generation.
+Không kết luận nguyên nhân Portal logout từ một quan sát; root cause còn
+NOT VERIFIED, nếu cần tái hiện phải đánh giá riêng, không sửa frontend/policy
+để làm A6 đạt. Baseline0 session của trial được tạo minh bạch bằng thao tác trên.
+
+### 18.2 History fixture A6 và preflight — PASS trong phạm vi chuẩn bị
+
+Đã đọc lại ownership/OTP/trust/sessions0, runtime/config B0 và HTTPS/network.
+Không School mapping; prefix key subject mới absent. Network prediction N50/
+DEFAULT_POLICY, IP counter0. Giữ nguyên trusted device của profile setup.
+
+Thêm đúng **62 synthetic history rows** có event IDs/PKs riêng thuộc A6/SPA,
+single INSERT với guard2 existing setup events; readback đúng64 event allowlist.
+Không UPDATE/DELETE history có sẵn. Trong cửa sổ dự kiến: n64, day_matches2,
+hour_matches2 → B0 Temporal100, COMPLETE có thể đạt. Timestamps fixture không
+matching weekday/hour±1; là controlled context, không dữ liệu tấn công tự nhiên.
+
+Sau khi seed subject-only count5/NX/EX900 ở bước cuối, vector của **Guest/cookie
+store độc lập chưa có identifier** được kỳ vọng:
+`[80,50,100,100] → 82.50/HIGH/DENY/COMPLETE`.
+MISSING device và history-high có mandatory MFA guard, nhưng guard chỉ là MFA
+floor; **DENY phải đến từ score>=75**. Không revoke device/đổi policy/threshold
+hoặc dừng Risk. Nếu tiếp tục dùng InPrivate setup với trust thì D0 cho62.50,
+không phải ca A6 mong muốn; mở thêm InPrivate cùng browser không bảo đảm tách cookie.
+
+### 18.3 Hoàn nguyên: ownership dry-run đã xác nhận, chưa xóa
+
+Read-only dry-run01:08:45 GMT+7 xác nhận hai UUID đều ngoài original set,
+username/email/built-in markers đúng manifest, role business chỉ STUDENT,
+School mapping absent và các tập PK/event/HMAC/version khớp:
+
+| Phạm vi owned được đối chiếu | A5 | A6 |
+|---|---:|---:|
+| History rows | 41 (38 fixture +3 login thật) |64 (62 fixture +2 login thật) |
+| Device rows |1 |1 |
+| Subject trust state |1, generation0/no pending |1, generation0/no pending |
+| Revocation rows |0 |0 |
+| Subject counter trước seed A6 | đã expire tự nhiên | absent; chưa overwrite |
+
+Counter key được tính lại theo đúng HMAC subject/pepper hiện có và khớp manifest;
+không nhầm IP/event/shared key. Phương án sau trial: logout/delete đúng hai users
+qua provisioner; xóa chỉ Risk rows/PK/event sets của hai UUID đã đối chiếu; key
+counter chỉ compare-and-delete khi value đúng hoặc xác nhận đã expire; gỡ đúng
+file password thử, giữ evidence. Mismatch/row lạ thì dừng thao tác xóa để điều
+tra, không wildcard/force hoặc đụng tài nguyên gốc. Chưa thực hiện cleanup trong
+dry-run; cleanup PASS chỉ được ghi sau thao tác và đối chiếu thực.
+
+Readback01:10:02 GMT+7: original Risk row-hash multisets ngoài hai test UUID khớp
+baseline cho history, known devices, subject states, revocations; Flyway giữ
+nguyên. Runtime hashes/image/container references không đổi, B0 vẫn chạy.
+Không commit/push hoặc chạy lại tests/acceptance cũ.
+
+### 18.4 A6 scored HIGH Browser — NOT VERIFIED, chờ trial
+
+Trạng thái lúc chuẩn bị; kết quả actual trial và cleanup sau đó ở18.5–18.6.
+
+Đã seed đúng key subject A6 mới bằng SET NX count5/EX900 lúc **01:11:45 ngày
+30/10/2026 GMT+7**, readback value5/TTL899; deadline khoảng **01:26:44 GMT+7**.
+Không ghi counter IP/shared/event, không overwrite key hoặc thay risk policy.
+Đây là preparation, chưa phải evaluation/Browser HIGH PASS.
+
+Sau seed counter mới và ghi deadline, người dùng mở **Edge Guest** độc lập:
+Win+R → `msedge --guest https://localhost:28443/`; phải thấy nhãn Guest/Khách,
+giữ nguyên Edge InPrivate setup. Không Ctrl+Shift+N tạo thêm InPrivate, không
+copy/xóa cookie. Nếu Guest không mở đúng hoặc TLS cảnh báo thì dừng.
+
+Ở form password, có thể bật F12 → Network → Preserve log, clear danh sách rồi
+lọc token; chỉ quan sát tên/status, không body/headers. Login A6 đúng một lần.
+Kỳ vọng Access Denied/HTTP403 trước OTP, không quay Portal đăng nhập thành công,
+không request token mới. Nếu OTP xuất hiện thì dừng, không nhập hoặc retry.
+Giữ Guest ở trang kết quả và profile setup để agent đối chiếu.
+
+Chỉ PASS khi actual Risk score>=75/COMPLETE/valid response, reasons không priority,
+trace enforcement ACCESS_DENIED, không LOGIN_SUCCESS, session0 trước/sau và Browser
+không token exchange của attempt. Không tự coi fixture/preflight, HIGH score null
+hoặc sự vắng mặt một log là bằng chứng DENY đầy đủ. Decision Source nếu suy từ
+source/response/fixture phải ghi là inferred; image B0 chưa emit trường đó.
+
+### 18.5 A6 scored HIGH → DENY — PASS
+
+Người dùng báo đúng Edge Guest, giữ InPrivate setup nguyên vẹn, có password form,
+nhập password một lần, bị Access Denied/HTTP403, không OTP/Portal success hoặc
+token request mới, không retry; thời gian01:14–01:16 ngày30/10/2026 GMT+7.
+
+| Tiêu chí | Kết quả và bằng chứng |
+|---|---|
+| Evaluation / correlation | `31feb709-acd7-461e-b735-592e3987f28b` / `ff8ac481-62ce-4cdd-9efb-8b9dcc084cf9` |
+| Evaluation time | 2026-10-29T18:15:44.633035809Z = **01:15:44.633 ngày30/10 GMT+7** |
+| Risk Score | **82.50**, actual Risk response, không phải giá trị tự điền từ fixture |
+| Data Status | **COMPLETE** |
+| Risk Level / Decision | **HIGH / DENY**, evaluation_source RISK_SERVICE_RESPONSE |
+| Decision Source | **SCORE_THRESHOLD — inferred** từ source B0, response và fixture; image chưa emit field này |
+| Priority | Không có priority reason/violation; score không null và status không NOT_EVALUATED; không phải unavailable fallback |
+| Actual reasons | DEVICE_RISK, NETWORK_RISK, TEMPORAL_RISK, AUTHENTICATION_HISTORY_RISK, DEVICE_IDENTIFIER_MISSING, EXCESSIVE_AUTHENTICATION_FAILURES |
+| Keycloak enforcement | **ACCESS_DENIED01:15:44.692 GMT+7**, cùng evaluation/correlation/subject tag đã bind từ setup |
+| MFA | Không MFA gate/form/challenge/completion trong trace của attempt; người dùng không thấy OTP |
+| LOGIN_SUCCESS/history | Không LOGIN_SUCCESS trong trace thu được của attempt; không success event mới, history A6 giữ64 rows |
+| Authenticated session | **0 trước và0 sau**; readback sau trial01:17:42 GMT+7 |
+| Token exchange | Người dùng quan sát Network không có request token mới; Guest bị403 và không quay Portal thành công |
+
+Tại evaluation thực, history read-only với cutoff18:15:44.633 UTC cho n64,
+day_matches2/hour_matches2 → T100; giữ đúng lineage, không đưa event tương lai vào
+feature. Subject counter seed trước attempt, chưa hết deadline; sau trial vẫn
+value5/TTL541 giây. D80 từ identifier MISSING, N50 từ policy/context đã preflight,
+H100 từ count5, nên `[80,50,100,100]→82.50`. Device/history mandatory guard có
+hiện diện nhưng chỉ ép tối thiểu MFA; scorer chỉ tạo DENY vì weighted score>=75.
+Không coi mandatory hoặc priority HIGH là thay thế cho ca numeric HIGH này.
+
+Absence được đối chiếu từ **Browser + enforcement trace + sessions + history**,
+không chỉ sự vắng mặt một log. Không thu raw token, authorization code hoặc
+payload token endpoint, và realm không persist EventEntity; không tuyên bố có
+global token-issuance audit hoặc đã kiểm lại JWT signature. Kết luận giới hạn ở
+attempt Guest cụ thể: bị chặn trước hoàn tất authentication, không thấy token
+exchange/login success/session mới. Đây là controlled context trên **B0**, không
+dữ liệu tấn công tự nhiên hoặc bằng chứng B1 tốt hơn.
+
+### 18.6 Cleanup và bảo toàn — PASS
+
+Cleanup đã được chủ đồ án duyệt cùng A5/A6 và thực hiện sau khi thu evidence:
+
+- Guard UUID ngoài original set, đúng username/email/built-in marker và không
+  School mapping; logout chỉ test users khi cần, delete đúng2 user qua Admin API,
+  GET sau delete404. Không gọi realm-wide logout hoặc sửa user gốc.
+- Risk transaction READ COMMITTED khóa/đối chiếu exact owned history event/PK
+  sets, device fingerprint/status/version và generation0/no pending trước ghi;
+  xóa có count guards, commit sau xác nhận không còn rows test. Không xóa row lạ.
+- **105 history rows** đã xóa: A5=41 (38 synthetic +3 login thật), A6=64 (62
+  synthetic +2 login thật). **2 device rows +2 subject state rows** đã xóa;
+  không có test revocation rows. Không UPDATE/DELETE history/trust gốc.
+- A5 counter đã tự expire; A6 counter còn value5 được compare-and-delete đúng
+  exact subject key. Không wildcard/flush/IP/event-key cleanup. Redis sau cùng0 key.
+- Hai user/Risk fixtures được loại bỏ lúc01:24:43 GMT+7; sau preservation
+  verification, gỡ đúng file plaintext password thử tại01:28:56 GMT+7. Giữ nguyên
+  filtered evidence, baseline và ownership/action manifests riêng tư; không đưa
+  credentials/runtime/private evidence vào Git.
+
+**Đối chiếu hoàn tất01:27:17 GMT+7:** toàn bộ24 row-hash multisets và normalized
+schemas đã chọn ở baseline khớp lại sau cleanup:
+
+| Phạm vi | Sau cleanup |
+|---|---|
+| School business data |49 rows, **23 scores**; users/students/classes/subjects/scores cùng fingerprints gốc |
+| School–Keycloak mappings |6 mappings giữ nguyên, vẫn tồn tại trong Keycloak |
+| Keycloak | Original realm user set khớp (10 users gồm service users); stable USER_ENTITY/CREDENTIAL/roles/mappings/REALM/CLIENT/signing COMPONENT/CONFIG/Browser Flow/config/required-actions/user-attributes khớp baseline |
+| Risk | **93 success events,18 devices,8 subject states,3 revocations** gốc; fingerprints khớp |
+| Flyway | V1–V5/checksums/success giữ nguyên |
+| Redis |0 key như baseline; chỉ exact test subject counters được xử lý |
+| Docker/runtime/TLS |Cùng10 container IDs và image IDs,10/10 healthy, runtime file hashes giữ nguyên; strict Windows Schannel HTTPS Gateway/Discovery HTTP200 sau cleanup |
+| Source/Git |B1 vẫn local commit40fea6a, chưa push/deploy; chỉ báo cáo này còn modified sau commit; không rerun tests cũ |
+
+Normalized schema comparison bỏ phần sequence AUTO_INCREMENT theo phương pháp
+đã dùng ở baseline; không reseed sequence, restore/reset/import DB hoặc xóa
+audit để ép khớp. Session/cache/log/sequence phát sinh hợp lệ không bị mô tả là
+byte-for-byte unchanged. Các user thử và fixtures đã hết; Browser Guest/InPrivate
+có thể đóng. OTP/password/Trusted Device/signing material **gốc** vẫn được bảo toàn.
+
+**Còn NOT VERIFIED:** Browser model B1, hiệu quả phát hiện tấn công/FPR/FNR với
+ground truth độc lập, Risk unavailable Browser, nguyên nhân Portal logout A6
+còn1 session đã ghi ở18.1. Không mở rộng scope để sửa những mục này, không kết
+luận toàn hệ thống hoặc B1 deployment PASS từ A5/A6. Khuyến nghị giữ B0 runtime
+và tiếp tục đánh giá B1 như14.9. Trạng thái Git tại18.6 là mốc lịch sử trước
+checkpoint bổ sung ở mục19.
+
+## 19. Final Git/workspace checkpoint — 30/10/2026
+
+**PASS — bảo toàn nghiên cứu và runtime:** chủ đồ án đã duyệt xóa đúng linked
+worktree legacy/marker0 byte/wrapper rỗng, và commit hai báo cáo rồi push branch
+hiện tại. Git chuẩn gỡ worktree/registration thành công, không force; backup ZIP
+và ref rollback giữ nguyên. Chi tiết inventory, allowlist, dung lượng thực tế
+và hậu kiểm nằm trong [báo cáo consolidation](ZEROTRUST_FINAL_CONSOLIDATION_REPORT.md#kết-quả-thực-hiện-và-hậu-kiểm--30102026).
+
+Hậu kiểm09:14:05–09:14:38 GMT+7: source snapshot khớp, B1 source commit40fea6a
+không đổi; Docker cùng10 container/image IDs,10/10 healthy; **B0 tiếp tục chạy**.
+School49 rows/23 scores/6 mappings, Risk93 history/18 devices/8 subject states/
+3 revocations/Flyway V1–V5 giữ nguyên. Toàn bộ24 critical rowsets và normalized
+schemas khớp; credentials/OTP/signing/config/Trusted Device gốc được bảo toàn.
+Runtime file hashes không đổi; native Schannel Gateway/Discovery HTTP200. Không
+chạy lại A1–A6,21 RBAC hoặc76 Risk/26 SPI tests và không build/deploy.
+
+Commit tài liệu được duyệt: chỉ báo cáo này và báo cáo consolidation, message
+`docs: finalize adaptive acceptance and workspace inventory`; nối tiếp917aeeb và
+40fea6a, sau đó push fast-forward chỉ `zerotrust-v4-risk-scoring`. Không đưa
+private evidence/credentials/runtime/generated outputs vào Git. Kết quả local
+HEAD=remote và working tree sạch được kiểm tra sau push, lưu riêng và thông báo
+khi hoàn tất; CI mới chưa được coi PASS trong nội dung chuẩn bị commit này.
+
+Các Git snapshots archive/Demo giữ nguyên; release source có65 staged paths vẫn
+BLOCKED cho cleanup. Không suy cleanup worktree đồng nghĩa mọi source lịch sử
+đã bị xóa. A1–A6 evidence,4.500 paired replays và giới hạn kết luận chất lượng
+B1 được giữ nguyên. B1 Browser/ground truth/Risk unavailable Browser vẫn
+NOT VERIFIED. **CRL cần bảo trì trước04/11/2026 01:49:27 GMT+7**, ưu tiên03/11;
+lượt checkpoint này không thay TLS/trust store hoặc chính sách bảo mật.
