@@ -1272,9 +1272,15 @@ này với khoảng giờ owner ước lượng logout. Trace hiện có không 
 không tự tạo event hoặc suy luận A6 đã được giải thích. Chỉ lưu endpoint/status
 và kết quả đã lọc; URL có ID token owner gửi nhầm không được lưu evidence/báo cáo/Git.
 
-**NOT VERIFIED — L2 Browser sau deploy:** đã gửi checklist một lần hard reload,
-login STUDENT A, xem điểm, logout và mở lại protected route; chờ owner xác nhận.
-L1 cũ không được tự gán thành Browser execution trên image mới.
+**PASS — L2 Browser sau deploy:** owner hard reload, login STUDENT A và tải điểm,
+logout đúng một lần với GET `/logout`302, hoàn tất xác nhận Keycloak, về màn hình
+login; mở lại protected route phải xác thực, không tự vào điểm hoặc tải dữ liệu
+mới, không báo lỗi. Scoped readback14:36:35 GMT+7 có**0 sessions** của STUDENT A.
+Evidence này dùng image mới, tách với L1 cũ. Không tự nhập password/OTP hoặc
+Admin logout. Khoảng14:25–14:29 owner báo là mốc thao tác ước lượng: runtime có
+LOGIN_SUCCESS/history14:29:05 và14:34:49; không ép chúng vào một timestamp hoặc
+suy mỗi event là một lần nhập password. Không có TIMEOUT mới trong trace L2
+đã thu thập. Không dùng URL/ID token owner gửi làm dữ liệu kiểm thử hay lưu nó.
 
 **Sự cố tạm thời được phát hiện read-only:** trước hai login thành công có
 TIMEOUT13:46:30, correlation `374519ea-9460-4cd9-b177-2989f2c7f7a7`, cả hai stages
@@ -1327,14 +1333,18 @@ không migrate/import/reset, đổi OTP/trust/policy/CA/JWT keys hoặc deploy B
 working directory canonical; Frontend đúng image mới và source snapshot đã build,
 chín container còn lại cùng IDs/images/restarts, runtime hashes không đổi,
 rollback reference còn trỏ đúng image cũ. Java TLS evidence được tái sử dụng vì
-không thay TLS hoặc chín services đó. L2 Browser vẫn được theo dõi riêng.
+không thay TLS hoặc chín services đó. L2 Browser và session readback sau đó PASS
+theo phạm vi ở trên, không chạy lại A1–A6/RBAC.
 
 ### Demo readiness và kết luận tạm thời
 
 **PARTIAL**: business read-only, Adaptive A1–A6, RBAC và L1 normal Logout có
 evidence; CRUD/security gaps mới có targeted source execution. Bản sửa Logout
-đã deploy; còn L2 Browser trên image mới và nguyên nhân TIMEOUT tạm thời chưa
-xác minh. Không gọi toàn hệ thống PASS hoặc đánh đồng fail-closed với availability.
+đã deploy và L2 Browser/session PASS. Demo xem dữ liệu/giải thích cơ chế đã sẵn
+sàng trong phạm vi an toàn; nguyên nhân TIMEOUT tạm thời và A6 lịch sử chưa xác
+minh. CRUD live-write, controlled outage Browser và mọi stale-form conflict đều
+không được suy thành PASS. Không gọi toàn hệ thống PASS hoặc đánh đồng
+fail-closed với availability.
 Hướng dẫn demo an toàn được bổ sung tại
 `docs/operations/LEGACY_INTEGRATION.md`, dùng evidence HIGH/DENY đã lưu thay vì
 tái tạo fixtures. CRL còn hạn đến**06/11/2026 09:30:48 GMT+7**, bảo trì khi còn≤2
@@ -1359,6 +1369,21 @@ Immediate-before/after deployment cùng key/type/value hash và TTL giảm hợp
 Đây là thay đổi login/history/cache bình thường, không phải ghi fixture hoặc sửa
 nghiệp vụ. Các lần đọc Admin sessions chỉ dùng machine grant hợp lệ, không giả
 user token hoặc tự logout user thật.
+
+**PASS — hậu kiểm sau L2,14:36:54 GMT+7:** School49/23/6, toàn bộ Keycloak stable
+tables/credentials/OTP/signing/flow/config và bốn bảng Risk còn lại không đổi.
+Authentication success history93→97: bốn events thuộc STUDENT A trong khoảng
+thao tác L1/L2, timestamps khớp LOGIN_SUCCESS; không khẳng định bốn lần nhập mật
+khẩu hoặc tương ứng một-một với các giờ owner ước lượng. Fingerprint93 history
+rows gốc tiếp tục khớp hoàn toàn. Redis1 key TTL, không reset; thay đổi từ0 keys
+đầu nhiệm vụ được phân biệt với bảo toàn key/value trong deployment. Không có
+thay đổi dữ liệu nghiệp vụ, OTP/trust generation/revocations hoặc fixture mới.
+
+**PASS — runtime/TLS cuối14:38:13 GMT+7:**10/10 healthy, Frontend đúng image
+`ec28b638e7db…`, chín containers khác không đổi; source snapshot khớp image,
+runtime hashes giữ nguyên, native Schannel Portal/Discovery200, B1 không deploy.
+Rollback image còn tồn tại. Không cần thêm thao tác login hoặc phê duyệt runtime
+trong nhiệm vụ này; nguyên nhân TIMEOUT/A6 cũ vẫn là giới hạn đã ghi nhận.
 
 ### Git checkpoint của nhiệm vụ
 
@@ -1387,6 +1412,9 @@ success; [workflow evidence](https://github.com/NguyenTruong-An/zerotrust/action
 lại các nghiệm thu Browser hoặc toàn bộ suites local. Frontend component tests
 mới được chạy local9/9; workflow hiện chỉ chạy lint/typecheck cho Frontend.
 Commit docs tiếp theo không tự được coi CI PASS theo kết quả của source commit.
+Commit docs `6375f70` cũng đã push và
+[CI run23 PASS](https://github.com/NguyenTruong-An/zerotrust/actions/runs/41020293564).
+Cập nhật L2/hậu kiểm cuối chỉ sửa tài liệu, production source snapshot không đổi.
 
 Private evidence của nhiệm vụ nằm dưới `.local-legacy/final-consolidation-evidence/`
 `final-system-acceptance-20261030/`, bị Git/Docker ignore. Không commit private

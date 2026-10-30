@@ -366,8 +366,8 @@ Kết quả nghiệm thu cuối nằm trong
 [báo cáo tổng hợp](../../ZEROTRUST_FINAL_CONSOLIDATION_REPORT.md#final-system-acceptance--demo-readiness--30102026).
 B0 là mô hình runtime; B1 chỉ là ứng viên nghiên cứu đã lưu source, chưa deploy
 và chưa có bằng chứng tốt hơn. Frontend sửa Logout đã deploy sau phê duyệt ngày
-30/10, image `ec28b638e7db…`, rollback `ca0f65adff31…`; L1 normal Logout trên image
-cũ PASS, L2 Browser trên image mới chờ xác nhận. Một TIMEOUT Risk tạm thời đã
+30/10, image `ec28b638e7db…`, rollback `ca0f65adff31…`; L1 trên image cũ và L2
+Browser/session trên image mới PASS. Một TIMEOUT Risk tạm thời đã
 fail-closed, nguyên nhân chưa xác định; không nới policy hoặc tự tăng timeout.
 
 1. Mở Docker Desktop, chờ Engine sẵn sàng. Trong PowerShell:
