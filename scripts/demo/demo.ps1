@@ -2,7 +2,7 @@ param([ValidateSet('start','stop','status','logs','build')][string]$Action = 'st
       [ValidateSet('frontend','gateway','backend','keycloak','risk','mysql','redis','crl')][string]$Service)
 $ErrorActionPreference = 'Stop'
 $demoRoot = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
-$composeArgs = @('compose','--project-name','zerotrust-demo','--project-directory',$demoRoot,'--file',(Join-Path $demoRoot 'compose.yaml'))
+$composeArgs = @('compose','--project-name','zerotrust-demo','--project-directory',$demoRoot,'--file',(Join-Path $demoRoot 'compose.dev.yaml'))
 if ($Action -eq 'start') { $composeArgs += @('up','-d','--wait','--wait-timeout','240') }
 elseif ($Action -eq 'stop') { $composeArgs += @('stop','--timeout','35') }
 elseif ($Action -eq 'status') { $composeArgs += 'ps' }

@@ -12,6 +12,10 @@ ORDER = ['school', 'risk-db', 'keycloak-db', 'redis', 'keycloak', 'crl',
 def docker(*args):
     result = subprocess.run(['docker', *args], capture_output=True, timeout=50)
     if result.returncode:
+        stderr = result.stderr.decode(errors='replace').lower()
+        if args[0] == 'start' and any(marker in stderr for marker in
+                                      ('port is already allocated', 'ports are not available', 'address already in use')):
+            raise RuntimeError('Host port conflict. Identify the listener on 28443, 28444 or 28445, then retry.')
         raise RuntimeError('Docker operation failed; inspect the exact candidate resource')
     return result.stdout
 
@@ -33,19 +37,20 @@ def main():
         info = inspect(service)
         assert info['Id'] == expected[service], 'RESOURCE_IDENTITY_DRIFT'
         if args.action == 'stop' and info['State']['Running']:
-            docker('stop', '--time', '35', info['Id'])
+            docker('stop', '--timeout', '35', info['Id'])
         if args.action == 'start':
             if not info['State']['Running']:
                 docker('start', info['Id'])
             deadline = time.monotonic() + 150
             while time.monotonic() < deadline:
                 info = inspect(service)
-                assert info['Id'] == expected[service] and info['State']['Running'], 'SERVICE_EXITED_OR_REPLACED'
+                if info['Id'] != expected[service] or not info['State']['Running']:
+                    raise RuntimeError(f'{service}: exited or was replaced; run zt.cmd status and logs --service {service}')
                 if info['State'].get('Health', {}).get('Status') == 'healthy':
                     break
                 time.sleep(2)
             else:
-                raise RuntimeError(service + ' health timeout; do not recreate or reimport')
+                raise RuntimeError(f'{service}: health timeout; run zt.cmd logs --service {service} and zt.cmd doctor')
     states = {s: {'status': (i := inspect(s))['State']['Status'],
                   'health': i['State'].get('Health', {}).get('Status', 'NOT_CONFIGURED')}
               for s in ORDER}

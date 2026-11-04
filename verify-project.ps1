@@ -10,7 +10,7 @@ Push-Location $PSScriptRoot
 try {
     if ($Scope -in @('All', 'Backend')) {
         $mavenWrapper = Join-Path $PSScriptRoot 'mvnw.cmd'
-        foreach ($pom in @('pom.xml', 'risk-scoring-service/pom.xml', 'keycloak-risk-extension/pom.xml')) {
+        foreach ($pom in @('pom.xml', 'risk-scoring-service/pom.xml', 'keycloak-risk-extension/pom.xml', 'gateway/pom.xml')) {
             Write-Host "Testing $pom"
             & $mavenWrapper --batch-mode --no-transfer-progress -f $pom test
             if ($LASTEXITCODE -ne 0) {
@@ -20,6 +20,10 @@ try {
     }
 
     if ($Scope -in @('All', 'Frontend')) {
+        $expectedNode = (Get-Content (Join-Path $PSScriptRoot '.node-version') -Raw).Trim()
+        if ((& node --version).TrimStart('v') -ne $expectedNode) {
+            throw "Node $expectedNode is required (see .node-version)."
+        }
         Push-Location (Join-Path $PSScriptRoot 'frontend')
         try {
             if (-not (Test-Path -LiteralPath 'node_modules')) {

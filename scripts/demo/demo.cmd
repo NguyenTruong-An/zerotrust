@@ -1,7 +1,7 @@
 @echo off
 setlocal
 set "DEMO_ROOT=%~dp0..\.."
-set "COMPOSE_FILE=%DEMO_ROOT%\compose.yaml"
+set "COMPOSE_FILE=%DEMO_ROOT%\compose.dev.yaml"
 if "%~1"=="start" goto start
 if "%~1"=="stop" goto stop
 if "%~1"=="build" goto build

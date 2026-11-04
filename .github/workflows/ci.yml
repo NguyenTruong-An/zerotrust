@@ -30,6 +30,9 @@ jobs:
           - module: keycloak-extension
             pom: keycloak-risk-extension/pom.xml
             reports: keycloak-risk-extension/target/surefire-reports
+          - module: gateway
+            pom: gateway/pom.xml
+            reports: gateway/target/surefire-reports
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -39,7 +42,7 @@ jobs:
           cache: maven
           cache-dependency-path: '**/pom.xml'
       - name: Run tests
-        run: bash mvnw --batch-mode --no-transfer-progress -f "${{ matrix.pom }}" test
+        run: bash mvnw --batch-mode --no-transfer-progress -f "${{ matrix.pom }}" verify
       - name: Save test reports
         if: always()
         uses: actions/upload-artifact@v4
@@ -50,7 +53,7 @@ jobs:
           retention-days: 7
 
   frontend-checks:
-    name: Frontend / lint and types
+    name: Frontend / checks and build
     runs-on: ubuntu-latest
     timeout-minutes: 15
     defaults:
@@ -60,10 +63,35 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version-file: '.node-version'
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - name: Install locked dependencies
         run: npm ci
       - name: Check frontend
         run: npm run check
+      - name: Test frontend
+        run: npm run test:student-scores && npm run test:portal-route
+      - name: Test Observatory viewer
+        run: node --test ../scripts/observation/test_viewer.cjs
+      - name: Build frontend
+        run: npm run build
+
+  build-contracts:
+    name: Build configuration
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Test build and operations tooling
+        run: |
+          python -m unittest discover -s scripts/build -p 'test_*.py' -v
+          python -m unittest discover -s scripts/ops -p 'test_*.py' -v
+          python -m unittest discover -s scripts/legacy -p test_portability.py -v
+          python -m unittest discover -s scripts/demo -p test_fixtures.py -v
+          python -m unittest discover -s scripts/observation -p test_observe.py -v
+      - name: Validate Docker build definitions
+        run: python scripts/build/images.py --check

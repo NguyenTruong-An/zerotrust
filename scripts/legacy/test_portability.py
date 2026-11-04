@@ -29,7 +29,7 @@ class ComposePortabilityTests(unittest.TestCase):
     def checkout(self, name):
         root = self.base / name
         root.mkdir(parents=True)
-        for name in ('compose.yaml', '.env.example', '.env.legacy.example',
+        for name in ('compose.dev.yaml', '.env.example', '.env.legacy.example',
                      'scripts/legacy/compose_candidate.py'):
             destination = root / name
             destination.parent.mkdir(parents=True, exist_ok=True)

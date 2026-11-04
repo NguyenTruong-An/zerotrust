@@ -17,3 +17,8 @@ ZEROTRUST_FINAL_CONSOLIDATION_REPORT.md
 # Local Python tooling caches are generated, never source.
 **/__pycache__/
 *.pyc
+.build-artifacts
+.presentation-build
+presentation
+.idea
+.agents

@@ -236,7 +236,7 @@
     "risk": {
       "build": {
         "context": ".",
-        "dockerfile": "deploy/demo/Dockerfile.java",
+        "dockerfile": "deploy/docker/Dockerfile.java",
         "args": {
           "MODULE": "risk-scoring-service"
         }
@@ -309,7 +309,7 @@
     "backend": {
       "build": {
         "context": ".",
-        "dockerfile": "deploy/demo/Dockerfile.java",
+        "dockerfile": "deploy/docker/Dockerfile.java",
         "args": {
           "MODULE": "."
         }
@@ -376,7 +376,7 @@
     "frontend": {
       "build": {
         "context": ".",
-        "dockerfile": "deploy/demo/Dockerfile.frontend",
+        "dockerfile": "deploy/docker/Dockerfile.frontend",
         "args": {
           "KEYCLOAK_URL": "https://localhost:28444",
           "KEYCLOAK_REALM": "DoAn",
@@ -423,7 +423,7 @@
     "gateway": {
       "build": {
         "context": ".",
-        "dockerfile": "deploy/demo/Dockerfile.java",
+        "dockerfile": "deploy/docker/Dockerfile.java",
         "args": {
           "MODULE": "gateway"
         }
@@ -546,7 +546,7 @@
       "container_name": "zerotrust-legacy-integration-20261026-crl",
       "build": {
         "context": ".",
-        "dockerfile": "deploy/demo/Dockerfile.tools"
+        "dockerfile": "deploy/docker/Dockerfile.tools"
       },
       "volumes": [
         {
@@ -584,7 +584,7 @@
       "image": "zerotrust-legacy-keycloak:20261026-candidate",
       "build": {
         "context": ".",
-        "dockerfile": "deploy/demo/Dockerfile.keycloak"
+        "dockerfile": "deploy/docker/Dockerfile.keycloak"
       },
       "entrypoint": [
         "/opt/keycloak/bin/kc.sh"
@@ -656,7 +656,7 @@
       "image": "zerotrust-legacy-tools:20261026-candidate",
       "build": {
         "context": ".",
-        "dockerfile": "deploy/demo/Dockerfile.tools"
+        "dockerfile": "deploy/docker/Dockerfile.tools"
       },
       "entrypoint": [
         "/opt/tools/bin/python"

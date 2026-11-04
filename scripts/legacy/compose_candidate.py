@@ -15,7 +15,7 @@ def generate():
     # not an operator's default .env or private service env files.
     result = subprocess.run(['docker', 'compose', '--project-directory', str(ROOT),
                              '--env-file', str(ROOT/'.env.example'),
-                             '-f', str(ROOT/'compose.yaml'), 'config', '--no-path-resolution',
+                             '-f', str(ROOT/'compose.dev.yaml'), 'config', '--no-path-resolution',
                              '--no-env-resolution', '--format', 'json'],
                             cwd=ROOT, capture_output=True, check=True)
     base = json.loads(result.stdout)
@@ -51,7 +51,7 @@ def generate():
             service['image'] = base['services']['redis']['image']
             service['volumes'] = [volume('redis-data','/data'),private(name)]
         elif name == 'crl':
-            service['build']={'context':'.','dockerfile':'deploy/demo/Dockerfile.tools'};service['image']='zerotrust-legacy-tools:20261026-candidate'
+            service['build']={'context':'.','dockerfile':'deploy/docker/Dockerfile.tools'};service['image']='zerotrust-legacy-tools:20261026-candidate'
             service['volumes']=[{'type':'bind','source':STATE+'/public-ca','target':'/public-ca','read_only':True}]
             service['networks']=['core','edge'];service['ports']=['127.0.0.1:28445:8080']
         elif name != 'frontend':service['volumes']=[private(name)]
@@ -67,7 +67,7 @@ def generate():
         services[name]=service
     services['keycloak']={**copy.deepcopy(runtime),'container_name':PROJECT+'-keycloak',
         'image':'zerotrust-legacy-keycloak:20261026-candidate',
-        'build':{'context':'.','dockerfile':'deploy/demo/Dockerfile.keycloak'},
+        'build':{'context':'.','dockerfile':'deploy/docker/Dockerfile.keycloak'},
         'entrypoint':['/opt/keycloak/bin/kc.sh'],
         'command':['--config-file=/run/demo/keycloak.conf','start','--optimized'],
         'mem_limit':'768m','volumes':[private('keycloak')], 'environment':{'KC_HTTP_MANAGEMENT_SCHEME':'http','JAVA_OPTS_APPEND':'@/run/demo/jvm.args -Xmx384m'},
@@ -78,7 +78,7 @@ def generate():
     for name in ['school-check','risk-migrate','keycloak-import','keycloak-export']:
         services[name]={**copy.deepcopy(runtime),'profiles':['migration'],'container_name':PROJECT+'-'+name,
                         'restart':'no','mem_limit':'512m','read_only':True}
-    services['school-check'].update({'image':'zerotrust-legacy-tools:20261026-candidate','build':{'context':'.','dockerfile':'deploy/demo/Dockerfile.tools'},
+    services['school-check'].update({'image':'zerotrust-legacy-tools:20261026-candidate','build':{'context':'.','dockerfile':'deploy/docker/Dockerfile.tools'},
         'entrypoint':['/opt/tools/bin/python'],'command':['/candidate/scripts/legacy/school_validate.py','check',
             '--config','/run/demo/migration.private.json','--baseline','/run/demo/baseline.private.json'],
         'volumes':[private('school'),{'type':'bind','source':'.','target':'/candidate','read_only':True}]})

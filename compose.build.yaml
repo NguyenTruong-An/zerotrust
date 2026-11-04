@@ -1,0 +1,56 @@
+{
+  "name": "zerotrust-build",
+  "services": {
+    "keycloak": {
+      "build": {
+        "context": ".",
+        "dockerfile": "deploy/docker/Dockerfile.keycloak"
+      }
+    },
+    "crl": {
+      "build": {
+        "context": ".",
+        "dockerfile": "deploy/docker/Dockerfile.tools"
+      }
+    },
+    "frontend": {
+      "build": {
+        "context": ".",
+        "dockerfile": "deploy/docker/Dockerfile.frontend",
+        "args": {
+          "KEYCLOAK_URL": "https://localhost:28444",
+          "KEYCLOAK_REALM": "DoAn",
+          "KEYCLOAK_CLIENT_ID": "zerotrust-spa",
+          "API_BASE_URL": ""
+        }
+      }
+    },
+    "risk": {
+      "build": {
+        "context": ".",
+        "dockerfile": "deploy/docker/Dockerfile.java",
+        "args": {
+          "MODULE": "risk-scoring-service"
+        }
+      }
+    },
+    "backend": {
+      "build": {
+        "context": ".",
+        "dockerfile": "deploy/docker/Dockerfile.java",
+        "args": {
+          "MODULE": "."
+        }
+      }
+    },
+    "gateway": {
+      "build": {
+        "context": ".",
+        "dockerfile": "deploy/docker/Dockerfile.java",
+        "args": {
+          "MODULE": "gateway"
+        }
+      }
+    }
+  }
+}

@@ -4,8 +4,9 @@ COPY . .
 ARG MODULE=.
 ARG RUN_CHECKS=true
 RUN --mount=type=cache,target=/root/.m2 chmod +x mvnw && \
-    if [ "$MODULE" = "." ] && [ "$RUN_CHECKS" = "true" ]; then ./mvnw --batch-mode --no-transfer-progress -Dtest=ZerotrustApplicationTests,AdminControllerSecurityTest,StudentControllerSecurityTest,ScoreUpdateConcurrencyTest test; fi && \
-    ./mvnw --batch-mode --no-transfer-progress -f "$MODULE/pom.xml" -DskipTests package && \
+    if [ "$RUN_CHECKS" = "true" ]; then \
+      ./mvnw --batch-mode --no-transfer-progress -f "$MODULE/pom.xml" verify; \
+    else ./mvnw --batch-mode --no-transfer-progress -f "$MODULE/pom.xml" -DskipTests package; fi && \
     mkdir -p /out/tools /out/unpacked && cp "$MODULE"/target/*.jar /out/application.jar && \
     javac -d /out/tools deploy/demo/Health.java && \
     if [ "$MODULE" = "risk-scoring-service" ]; then \

@@ -25,6 +25,7 @@ target/
 /nbdist/
 /.nb-gradle/
 build/
+!/scripts/build/
 !**/src/main/**/build/
 !**/src/test/**/build/
 
@@ -49,3 +50,4 @@ application-local.properties
 *.pyc
 
 /.presentation-build/
+/.build-artifacts/
