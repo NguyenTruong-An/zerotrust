@@ -42,7 +42,7 @@ danh người hoặc thiết bị và không phải vị trí vật lý chính x
 | Device ID | Cookie HttpOnly/SameSite | Random ID phía browser | Mặc định 30 ngày |
 | Device fingerprint | MySQL `known_devices` | HMAC(subject + device ID) | Theo lifecycle thiết bị |
 | Successful login history | MySQL | subject/client/timestamp, không IP/User-Agent | Theo retention được duyệt |
-| Geo-IP result | Bộ nhớ Risk Service | country/city/timezone/accuracy radius/ASN | Không persist |
+| Geo-IP result | Bộ nhớ Risk; từ 02/11/2026 có metadata allowlist trong trace lab schema 2 | country/city/timezone/accuracy radius/ASN, không IP thô | Docker log rotation theo dung lượng; file lab theo mục đích demo, chưa tự purge theo ngày |
 | GeoLite database | Filesystem service | Vendor `.mmdb`, không chứa lịch sử user | Theo release/vendor license |
 
 Flyway V4 còn lưu `subject_device_trust` (subject/generation/pending) và
@@ -51,13 +51,18 @@ thu hồi). Đây là audit reset trust, chưa phải audit mọi evaluation.
 HMAC là giả danh hóa, vẫn cần access control và retention. Cửa sổ history của
 Temporal chỉ giới hạn query, không tự xóa row; chưa có purge job trong mã hiện tại.
 
-Nếu sau này cần Location Profile hoặc impossible travel, phải có migration, mục
-đích, retention và access control riêng trước khi persist bất kỳ country/city nào.
+Theo yêu cầu bổ sung quan sát ngày 02/11/2026, trace lab được ghi metadata GeoIP
+và thống kê D/N/T/H đã allowlist. [Hướng dẫn quan sát](../testing/RISK_OBSERVATORY.md)
+mô tả các trường và giới hạn lưu file. Không thêm location history vào database,
+Location Profile hoặc impossible travel. Các chức năng đó vẫn cần thiết kế mục
+đích, retention và access control riêng trước khi triển khai.
 
 ## 4. Quy tắc bảo vệ bắt buộc
 
 - Không log raw IP, device ID, token, recovery code, OTP hoặc MaxMind license key.
-- Log vận hành chỉ ghi reason/status/correlation ID; nếu buộc hiển thị IP thì mask.
+- Trace lab schema 2 ghi reason/status/correlation, điểm và snapshot allowlist;
+  GeoIP metadata có thể được lưu trong log/file lab, không chứa IP thô.
+  Trang quan sát chỉ dùng file cục bộ, không mở API/hosting mới.
 - Không trả city/ASN/accuracy radius trong API public hoặc UI người dùng hiện tại.
 - Pepper và service-account secret nằm trong secret manager; không commit `.env`.
 - Redis/MySQL, backup và service traffic phải được mã hóa/giới hạn mạng ở production.

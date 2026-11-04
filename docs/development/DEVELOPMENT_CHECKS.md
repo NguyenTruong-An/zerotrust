@@ -4,6 +4,10 @@
 
 > Các lệnh bên dưới chạy từ thư mục gốc repository, trừ khi có chỉ dẫn khác.
 
+Mốc mới nhất: [kiểm chứng chuẩn hóa build ngày 04/11/2026](BUILD_PIPELINE.md#kết-quả-kiểm-chứng-ngày-04112026),
+gồm sáu image, bốn module Java, frontend và công cụ build/ops. Các mốc dưới đây
+được giữ để tra cứu lịch sử, không thay thế kết quả mới này.
+
 ## Mốc kiểm tra ngày 2026-10-27 — hệ thống xem điểm ADMIN/STUDENT
 
 Theo yêu cầu trực tiếp của chủ đồ án, source đã gỡ Teacher, phân công giảng dạy và
@@ -47,7 +51,7 @@ Các báo cáo ngày 23/10 có Teacher/schedule được giữ là lịch sử, 
 
 ## Chạy trên Windows
 
-Cần Java 17 và Node.js 22 (từ 22.13.0). Maven Wrapper tải Maven và các phụ thuộc
+Cần Java 17 và Node.js 24.16.0 (theo `.node-version`). Maven Wrapper tải Maven và các phụ thuộc
 khi chạy lần đầu. Cài phụ thuộc frontend theo lockfile:
 
 ```powershell
@@ -69,13 +73,15 @@ khi một bước thất bại. Không cần secret production, Keycloak, MySQL 
 ## Kiểm tra tự động trên GitHub
 
 Workflow `.github/workflows/ci.yml` chạy khi push, mở/cập nhật pull request hoặc
-được chạy thủ công. Ba module Java chạy riêng trên Java 17; frontend cài bằng
-`npm ci`, chạy ESLint và TypeScript trên Node.js 22. Các job chỉ có quyền đọc
+được chạy thủ công. Bốn module Java (Portal, Risk, SPI, Gateway) chạy `verify` riêng
+trên Java 17; frontend cài bằng `npm ci`, chạy ESLint, TypeScript, Node tests và
+Next build trên phiên bản Node trong `.node-version`. Các job chỉ có quyền đọc
 repository và không dùng secret triển khai. Báo cáo Java được giữ bảy ngày,
 kể cả khi test thất bại.
 
-Đây là kiểm tra mã và các bài test tự động hiện có. Workflow chưa bao gồm build
-frontend, kiểm thử trình duyệt, môi trường Keycloak thật hoặc triển khai.
+CI bổ sung kiểm tra script build/ops, Compose portability và Dockerfile checks;
+xem [BUILD_PIPELINE](BUILD_PIPELINE.md). Workflow chưa bao gồm kiểm thử trình duyệt,
+môi trường Keycloak thật hoặc triển khai.
 Một workflow được thêm ở local chỉ bắt đầu chạy trên GitHub sau khi được push.
 Branch protection phải được cấu hình riêng nếu muốn bắt buộc các kiểm tra trước merge.
 
@@ -98,7 +104,7 @@ sau sửa. Môi trường Java 17, Maven offline, H2/mock; nhóm JWT dùng JWKS 
 giả lập. Lệnh thực chạy từ gốc:
 
 ```powershell
-.\mvnw.cmd --offline --batch-mode --no-transfer-progress -f risk-scoring-service/pom.xml '-DargLine=-javaagent:C:/Users/DELL/.m2/repository/net/bytebuddy/byte-buddy-agent/1.17.8/byte-buddy-agent-1.17.8.jar' test
+.\mvnw.cmd --offline --batch-mode --no-transfer-progress -f risk-scoring-service/pom.xml '-DargLine=-javaagent:<maven-local-repository>/net/bytebuddy/byte-buddy-agent/1.17.8/byte-buddy-agent-1.17.8.jar' test
 ```
 
 Đường dẫn agent là máy kiểm tra, không phải cấu hình bắt buộc trên máy khác.

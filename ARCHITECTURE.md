@@ -6,6 +6,13 @@
 
 **Phạm vi:** Trách nhiệm dịch vụ, hiện trạng repository và các quyết định còn mở.
 
+**Cập nhật quan sát 02/11/2026:** theo yêu cầu chủ đồ án, Risk trace schema 2 đã
+bổ sung snapshot D/N/T/H, metadata GeoIP thực có và trang xem cục bộ chỉ đọc log.
+B0 và ranh giới dịch vụ giữ nguyên; metadata allowlist được lưu trong log/file
+lab với giới hạn riêng, không thêm location history vào database. Xem
+[RISK_OBSERVATORY](docs/testing/RISK_OBSERVATORY.md) cho trạng thái rollout/health,
+kiểm thử và phần Browser/MFA sau cập nhật chưa nghiệm thu.
+
 **Bổ sung trạng thái source/runtime30/10/2026:** B1 đã có trong source theo lựa
 chọn opt-in, baseline B0 vẫn là mặc định và Docker runtime. Risk/Trust explanation
 có contribution, coverage và decision source trong source; không suy các trường
@@ -202,8 +209,8 @@ partial/pending. Chi tiết/class: [MFA_RESET_LIFECYCLE](docs/authentication/MFA
 | Weighted engine, priority deny, mandatory MFA | Có mã B0 và opt-in B1; B0 mặc định/runtime, policy số chưa được hiệu chỉnh với ground truth thực tế |
 | CIDR/GeoLite, Temporal Profile, failure history | Có calculator; Network provider mặc định tắt, Temporal có cold-start |
 | Device trust, generation, reset orchestration | Có mã/test; provisioning và flow thật cần xác minh theo môi trường |
-| Audit/trace | Có `device_trust_revocations`, Keycloak Risk Evaluation Trace; source Risk Score Trace bổ sung explanation, không có bảng lưu mọi evaluation mới |
-| Trust Score, location history/impossible travel | Source trace có Trust=100−Risk cùng coverage/interval; API response vẫn `riskScore`, chưa thêm Trust DTO. Không có location history/impossible travel |
+| Audit/trace | Có `device_trust_revocations`, Keycloak Risk Evaluation Trace; Risk trace schema 2 và trang xem cục bộ đã bổ sung snapshot D/N/T/H, Docker Risk cập nhật 02/11/2026. Không thêm bảng lưu mọi evaluation; Browser sau rollout chưa nghiệm thu |
+| Trust Score, location history/impossible travel | Trace/trang xem cục bộ có Trust=100−Risk cùng coverage/interval trong trace; API vẫn `riskScore`, chưa thêm Trust DTO. Không có location history/impossible travel |
 | Redis cache hồ sơ, velocity/rate limiter riêng | Chưa có implementation tương ứng trong Risk |
 | Retention/purge, giám sát/cảnh báo | Chưa hoàn thiện; cửa sổ query không tự xóa event cũ |
 | Continuous authentication, thu hồi JWT tức thì | Chưa triển khai; không suy ra từ logout/reset trust |

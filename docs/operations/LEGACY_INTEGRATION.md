@@ -1,5 +1,9 @@
 # Legacy-data Docker candidate
 
+> Hướng dẫn vận hành hiện hành từ 04/11/2026: [CURRENT_RUNTIME](CURRENT_RUNTIME.md).
+> Tài liệu đó tập hợp bộ lệnh và bản đồ cấu hình/volume. Các kết quả theo ngày và
+> quy trình tích hợp/migration bên dưới được giữ làm hồ sơ đối chiếu.
+
 > Cập nhật 30/10/2026: runtime canonical dùng source ADMIN/STUDENT; B0 tiếp tục chạy,
 > B1 chưa deploy. TLS/CDP đã sửa và CRL vừa gia hạn theo phê duyệt: CRLNumber1793327448,
 > NextUpdate **06/11/2026 09:30:48 GMT+7**; không restart service. Windows Schannel,
@@ -153,7 +157,7 @@ Private state and source backup directory are explicit parameters, outside Git.
 
 Use the release containing this guide. All build contexts are `.` relative to the
 repository; Dockerfiles compile Java/SPI and frontend from source. No QA02C or synthetic
-Demo JAR is required. The existing `deploy/demo` directory supplies shared Dockerfiles,
+Demo JAR is required. The `deploy/docker` directory supplies shared Dockerfiles,
 not a second application source tree. Only an explicitly selected migration import
 image uses the preserved original provider/theme as private BuildKit inputs.
 
@@ -373,7 +377,7 @@ fail-closed, nguyên nhân chưa xác định; không nới policy hoặc tự t
 1. Mở Docker Desktop, chờ Engine sẵn sàng. Trong PowerShell:
 
    ```powershell
-   Set-Location 'C:\Users\DELL\Documents\zerotrust\zerotrust'
+   Set-Location '<repo-root>'
    python -X utf8 scripts/legacy/operate.py status
    # Chỉ khi các canonical containers hiện có đang stopped:
    python -X utf8 scripts/legacy/operate.py start

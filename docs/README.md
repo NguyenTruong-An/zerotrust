@@ -19,7 +19,9 @@ chưa deploy Docker hoặc tạo fixture A5/A6. Không thay thế kết quả Br
 
 ## Runtime canonical hiện tại
 
-Dùng project `zerotrust-legacy-integration-20261026`, [hướng dẫn vận hành](operations/LEGACY_INTEGRATION.md)
+Dùng project `zerotrust-legacy-integration-20261026`, bắt đầu từ
+[bộ lệnh vận hành và bản đồ cấu hình/volume](operations/CURRENT_RUNTIME.md),
+[hồ sơ tích hợp legacy](operations/LEGACY_INTEGRATION.md)
 và [báo cáo tổng hợp](../ZEROTRUST_FINAL_CONSOLIDATION_REPORT.md). Không tạo môi trường mới
 hoặc khởi động cấu hình synthetic để thay cho canonical.
 
@@ -35,7 +37,7 @@ hoặc khởi động cấu hình synthetic để thay cho canonical.
 
 1. **Hiểu đề tài:** [Kiến trúc](../ARCHITECTURE.md) — sơ đồ mã hiện có và kiến trúc đích, ranh giới, phần đã chốt/còn thiếu.
 2. **Hiểu đăng nhập:** [Login, PKCE và phiên](authentication/LOGIN_FLOW.md), rồi [Reset MFA và thiết bị tin cậy](authentication/MFA_RESET_LIFECYCLE.md).
-3. **Vận hành hiện tại:** [Canonical Docker](operations/LEGACY_INTEGRATION.md), xem trạng thái nghiệm thu và build/start/stop trong [báo cáo tổng hợp](../ZEROTRUST_FINAL_CONSOLIDATION_REPORT.md).
+3. **Vận hành hiện tại:** [Lệnh vận hành, cấu hình và volume](operations/CURRENT_RUNTIME.md), xem trạng thái nghiệm thu và build/deploy trong [báo cáo tổng hợp](../ZEROTRUST_FINAL_CONSOLIDATION_REPORT.md).
 4. **Đọc mã và kiểm thử:** [Giải thích class theo luồng](development/CODE_FLOW_WALKTHROUGH.md) — frontend, SPI, scoring/history/device và học vụ Portal; [Các bước kiểm tra](development/DEVELOPMENT_CHECKS.md).
    Bộ kịch bản thực hành: [Kế hoạch kiểm thử và pentest](testing/TEST_PLAN.md), [40 ca chức năng](testing/FUNCTIONAL_SCENARIOS.md), [24 ca pentest cơ bản](testing/BASIC_PENTEST.md).
 5. **Đánh giá giới hạn:** [Rà soát ngày 02/10/2026](reviews/ADAPTIVE_AUTH_REVIEW_2026-10-02.md), [Đối chiếu bảo mật](security/SECURITY_REFERENCE_REVIEW.md).
@@ -52,10 +54,19 @@ hoặc khởi động cấu hình synthetic để thay cho canonical.
 | Đối chiếu với các tài liệu bảo mật tham chiếu | [SECURITY_REFERENCE_REVIEW](security/SECURITY_REFERENCE_REVIEW.md) |
 | Tìm điểm vào và luồng xử lý trong mã | [CODE_FLOW_WALKTHROUGH](development/CODE_FLOW_WALKTHROUGH.md) |
 | Chạy test và hiểu phạm vi CI | [DEVELOPMENT_CHECKS](development/DEVELOPMENT_CHECKS.md) |
+| Build image và xác định phiên bản mã nguồn | [BUILD_PIPELINE](development/BUILD_PIPELINE.md) |
 | Thực hiện kiểm thử và pentest cơ bản | [TEST_PLAN](testing/TEST_PLAN.md), [FUNCTIONAL_SCENARIOS](testing/FUNCTIONAL_SCENARIOS.md), [BASIC_PENTEST](testing/BASIC_PENTEST.md) |
+| Xem dữ liệu tính Risk và GeoIP khi test, dùng log/Postman/Wireshark | [RISK_GEOIP_OBSERVATION_GUIDE](testing/RISK_GEOIP_OBSERVATION_GUIDE.md) — hướng dẫn chi tiết, phân biệt Browser/API/MMDB và source/runtime |
+| Xem tín hiệu → điểm D/N/T/H → quyết định → kết quả MFA | [RISK_OBSERVATORY](testing/RISK_OBSERVATORY.md) — trang quan sát cục bộ và collector log |
+| Nghiệm thu Browser và chuẩn bị demo | [RUNBOOK](operations/RUNBOOK.md) |
 | Tự thực hiện pentest sâu về luồng và trạng thái | [ADVANCED_PENTEST](testing/ADVANCED_PENTEST.md) — 6 kịch bản chi tiết, chưa thực hiện |
 | Ghi kết quả, finding và kiểm thử lại | [REPORT_TEMPLATE](testing/REPORT_TEMPLATE.md) |
-| Khởi động các dịch vụ trên máy local | [DEVELOPMENT_DEMO](setup/DEVELOPMENT_DEMO.md) |
+| Khởi động, dừng, kiểm tra các dịch vụ hiện tại | [CURRENT_RUNTIME](operations/CURRENT_RUNTIME.md) |
+| Vận hành hằng ngày, backup và TLS | [RUNBOOK](operations/RUNBOOK.md) |
+| Nghiệm thu backup trên DB cô lập | [RESTORE_VERIFICATION_REPORT](operations/RESTORE_VERIFICATION_REPORT.md) |
+| Xác định file/image có thể đề xuất dọn | [CLEANUP_REVIEW](operations/CLEANUP_REVIEW.md) |
+| Phân biệt lab/dev/build và chuyển vị trí runtime | [ENVIRONMENTS](operations/ENVIRONMENTS.md) |
+| Tra cứu môi trường demo synthetic lịch sử | [DEVELOPMENT_DEMO](setup/DEVELOPMENT_DEMO.md) |
 | Xem kết quả kiểm chứng và thiếu sót đã ghi nhận | [ADAPTIVE_AUTH_REVIEW_2026-10-02](reviews/ADAPTIVE_AUTH_REVIEW_2026-10-02.md) |
 | Xem thay đổi và giới hạn của Geo-IP | [GEOIP_PRODUCTION_CHANGELOG](reviews/GEOIP_PRODUCTION_CHANGELOG.md) |
 
@@ -68,7 +79,7 @@ docs/
 ├── security/           # Quyền truy cập, riêng tư, đối chiếu bảo mật
 ├── development/        # Đọc mã, kiểm thử và CI
 ├── testing/            # Kịch bản chức năng, pentest và mẫu báo cáo
-├── setup/              # Development/Demo và troubleshooting hiện tại
+├── setup/              # Development/Demo synthetic lịch sử
 ├── architecture/       # Topology Development/Demo
 ├── demo/               # Runbook và completion report
 ├── archive/            # Hướng dẫn lịch sử và chính sách bảo toàn
