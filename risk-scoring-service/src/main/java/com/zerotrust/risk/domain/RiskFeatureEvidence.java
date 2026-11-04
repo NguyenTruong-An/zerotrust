@@ -9,8 +9,13 @@ public record RiskFeatureEvidence(
         Status temporal,
         Status authenticationHistory,
         DeviceRecognitionStatus deviceState,
-        NetworkRiskSource networkSource
+        NetworkRiskSource networkSource,
+        RiskSignalSnapshot signals
 ) {
+    public RiskFeatureEvidence(Status device, Status network, Status temporal, Status authenticationHistory,
+                               DeviceRecognitionStatus deviceState, NetworkRiskSource networkSource) {
+        this(device, network, temporal, authenticationHistory, deviceState, networkSource, null);
+    }
     public enum Status { AVAILABLE, COLD_START, UNAVAILABLE, NOT_OBSERVED }
 
     public RiskFeatureEvidence {

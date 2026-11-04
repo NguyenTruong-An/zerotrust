@@ -5,8 +5,16 @@ import java.util.Objects;
 
 public record AuthenticationHistoryRiskAssessment(
         BigDecimal riskScore,
-        boolean highRisk
+        boolean highRisk,
+        Evidence evidence
 ) {
+    public record Evidence(long subjectFailures, long sourceIpFailures, long subjectMediumMinimum,
+                           long subjectHighMinimum, long sourceIpMediumMinimum, long sourceIpHighMinimum,
+                           Long failureWindowSeconds) {}
+
+    public AuthenticationHistoryRiskAssessment(BigDecimal riskScore, boolean highRisk) {
+        this(riskScore, highRisk, null);
+    }
     public AuthenticationHistoryRiskAssessment {
         Objects.requireNonNull(riskScore, "riskScore must not be null");
         if (riskScore.compareTo(BigDecimal.ZERO) < 0

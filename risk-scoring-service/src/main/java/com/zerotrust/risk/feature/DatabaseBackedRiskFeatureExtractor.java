@@ -158,7 +158,10 @@ public class DatabaseBackedRiskFeatureExtractor implements RiskFeatureExtractor 
                         },
                         authenticationHistoryAssessment.isPresent()
                                 ? RiskFeatureEvidence.Status.AVAILABLE : RiskFeatureEvidence.Status.UNAVAILABLE,
-                        device.status(), networkAssessment.source())
+                        device.status(), networkAssessment.source(),
+                        new com.zerotrust.risk.domain.RiskSignalSnapshot(device.reason(), networkAssessment,
+                                temporalAssessment.evidence(), authenticationHistoryAssessment
+                                        .map(AuthenticationHistoryRiskAssessment::evidence).orElse(null)))
         );
     }
 }

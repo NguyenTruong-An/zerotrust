@@ -24,26 +24,26 @@ public class DeviceRecognitionService {
         }
 
         String fingerprintHash = fingerprintHasher.hash(context.subjectId(), context.deviceId());
-        DeviceRecognitionStatus status = knownDeviceRepository
+        return knownDeviceRepository
                 .findBySubjectIdAndDeviceFingerprintHash(context.subjectId(), fingerprintHash)
-                .map(device -> recognizeStored(device, context.receivedAt()))
-                .orElse(DeviceRecognitionStatus.NEW);
-
-        return new DeviceRecognition(status, fingerprintHash);
+                .map(device -> recognizeStored(device, context.receivedAt(), fingerprintHash))
+                .orElseGet(() -> new DeviceRecognition(DeviceRecognitionStatus.NEW, fingerprintHash));
     }
 
-    private DeviceRecognitionStatus recognizeStored(KnownDeviceEntity device, java.time.Instant now) {
+    private DeviceRecognition recognizeStored(KnownDeviceEntity device, java.time.Instant now, String hash) {
         if (device.getStatus() == DeviceStatus.REVOKED && "MFA_RESET".equals(device.getRevocationReason())) {
-            return DeviceRecognitionStatus.REAUTHENTICATION_REQUIRED;
+            return new DeviceRecognition(DeviceRecognitionStatus.REAUTHENTICATION_REQUIRED, hash,
+                    DeviceRecognition.Reason.MFA_RESET);
         }
         if (device.getStatus() == DeviceStatus.TRUSTED && (device.getTrustedAt() == null
                 || !now.isBefore(device.getTrustedAt().plus(java.time.Duration.ofDays(30))))) {
-            return DeviceRecognitionStatus.REAUTHENTICATION_REQUIRED;
+            return new DeviceRecognition(DeviceRecognitionStatus.REAUTHENTICATION_REQUIRED, hash,
+                    DeviceRecognition.Reason.TRUST_EXPIRED);
         }
-        return switch (device.getStatus()) {
+        return new DeviceRecognition(switch (device.getStatus()) {
             case PENDING -> DeviceRecognitionStatus.PENDING;
             case TRUSTED -> DeviceRecognitionStatus.TRUSTED;
             case REVOKED -> DeviceRecognitionStatus.REVOKED;
-        };
+        }, hash);
     }
 }

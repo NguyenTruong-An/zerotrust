@@ -56,12 +56,15 @@ public class RiskScoreTrace {
     public void record(RiskEvaluation evaluation, RiskFeatureExtraction extraction, long durationNanos) {
         try {
             Map<String, Object> row = new LinkedHashMap<>();
-            row.put("schema_version", 1);
+            row.put("schema_version", 2);
             row.put("stage", "RISK_EVALUATION_DETAILS");
             row.put("at", Instant.now().toString());
             row.put("evaluation_id", evaluation.evaluationId().toString());
             row.put("model_version", policy.getModel().name() + ":1");
             row.put("numeric_config_digest", numericConfigDigest());
+            row.put("policy_thresholds", Map.of("medium_minimum", policy.getThresholds().getMediumMinimum(),
+                    "high_minimum", policy.getThresholds().getHighMinimum()));
+            row.put("user_agent_used_for_scoring", false);
             row.put("risk_pipeline_duration_ms", BigDecimal.valueOf(Math.max(0, durationNanos), 6));
             row.put("risk_score", evaluation.riskScore());
             row.put("trust_score", evaluation.riskScore() == null ? null : HUNDRED.subtract(evaluation.riskScore()));
@@ -72,6 +75,8 @@ public class RiskScoreTrace {
             row.put("data_status", evaluation.dataStatus().name());
             boolean mandatory = extraction != null && extraction.mandatoryStepUpReason().isPresent();
             row.put("mandatory_step_up_present", extraction == null ? null : mandatory);
+            row.put("mandatory_step_up_reason", extraction == null ? null
+                    : extraction.mandatoryStepUpReason().map(Enum::name).orElse(null));
             row.put("decision_source", evaluation.dataStatus() == RiskDataStatus.NOT_EVALUATED ? "PRIORITY_RULE"
                     : evaluation.dataStatus() == RiskDataStatus.INCOMPLETE ? "INCOMPLETE_DATA"
                     : calculated != RiskLevel.LOW || !mandatory ? "SCORE_THRESHOLD" : "MANDATORY_STEP_UP");
@@ -100,6 +105,7 @@ public class RiskScoreTrace {
         features.put("temporal", feature(e.temporal(), factors.temporalRisk(), w.getTemporal(), null));
         features.put("authentication_history", feature(e.authenticationHistory(), factors.authenticationHistoryRisk(),
                 w.getAuthenticationHistory(), null));
+        addInputs(features, e.signals());
         row.put("features", features);
         // Older/custom extractors with no evidence cannot claim measured coverage.
         if (features.values().stream().anyMatch(f -> "NOT_OBSERVED".equals(f.get("status")))) return;
@@ -120,6 +126,64 @@ public class RiskScoreTrace {
             row.put("risk_interval", List.of(lower, upper));
             row.put("trust_interval", List.of(HUNDRED.subtract(upper), HUNDRED.subtract(lower)));
         }
+    }
+
+    private void addInputs(Map<String, Map<String, Object>> features, RiskSignalSnapshot signals) {
+        features.values().forEach(feature -> feature.put("inputs", null));
+        if (signals == null) return;
+        features.get("device").put("inputs", fields("recognition_reason", name(signals.deviceReason()),
+                "recognition_source", "DEVICE_COOKIE_AND_SERVER_RECORD"));
+        NetworkRiskAssessment n = signals.network();
+        if (n != null) {
+            GeoIpLocation location = n.geoIpLocation();
+            var observation = n.observation();
+            features.get("network").put("inputs", fields(
+                    "ip_source", "RISK_REQUEST_IP_ADDRESS",
+                    "address_scope", observation == null ? null : name(observation.addressScope()),
+                    "geoip_status", observation == null ? null : name(observation.geoIpUse()),
+                    "policy_band", name(n.band()), "unavailable_reason", name(n.unavailableReason()),
+                    "country_code", location == null ? null : location.countryCode(),
+                    "city_name", location == null ? null : safeText(location.cityName()),
+                    "geoip_time_zone", location == null ? null : safeText(location.timeZone()),
+                    "accuracy_radius_km", location == null ? null : location.accuracyRadiusKm(),
+                    "asn", location == null ? null : location.autonomousSystemNumber(),
+                    "asn_organization", location == null ? null : safeText(location.autonomousSystemOrganization()),
+                    "geoip_scoring_field", n.usesGeoIp() ? "COUNTRY_CODE" : null));
+        }
+        var t = signals.temporal();
+        if (t != null) {
+            features.get("temporal").put("inputs", fields("history_source", "SUCCESS_EVENTS_MYSQL",
+                    "evaluated_at", t.evaluatedAt().toString(), "zone_id", t.zoneId(),
+                    "history_window_seconds", t.historyWindowSeconds(), "minimum_events", t.minimumEvents(),
+                    "maximum_events", t.maximumEvents(), "sample_size", t.sampleSize(),
+                    "day_of_week", t.dayOfWeek(), "hour", t.hour(), "hour_tolerance", t.hourTolerance(),
+                    "matching_days", t.matchingDays(), "matching_hours", t.matchingHours(),
+                    "minimum_day_frequency", t.minimumDayFrequency(),
+                    "minimum_hour_frequency", t.minimumHourFrequency()));
+        }
+        var h = signals.authenticationHistory();
+        if (h != null) {
+            features.get("authentication_history").put("inputs", fields("history_source", "FAILURE_COUNTERS_REDIS",
+                    "subject_failures", h.subjectFailures(), "source_ip_failures", h.sourceIpFailures(),
+                    "subject_medium_minimum", h.subjectMediumMinimum(), "subject_high_minimum", h.subjectHighMinimum(),
+                    "source_ip_medium_minimum", h.sourceIpMediumMinimum(), "source_ip_high_minimum", h.sourceIpHighMinimum(),
+                    "failure_window_seconds", h.failureWindowSeconds(),
+                    "window_semantics", "COUNTER_TTL_FROM_FIRST_FAILURE", "aggregation", "MAX_ACCOUNT_AND_IP_RISK"));
+        }
+    }
+
+    private static String name(Enum<?> value) { return value == null ? null : value.name(); }
+
+    private static String safeText(String value) {
+        if (value == null) return null;
+        String cleaned = value.replaceAll("[\\p{Cntrl}\\u2028\\u2029]", " ");
+        return cleaned.substring(0, Math.min(cleaned.length(), 120));
+    }
+
+    private static Map<String, Object> fields(Object... pairs) {
+        Map<String, Object> values = new LinkedHashMap<>();
+        for (int index = 0; index < pairs.length; index += 2) values.put((String) pairs[index], pairs[index + 1]);
+        return values;
     }
 
     private Map<String, Object> feature(RiskFeatureEvidence.Status status, BigDecimal score,

@@ -10,6 +10,8 @@ import com.zerotrust.risk.domain.NetworkRiskBand;
 import com.zerotrust.risk.domain.NetworkRiskSource;
 import com.zerotrust.risk.domain.NetworkRiskUnavailableReason;
 import org.springframework.stereotype.Service;
+import static com.zerotrust.risk.domain.NetworkRiskAssessment.AddressScope.*;
+import static com.zerotrust.risk.domain.NetworkRiskAssessment.GeoIpUse.*;
 
 import java.math.BigDecimal;
 import java.net.InetAddress;
@@ -58,19 +60,20 @@ public class NetworkRiskCalculator {
         if (!properties.isEnabled()) {
             return NetworkRiskAssessment.unavailable(
                     NetworkRiskUnavailableReason.PROVIDER_DISABLED
-            );
+            ).withObservation(NOT_OBSERVED, SKIPPED_NETWORK_DISABLED);
         }
 
         String ipAddress = context.ipAddress();
         try {
             IpCidr.validateAddress(ipAddress);
+            var scope = isPublicAddress(ipAddress) ? PUBLIC : NON_PUBLIC;
             if (matches(highRiskNetworks, ipAddress)) {
                 return assessment(
                         properties.getHighScore(),
                         NetworkRiskBand.HIGH,
                         NetworkRiskSource.CIDR,
                         null
-                );
+                ).withObservation(scope, SKIPPED_CIDR_MATCH);
             }
             if (matches(elevatedRiskNetworks, ipAddress)) {
                 return assessment(
@@ -78,7 +81,7 @@ public class NetworkRiskCalculator {
                         NetworkRiskBand.ELEVATED,
                         NetworkRiskSource.CIDR,
                         null
-                );
+                ).withObservation(scope, SKIPPED_CIDR_MATCH);
             }
             if (matches(trustedNetworks, ipAddress)) {
                 return assessment(
@@ -86,16 +89,26 @@ public class NetworkRiskCalculator {
                         NetworkRiskBand.TRUSTED,
                         NetworkRiskSource.CIDR,
                         null
-                );
+                ).withObservation(scope, SKIPPED_CIDR_MATCH);
             }
-            if (!geoIpProvider.isEnabled() || !isPublicAddress(ipAddress)) {
-                return defaultAssessment();
+            if (!geoIpProvider.isEnabled()) {
+                return defaultAssessment().withObservation(scope, SKIPPED_GEOIP_DISABLED);
             }
-            return assessmentFromGeoIp(geoIpProvider.lookup(ipAddress));
+            if (scope != PUBLIC) {
+                return defaultAssessment().withObservation(scope, SKIPPED_NON_PUBLIC);
+            }
+            GeoIpLookupResult lookup = geoIpProvider.lookup(ipAddress);
+            var use = switch (lookup.status()) {
+                case AVAILABLE -> lookup.location().countryCode() == null ? COUNTRY_MISSING : AVAILABLE;
+                case NOT_FOUND -> NOT_FOUND;
+                case UNAVAILABLE -> UNAVAILABLE;
+                case DISABLED -> DISABLED;
+            };
+            return assessmentFromGeoIp(lookup).withObservation(scope, use);
         } catch (IllegalArgumentException exception) {
             return NetworkRiskAssessment.unavailable(
                     NetworkRiskUnavailableReason.INVALID_IP_ADDRESS
-            );
+            ).withObservation(NOT_OBSERVED, INVALID_IP);
         }
     }
 

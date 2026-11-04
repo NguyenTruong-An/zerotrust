@@ -5,8 +5,22 @@ import java.util.Objects;
 
 public record TemporalRiskAssessment(
         TemporalProfileStatus status,
-        BigDecimal riskScore
+        BigDecimal riskScore,
+        Evidence evidence
 ) {
+    /** Values observed during this calculation, never a second repository read. */
+    public record Evidence(java.time.Instant evaluatedAt, String zoneId, long historyWindowSeconds,
+                           int minimumEvents, int maximumEvents, Integer sampleSize,
+                           int dayOfWeek, int hour, int hourTolerance, Long matchingDays, Long matchingHours,
+                           BigDecimal minimumDayFrequency, BigDecimal minimumHourFrequency) {}
+
+    public TemporalRiskAssessment(TemporalProfileStatus status, BigDecimal riskScore) {
+        this(status, riskScore, null);
+    }
+
+    public TemporalRiskAssessment withEvidence(Evidence observed) {
+        return new TemporalRiskAssessment(status, riskScore, observed);
+    }
     private static final BigDecimal MINIMUM_SCORE = BigDecimal.ZERO;
     private static final BigDecimal MAXIMUM_SCORE = new BigDecimal("100");
 

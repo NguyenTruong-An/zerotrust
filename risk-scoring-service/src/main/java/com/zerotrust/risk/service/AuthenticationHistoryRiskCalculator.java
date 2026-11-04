@@ -6,7 +6,8 @@ import com.zerotrust.risk.domain.RiskScoreModel;
 import com.zerotrust.risk.domain.AuthenticationHistoryRiskAssessment;
 import com.zerotrust.risk.domain.LoginContext;
 import com.zerotrust.risk.repository.AuthenticationFailureStore;
-import lombok.RequiredArgsConstructor;
+import com.zerotrust.risk.config.AuthenticationHistoryProperties;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.jboss.logging.Logger;
 import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
@@ -16,7 +17,6 @@ import java.util.Objects;
 import java.util.Optional;
 
 @Service
-@RequiredArgsConstructor
 public class AuthenticationHistoryRiskCalculator {
 
     private static final Logger LOGGER = Logger.getLogger(AuthenticationHistoryRiskCalculator.class);
@@ -24,6 +24,22 @@ public class AuthenticationHistoryRiskCalculator {
     private final AuthenticationFailureStore failureStore;
     private final AuthenticationHistoryRiskProperties properties;
     private final RiskPolicyProperties policy;
+    private final AuthenticationHistoryProperties storage;
+
+    @Autowired
+    public AuthenticationHistoryRiskCalculator(AuthenticationFailureStore failureStore,
+            AuthenticationHistoryRiskProperties properties, RiskPolicyProperties policy,
+            AuthenticationHistoryProperties storage) {
+        this.failureStore = failureStore;
+        this.properties = properties;
+        this.policy = policy;
+        this.storage = storage;
+    }
+
+    public AuthenticationHistoryRiskCalculator(AuthenticationFailureStore failureStore,
+            AuthenticationHistoryRiskProperties properties, RiskPolicyProperties policy) {
+        this(failureStore, properties, policy, null);
+    }
 
     public Optional<AuthenticationHistoryRiskAssessment> calculate(LoginContext context) {
         Objects.requireNonNull(context, "context must not be null");
@@ -47,7 +63,11 @@ public class AuthenticationHistoryRiskCalculator {
             return Optional.of(new AuthenticationHistoryRiskAssessment(
                     subjectRisk.max(sourceIpRisk),
                     subjectFailures >= properties.getSubjectHighMinimum()
-                            || sourceIpFailures >= properties.getSourceIpHighMinimum()
+                            || sourceIpFailures >= properties.getSourceIpHighMinimum(),
+                    new AuthenticationHistoryRiskAssessment.Evidence(subjectFailures, sourceIpFailures,
+                            properties.getSubjectMediumMinimum(), properties.getSubjectHighMinimum(),
+                            properties.getSourceIpMediumMinimum(), properties.getSourceIpHighMinimum(),
+                            storage == null ? null : storage.getFailureWindow().getSeconds())
             ));
         } catch (DataAccessException exception) {
             LOGGER.warnf(

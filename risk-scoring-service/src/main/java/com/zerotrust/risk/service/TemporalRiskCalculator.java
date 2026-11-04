@@ -49,11 +49,11 @@ public class TemporalRiskCalculator {
                     "Temporal-profile data is unavailable: reason=%s",
                     exception.getClass().getSimpleName()
             );
-            return TemporalRiskAssessment.unavailable();
+            return TemporalRiskAssessment.unavailable().withEvidence(observed(context, null, null, null));
         }
 
         if (history.size() < properties.getMinimumEvents()) {
-            return TemporalRiskAssessment.coldStart();
+            return TemporalRiskAssessment.coldStart().withEvidence(observed(context, history.size(), null, null));
         }
 
         ZonedDateTime current = evaluationTime.atZone(properties.getZoneId());
@@ -69,10 +69,12 @@ public class TemporalRiskCalculator {
                 ) <= properties.getHourTolerance())
                 .count();
 
+        var evidence = observed(context, history.size(), matchingDays, matchingHours);
+
         if (policy.getModel() == RiskScoreModel.CONTINUOUS_B1) {
             return TemporalRiskAssessment.available(BehavioralRiskNormalizer.temporalRisk(
                     matchingDays, matchingHours, history.size(),
-                    properties.getMinimumDayFrequency(), properties.getMinimumHourFrequency()));
+                    properties.getMinimumDayFrequency(), properties.getMinimumHourFrequency())).withEvidence(evidence);
         }
 
         boolean unusualDay = isBelowMinimumFrequency(
@@ -81,12 +83,20 @@ public class TemporalRiskCalculator {
                 matchingHours, history.size(), properties.getMinimumHourFrequency());
 
         if (unusualDay && unusualHour) {
-            return TemporalRiskAssessment.available(properties.getHighScore());
+            return TemporalRiskAssessment.available(properties.getHighScore()).withEvidence(evidence);
         }
         if (unusualDay || unusualHour) {
-            return TemporalRiskAssessment.available(properties.getMediumScore());
+            return TemporalRiskAssessment.available(properties.getMediumScore()).withEvidence(evidence);
         }
-        return TemporalRiskAssessment.available(ZERO);
+        return TemporalRiskAssessment.available(ZERO).withEvidence(evidence);
+    }
+
+    private TemporalRiskAssessment.Evidence observed(LoginContext context, Integer samples, Long days, Long hours) {
+        ZonedDateTime current = context.receivedAt().atZone(properties.getZoneId());
+        return new TemporalRiskAssessment.Evidence(context.receivedAt(), properties.getZoneId().getId(),
+                properties.getHistoryWindow().getSeconds(), properties.getMinimumEvents(), properties.getMaximumEvents(),
+                samples, current.getDayOfWeek().getValue(), current.getHour(), properties.getHourTolerance(), days, hours,
+                properties.getMinimumDayFrequency(), properties.getMinimumHourFrequency());
     }
 
     private static boolean isBelowMinimumFrequency(

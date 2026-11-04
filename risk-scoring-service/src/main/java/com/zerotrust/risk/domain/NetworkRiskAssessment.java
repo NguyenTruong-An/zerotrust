@@ -9,8 +9,24 @@ public record NetworkRiskAssessment(
         NetworkRiskBand band,
         NetworkRiskSource source,
         GeoIpLocation geoIpLocation,
-        NetworkRiskUnavailableReason unavailableReason
+        NetworkRiskUnavailableReason unavailableReason,
+        Observation observation
 ) {
+    public enum AddressScope { PUBLIC, NON_PUBLIC, NOT_OBSERVED }
+    public enum GeoIpUse { SKIPPED_NETWORK_DISABLED, SKIPPED_CIDR_MATCH, SKIPPED_GEOIP_DISABLED,
+        SKIPPED_NON_PUBLIC, AVAILABLE, NOT_FOUND, UNAVAILABLE, DISABLED, COUNTRY_MISSING, INVALID_IP }
+    public record Observation(AddressScope addressScope, GeoIpUse geoIpUse) {}
+
+    public NetworkRiskAssessment(NetworkRiskStatus status, BigDecimal riskScore, NetworkRiskBand band,
+                                 NetworkRiskSource source, GeoIpLocation geoIpLocation,
+                                 NetworkRiskUnavailableReason unavailableReason) {
+        this(status, riskScore, band, source, geoIpLocation, unavailableReason, null);
+    }
+
+    public NetworkRiskAssessment withObservation(AddressScope scope, GeoIpUse use) {
+        return new NetworkRiskAssessment(status, riskScore, band, source, geoIpLocation, unavailableReason,
+                new Observation(scope, use));
+    }
     private static final BigDecimal MINIMUM_SCORE = BigDecimal.ZERO;
     private static final BigDecimal MAXIMUM_SCORE = new BigDecimal("100");
 
