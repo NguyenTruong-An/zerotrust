@@ -2,7 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useState } from 'react';
 import { Eye, Pencil, Plus, Search, UserPlus } from 'lucide-react';
-import { AuthenticationExpiredError } from '../lib/api';
+import { AuthenticationExpiredError, publicDemo } from '../lib/api';
 import {
   adminRequest,
   emptyPage,
@@ -142,6 +142,7 @@ export function StudentsPanel({
 
   const createStudent = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (publicDemo) return;
     const form = event.currentTarget;
     const values = new FormData(form);
     setCreateBusy(true);
@@ -196,7 +197,7 @@ export function StudentsPanel({
 
   const updateStudent = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!selectedStudent) return;
+    if (publicDemo || !selectedStudent) return;
     const values = new FormData(event.currentTarget);
     setUpdateBusy(true);
     setDetailError(null);
@@ -243,11 +244,11 @@ export function StudentsPanel({
         <div>
           <p className="eyebrow">Hồ sơ và tài khoản</p>
           <h1>Quản lý sinh viên</h1>
-          <p>Tạo tài khoản Keycloak, tra cứu và cập nhật thông tin học vụ.</p>
+          <p>{publicDemo ? 'Tra cứu hồ sơ học vụ và bảng điểm.' : 'Tạo tài khoản Keycloak, tra cứu và cập nhật thông tin học vụ.'}</p>
         </div>
-        <button className="admin-primary-button" onClick={() => setCreateOpen(true)} type="button">
+        {!publicDemo && <button className="admin-primary-button" onClick={() => setCreateOpen(true)} type="button">
           <UserPlus aria-hidden="true" size={17} /> Thêm sinh viên
-        </button>
+        </button>}
       </section>
 
       <section className="admin-data-panel">
@@ -344,8 +345,8 @@ export function StudentsPanel({
                       <td><StatusBadge status={student.status} /></td>
                       <td>
                         <div className="admin-row-actions">
-                          <button title="Xem và sửa" onClick={() => void openDetails(student.id)} type="button">
-                            <Pencil aria-hidden="true" size={15} />
+                          <button title={publicDemo ? 'Xem hồ sơ' : 'Xem và sửa'} onClick={() => void openDetails(student.id)} type="button">
+                            {publicDemo ? <Eye aria-hidden="true" size={15} /> : <Pencil aria-hidden="true" size={15} />}
                           </button>
                           <button title="Xem bảng điểm" onClick={() => onOpenScores(student)} type="button">
                             <Eye aria-hidden="true" size={15} />
@@ -355,7 +356,7 @@ export function StudentsPanel({
                     </tr>
                   ))
                 ) : (
-                  <tr><td colSpan={5}><EmptyState title="Chưa có sinh viên phù hợp" description="Thử thay đổi bộ lọc hoặc tạo hồ sơ mới." /></td></tr>
+                  <tr><td colSpan={5}><EmptyState title="Chưa có sinh viên phù hợp" description={publicDemo ? 'Thử thay đổi bộ lọc.' : 'Thử thay đổi bộ lọc hoặc tạo hồ sơ mới.'} /></td></tr>
                 )}
               </tbody>
             </table>
@@ -370,7 +371,7 @@ export function StudentsPanel({
         )}
       </section>
 
-      {createOpen && (
+      {!publicDemo && createOpen && (
         <Modal
           eyebrow="Tạo tài khoản Keycloak"
           title="Thêm sinh viên"
@@ -423,7 +424,7 @@ export function StudentsPanel({
 
       {detailsOpen && (
         <Modal
-          eyebrow="GET & PATCH /students/{id}"
+          eyebrow={publicDemo ? 'Hồ sơ học vụ' : 'GET & PATCH /students/{id}'}
           title={selectedStudent ? fullName(selectedStudent) : 'Chi tiết sinh viên'}
           description={selectedStudent ? `${selectedStudent.studentCode} · @${selectedStudent.username}` : undefined}
           onClose={() => {
@@ -435,6 +436,19 @@ export function StudentsPanel({
         >
           {detailLoading ? (
             <div className="admin-modal-loading"><span className="auth-spinner" /><p>Đang tải hồ sơ…</p></div>
+          ) : selectedStudent && publicDemo ? (
+            <div className="admin-form">
+              <dl className="admin-form-grid">
+                <div><dt>Mã sinh viên</dt><dd>{selectedStudent.studentCode}</dd></div>
+                <div><dt>Lớp</dt><dd>{selectedStudent.className}</dd></div>
+                <div><dt>Ngày sinh</dt><dd>{selectedStudent.dateOfBirth}</dd></div>
+                <div><dt>Email</dt><dd>{selectedStudent.email}</dd></div>
+                <div><dt>Trạng thái</dt><dd><StatusBadge status={selectedStudent.status} /></dd></div>
+              </dl>
+              <button className="admin-secondary-button" onClick={() => onOpenScores(selectedStudent)} type="button">
+                Xem bảng điểm
+              </button>
+            </div>
           ) : selectedStudent ? (
             <form className="admin-form" key={selectedStudent.id} onSubmit={updateStudent}>
               <FormAlert message={detailError} />

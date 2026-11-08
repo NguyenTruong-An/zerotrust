@@ -2,7 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { BookOpen, KeyRound, Plus, School, Search, Trash2, UserCog } from 'lucide-react';
-import { AuthenticationExpiredError } from '../lib/api';
+import { AuthenticationExpiredError, publicDemo } from '../lib/api';
 import {
   adminRequest,
   emptyPage,
@@ -100,6 +100,7 @@ export function ClassesPanel({ onAuthenticationExpired, onChanged, onNotify }: S
 
   const createClass = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (publicDemo) return;
     const form = event.currentTarget;
     const values = new FormData(form);
     setCreateBusy(true); setCreateError(null);
@@ -122,7 +123,7 @@ export function ClassesPanel({ onAuthenticationExpired, onChanged, onNotify }: S
   };
 
   const deleteClass = async () => {
-    if (!deletingClass) return;
+    if (publicDemo || !deletingClass) return;
     setDeleteBusy(true); setDeleteError(null);
     try {
       await adminRequest<void>(`/api/admin/student-classes/${deletingClass.id}`, {
@@ -142,8 +143,8 @@ export function ClassesPanel({ onAuthenticationExpired, onChanged, onNotify }: S
   return (
     <>
       <section className="admin-page-heading">
-        <div><p className="eyebrow">Danh mục đào tạo</p><h1>Lớp</h1><p>Quản lý lớp theo khoa và khóa học.</p></div>
-        <button className="admin-primary-button" onClick={() => setCreateOpen(true)} type="button"><Plus aria-hidden="true" size={17} /> Tạo lớp</button>
+        <div><p className="eyebrow">Danh mục đào tạo</p><h1>Lớp</h1><p>{publicDemo ? 'Tra cứu lớp theo khoa và khóa học.' : 'Quản lý lớp theo khoa và khóa học.'}</p></div>
+        {!publicDemo && <button className="admin-primary-button" onClick={() => setCreateOpen(true)} type="button"><Plus aria-hidden="true" size={17} /> Tạo lớp</button>}
       </section>
       <section className="admin-data-panel">
         <form className="admin-filters admin-filters-four" onSubmit={submitFilters}>
@@ -155,14 +156,14 @@ export function ClassesPanel({ onAuthenticationExpired, onChanged, onNotify }: S
         </form>
         {error ? <PanelError message={error} onRetry={() => { setLoading(true); setError(null); setReloadKey((value) => value + 1); }} /> : (
           <div className="admin-table-wrap" aria-busy={loading}>
-            <table className="admin-table"><thead><tr><th>Mã lớp</th><th>Tên lớp</th><th>Khoa</th><th>Khóa học</th><th aria-label="Thao tác" /></tr></thead>
-              <tbody>{loading ? <TableSkeleton columns={5} /> : classes.content.length ? classes.content.map((item) => <tr key={item.id}><td><span className="admin-code-badge">{item.classCode}</span></td><td><strong className="admin-cell-main">{item.className}</strong></td><td>{item.department}</td><td>{item.courseYears}</td><td><div className="admin-row-actions"><button aria-label={`Xóa lớp ${item.classCode}`} className="admin-danger-icon" onClick={() => { setDeletingClass(item); setDeleteError(null); }} title="Xóa lớp" type="button"><Trash2 aria-hidden="true" size={15} /></button></div></td></tr>) : <tr><td colSpan={5}><EmptyState title="Chưa có lớp phù hợp" description="Thử thay đổi bộ lọc hoặc tạo lớp mới." /></td></tr>}</tbody>
+            <table className="admin-table"><thead><tr><th>Mã lớp</th><th>Tên lớp</th><th>Khoa</th><th>Khóa học</th>{!publicDemo && <th aria-label="Thao tác" />}</tr></thead>
+              <tbody>{loading ? <TableSkeleton columns={publicDemo ? 4 : 5} /> : classes.content.length ? classes.content.map((item) => <tr key={item.id}><td><span className="admin-code-badge">{item.classCode}</span></td><td><strong className="admin-cell-main">{item.className}</strong></td><td>{item.department}</td><td>{item.courseYears}</td>{!publicDemo && <td><div className="admin-row-actions"><button aria-label={`Xóa lớp ${item.classCode}`} className="admin-danger-icon" onClick={() => { setDeletingClass(item); setDeleteError(null); }} title="Xóa lớp" type="button"><Trash2 aria-hidden="true" size={15} /></button></div></td>}</tr>) : <tr><td colSpan={publicDemo ? 4 : 5}><EmptyState title="Chưa có lớp phù hợp" description={publicDemo ? 'Thử thay đổi bộ lọc.' : 'Thử thay đổi bộ lọc hoặc tạo lớp mới.'} /></td></tr>}</tbody>
             </table>
           </div>
         )}
         {!error && !loading && <Pagination {...classes} onPageChange={(nextPage) => { setLoading(true); setError(null); setPage(nextPage); }} />}
       </section>
-      {createOpen && <Modal eyebrow="POST /student-classes" title="Tạo lớp" description="Mã lớp sẽ được chuẩn hóa thành chữ in hoa." onClose={() => { if (!createBusy) setCreateOpen(false); }}>
+      {!publicDemo && createOpen && <Modal eyebrow="POST /student-classes" title="Tạo lớp" description="Mã lớp sẽ được chuẩn hóa thành chữ in hoa." onClose={() => { if (!createBusy) setCreateOpen(false); }}>
         <form className="admin-form" onSubmit={createClass}><FormAlert message={createError} /><div className="admin-form-grid">
           <label><span>Mã lớp *</span><input maxLength={30} name="classCode" pattern="[A-Za-z0-9_-]+" required /></label>
           <label><span>Tên lớp *</span><input maxLength={100} name="className" required /></label>
@@ -170,7 +171,7 @@ export function ClassesPanel({ onAuthenticationExpired, onChanged, onNotify }: S
           <label><span>Khóa học *</span><input maxLength={9} name="courseYears" pattern="[0-9]{4}-[0-9]{4}" placeholder="2022-2027" required /></label>
         </div><div className="admin-form-footer"><button className="admin-text-button" disabled={createBusy} onClick={() => setCreateOpen(false)} type="button">Hủy</button><SubmitButton busy={createBusy}><School aria-hidden="true" size={17} /> Tạo lớp</SubmitButton></div></form>
       </Modal>}
-      {deletingClass && <Modal eyebrow={`${deletingClass.classCode} · ${deletingClass.courseYears}`} title="Xóa lớp?" description="Chỉ có thể xóa lớp chưa có sinh viên." onClose={() => { if (!deleteBusy) setDeletingClass(null); }}>
+      {!publicDemo && deletingClass && <Modal eyebrow={`${deletingClass.classCode} · ${deletingClass.courseYears}`} title="Xóa lớp?" description="Chỉ có thể xóa lớp chưa có sinh viên." onClose={() => { if (!deleteBusy) setDeletingClass(null); }}>
         <div className="admin-delete-confirmation"><FormAlert message={deleteError} /><p>Bạn đang xóa lớp <strong>{deletingClass.className}</strong>. Thao tác này không thể hoàn tác.</p><div className="admin-form-footer"><button className="admin-text-button" disabled={deleteBusy} onClick={() => setDeletingClass(null)} type="button">Hủy</button><button className="admin-primary-button admin-danger-button" disabled={deleteBusy} onClick={() => void deleteClass()} type="button"><Trash2 aria-hidden="true" size={16} /> {deleteBusy ? 'Đang xóa…' : 'Xóa lớp'}</button></div></div>
       </Modal>}
     </>
@@ -208,7 +209,10 @@ export function SubjectsPanel({ onAuthenticationExpired, onChanged, onNotify }: 
   }, [filters, handleError, page, reloadKey]);
 
   const createSubject = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault(); const form = event.currentTarget; const values = new FormData(form);
+    event.preventDefault();
+    if (publicDemo) return;
+    const form = event.currentTarget;
+    const values = new FormData(form);
     setCreateBusy(true); setCreateError(null);
     try {
       await adminRequest<Subject>('/api/admin/subjects', { method: 'POST', body: JSON.stringify({
@@ -226,7 +230,7 @@ export function SubjectsPanel({ onAuthenticationExpired, onChanged, onNotify }: 
   };
 
   const deleteSubject = async () => {
-    if (!deletingSubject) return;
+    if (publicDemo || !deletingSubject) return;
     setDeleteBusy(true); setDeleteError(null);
     try {
       await adminRequest<void>(`/api/admin/subjects/${deletingSubject.id}`, {
@@ -248,17 +252,17 @@ export function SubjectsPanel({ onAuthenticationExpired, onChanged, onNotify }: 
 
   return (
     <>
-      <section className="admin-page-heading"><div><p className="eyebrow">Danh mục đào tạo</p><h1>Môn học</h1><p>Quản lý mã môn, số tín chỉ và mô tả học phần.</p></div><button className="admin-primary-button" onClick={() => setCreateOpen(true)} type="button"><Plus aria-hidden="true" size={17} /> Thêm môn học</button></section>
+      <section className="admin-page-heading"><div><p className="eyebrow">Danh mục đào tạo</p><h1>Môn học</h1><p>{publicDemo ? 'Tra cứu mã môn, số tín chỉ và mô tả học phần.' : 'Quản lý mã môn, số tín chỉ và mô tả học phần.'}</p></div>{!publicDemo && <button className="admin-primary-button" onClick={() => setCreateOpen(true)} type="button"><Plus aria-hidden="true" size={17} /> Thêm môn học</button>}</section>
       <section className="admin-data-panel">
         <form className="admin-filters admin-filters-compact" onSubmit={submitFilters}>
           <label><span>Tìm kiếm</span><div className="admin-input-icon"><Search aria-hidden="true" size={16} /><input placeholder="Mã hoặc tên môn" value={draft.keyword} onChange={(event) => setDraft((current) => ({ ...current, keyword: event.target.value }))} /></div></label>
           <label><span>Sắp xếp</span><select value={draft.sort} onChange={(event) => setDraft((current) => ({ ...current, sort: event.target.value }))}><option value="subjectCode,asc">Mã môn A–Z</option><option value="subjectName,asc">Tên môn A–Z</option><option value="credits,desc">Tín chỉ cao nhất</option></select></label>
           <div className="admin-filter-actions"><button className="admin-secondary-button" disabled={loading} type="submit">Lọc dữ liệu</button><button className="admin-text-button" disabled={loading} onClick={resetFilters} type="button">Đặt lại</button></div>
         </form>
-        {error ? <PanelError message={error} onRetry={() => { setLoading(true); setError(null); setReloadKey((value) => value + 1); }} /> : <div className="admin-table-wrap" aria-busy={loading}><table className="admin-table"><thead><tr><th>Mã môn</th><th>Tên môn</th><th>Tín chỉ</th><th>Mô tả</th><th aria-label="Thao tác" /></tr></thead><tbody>{loading ? <TableSkeleton columns={5} /> : subjects.content.length ? subjects.content.map((subject) => <tr key={subject.id}><td><span className="admin-code-badge subject-code">{subject.subjectCode}</span></td><td><strong className="admin-cell-main">{subject.subjectName}</strong></td><td><span className="credit-badge">{subject.credits} TC</span></td><td><p className="admin-description-cell">{subject.description || 'Chưa có mô tả'}</p></td><td><div className="admin-row-actions"><button aria-label={`Xóa môn ${subject.subjectCode}`} className="admin-danger-icon" onClick={() => { setDeletingSubject(subject); setDeleteError(null); }} title="Xóa môn học" type="button"><Trash2 aria-hidden="true" size={15} /></button></div></td></tr>) : <tr><td colSpan={5}><EmptyState title="Chưa có môn học phù hợp" description="Thử thay đổi từ khóa hoặc tạo môn học mới." /></td></tr>}</tbody></table></div>}
+        {error ? <PanelError message={error} onRetry={() => { setLoading(true); setError(null); setReloadKey((value) => value + 1); }} /> : <div className="admin-table-wrap" aria-busy={loading}><table className="admin-table"><thead><tr><th>Mã môn</th><th>Tên môn</th><th>Tín chỉ</th><th>Mô tả</th>{!publicDemo && <th aria-label="Thao tác" />}</tr></thead><tbody>{loading ? <TableSkeleton columns={publicDemo ? 4 : 5} /> : subjects.content.length ? subjects.content.map((subject) => <tr key={subject.id}><td><span className="admin-code-badge subject-code">{subject.subjectCode}</span></td><td><strong className="admin-cell-main">{subject.subjectName}</strong></td><td><span className="credit-badge">{subject.credits} TC</span></td><td><p className="admin-description-cell">{subject.description || 'Chưa có mô tả'}</p></td>{!publicDemo && <td><div className="admin-row-actions"><button aria-label={`Xóa môn ${subject.subjectCode}`} className="admin-danger-icon" onClick={() => { setDeletingSubject(subject); setDeleteError(null); }} title="Xóa môn học" type="button"><Trash2 aria-hidden="true" size={15} /></button></div></td>}</tr>) : <tr><td colSpan={publicDemo ? 4 : 5}><EmptyState title="Chưa có môn học phù hợp" description={publicDemo ? 'Thử thay đổi từ khóa.' : 'Thử thay đổi từ khóa hoặc tạo môn học mới.'} /></td></tr>}</tbody></table></div>}
         {!error && !loading && <Pagination {...subjects} onPageChange={(nextPage) => { setLoading(true); setError(null); setPage(nextPage); }} />}
       </section>
-      {createOpen && <Modal eyebrow="POST /subjects" title="Thêm môn học" description="Mã môn được chuẩn hóa thành chữ in hoa; mã môn và tên môn đều phải duy nhất." onClose={() => { if (!createBusy) setCreateOpen(false); }}>
+      {!publicDemo && createOpen && <Modal eyebrow="POST /subjects" title="Thêm môn học" description="Mã môn được chuẩn hóa thành chữ in hoa; mã môn và tên môn đều phải duy nhất." onClose={() => { if (!createBusy) setCreateOpen(false); }}>
         <form className="admin-form" onSubmit={createSubject}><FormAlert message={createError} /><div className="admin-form-grid">
           <label><span>Mã môn *</span><input maxLength={30} name="subjectCode" pattern="[A-Za-z0-9_-]+" required /></label>
           <label><span>Số tín chỉ *</span><input max={20} min={1} name="credits" required type="number" /></label>
@@ -266,7 +270,7 @@ export function SubjectsPanel({ onAuthenticationExpired, onChanged, onNotify }: 
           <label className="admin-field-wide"><span>Mô tả</span><textarea maxLength={5000} name="description" rows={4} /></label>
         </div><div className="admin-form-footer"><button className="admin-text-button" disabled={createBusy} onClick={() => setCreateOpen(false)} type="button">Hủy</button><SubmitButton busy={createBusy}><BookOpen aria-hidden="true" size={17} /> Tạo môn học</SubmitButton></div></form>
       </Modal>}
-      {deletingSubject && <Modal eyebrow={`${deletingSubject.subjectCode} · ${deletingSubject.credits} tín chỉ`} title="Xóa môn học?" description="Chỉ có thể xóa môn chưa được sử dụng trong bất kỳ bảng điểm nào." onClose={() => { if (!deleteBusy) setDeletingSubject(null); }}>
+      {!publicDemo && deletingSubject && <Modal eyebrow={`${deletingSubject.subjectCode} · ${deletingSubject.credits} tín chỉ`} title="Xóa môn học?" description="Chỉ có thể xóa môn chưa được sử dụng trong bất kỳ bảng điểm nào." onClose={() => { if (!deleteBusy) setDeletingSubject(null); }}>
         <div className="admin-delete-confirmation"><FormAlert message={deleteError} /><p>Bạn đang xóa môn <strong>{deletingSubject.subjectName}</strong>. Thao tác này không thể hoàn tác.</p><div className="admin-form-footer"><button className="admin-text-button" disabled={deleteBusy} onClick={() => setDeletingSubject(null)} type="button">Hủy</button><button className="admin-primary-button admin-danger-button" disabled={deleteBusy} onClick={() => void deleteSubject()} type="button"><Trash2 aria-hidden="true" size={16} /> {deleteBusy ? 'Đang xóa…' : 'Xóa môn học'}</button></div></div>
       </Modal>}
     </>

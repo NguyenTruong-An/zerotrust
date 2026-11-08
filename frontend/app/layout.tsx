@@ -28,7 +28,14 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="vi">
-      <body>{children}</body>
+      <body>
+        {process.env.NEXT_PUBLIC_PORTAL_MODE === 'public-demo' && (
+          <aside className="public-demo-banner" aria-label="Chế độ Public Demo">
+            Public Demo — Dữ liệu học vụ mô phỏng, chỉ cho phép xem.
+          </aside>
+        )}
+        {children}
+      </body>
     </html>
   );
 }

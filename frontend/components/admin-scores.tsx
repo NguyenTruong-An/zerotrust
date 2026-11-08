@@ -2,7 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { BookOpenCheck, ClipboardCheck, Pencil, Plus, Search, Trash2, UserRoundSearch, UsersRound } from 'lucide-react';
-import { AuthenticationExpiredError } from '../lib/api';
+import { AuthenticationExpiredError, publicDemo } from '../lib/api';
 import {
   adminRequest,
   emptyPage,
@@ -153,7 +153,7 @@ export function ScoresPanel({ initialStudent, onAuthenticationExpired, onNotify 
 
   const createScore = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!studentId) return;
+    if (publicDemo || !studentId) return;
     const form = event.currentTarget; const values = new FormData(form);
     setCreateBusy(true); setCreateError(null);
     try {
@@ -178,7 +178,7 @@ export function ScoresPanel({ initialStudent, onAuthenticationExpired, onNotify 
 
   const updateScore = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!editingScore) return;
+    if (publicDemo || !editingScore) return;
     const values = new FormData(event.currentTarget);
     const body: Record<string, string | number> = {
       subjectId: String(values.get('subjectId') ?? ''),
@@ -203,7 +203,7 @@ export function ScoresPanel({ initialStudent, onAuthenticationExpired, onNotify 
   };
 
   const deleteScore = async () => {
-    if (!deletingScore) return;
+    if (publicDemo || !deletingScore) return;
     setDeleteBusy(true); setDeleteError(null);
     try {
       await adminRequest<void>(`/api/admin/scores/${deletingScore.id}`, {
@@ -223,11 +223,11 @@ export function ScoresPanel({ initialStudent, onAuthenticationExpired, onNotify 
   return (
     <>
       <section className="admin-page-heading">
-        <div><p className="eyebrow">Kết quả học tập</p><h1>Quản lý điểm</h1><p>Nhập từng sinh viên hoặc cập nhật nhanh cả danh sách theo môn học và lớp.</p></div>
-        {mode === 'student' && <button className="admin-primary-button" disabled={!studentId} onClick={() => setCreateOpen(true)} type="button"><Plus aria-hidden="true" size={17} /> Nhập điểm</button>}
+        <div><p className="eyebrow">Kết quả học tập</p><h1>{publicDemo ? 'Bảng điểm' : 'Quản lý điểm'}</h1><p>{publicDemo ? 'Xem kết quả theo sinh viên, môn học và lớp.' : 'Nhập từng sinh viên hoặc cập nhật nhanh cả danh sách theo môn học và lớp.'}</p></div>
+        {!publicDemo && mode === 'student' && <button className="admin-primary-button" disabled={!studentId} onClick={() => setCreateOpen(true)} type="button"><Plus aria-hidden="true" size={17} /> Nhập điểm</button>}
       </section>
 
-      <div className="score-mode-tabs" role="tablist" aria-label="Cách nhập điểm">
+      <div className="score-mode-tabs" role="tablist" aria-label={publicDemo ? 'Cách xem điểm' : 'Cách nhập điểm'}>
         <button aria-selected={mode === 'student'} className={mode === 'student' ? 'active' : undefined} onClick={() => setMode('student')} role="tab" type="button"><UsersRound aria-hidden="true" size={17} /> Theo sinh viên</button>
         <button aria-selected={mode === 'subject'} className={mode === 'subject' ? 'active' : undefined} onClick={() => setMode('subject')} role="tab" type="button"><BookOpenCheck aria-hidden="true" size={17} /> Theo môn học</button>
       </div>
@@ -254,7 +254,7 @@ export function ScoresPanel({ initialStudent, onAuthenticationExpired, onNotify 
       )}
 
       <section className="admin-data-panel">
-        {!studentId ? <EmptyState title="Hãy chọn một sinh viên" description="Sau khi chọn, danh sách điểm và nút nhập điểm sẽ được bật." /> : <>
+        {!studentId ? <EmptyState title="Hãy chọn một sinh viên" description={publicDemo ? 'Chọn sinh viên để xem kết quả học tập.' : 'Sau khi chọn, danh sách điểm và nút nhập điểm sẽ được bật.'} /> : <>
           <form className="admin-filters admin-filters-four" onSubmit={submitFilters}>
             <label><span>Môn học</span><select value={draftFilters.subjectId} onChange={(event) => setDraftFilters((current) => ({ ...current, subjectId: event.target.value }))}><option value="">Tất cả môn</option>{subjects.map((subject) => <option key={subject.id} value={subject.id}>{subject.subjectCode} · {subject.subjectName}</option>)}</select></label>
             <label><span>Học kỳ</span><select value={draftFilters.semester} onChange={(event) => setDraftFilters((current) => ({ ...current, semester: event.target.value }))}><option value="">Tất cả</option><option value="1">Học kỳ 1</option><option value="2">Học kỳ 2</option></select></label>
@@ -262,20 +262,20 @@ export function ScoresPanel({ initialStudent, onAuthenticationExpired, onNotify 
             <label><span>Sắp xếp</span><select value={draftFilters.sort} onChange={(event) => setDraftFilters((current) => ({ ...current, sort: event.target.value }))}><option value="academicYear,desc">Năm học mới nhất</option><option value="subjectCode,asc">Mã môn A–Z</option><option value="semester,asc">Học kỳ tăng dần</option><option value="totalScore,desc">Điểm cao nhất</option></select></label>
             <div className="admin-filter-actions"><button className="admin-secondary-button" disabled={loading} type="submit">Lọc dữ liệu</button><button className="admin-text-button" disabled={loading} onClick={() => { setLoading(true); setError(null); setDraftFilters(INITIAL_FILTERS); setFilters({ ...INITIAL_FILTERS }); setPage(0); }} type="button">Đặt lại</button></div>
           </form>
-          {error ? <PanelError message={error} onRetry={() => { setLoading(true); setError(null); setReloadKey((value) => value + 1); }} /> : <div className="admin-table-wrap" aria-busy={loading}><table className="admin-table admin-score-table"><thead><tr><th>Môn học</th><th>Học kỳ</th><th>CC</th><th>GK</th><th>CK</th><th>Tổng</th><th>Chữ</th><th aria-label="Thao tác" /></tr></thead><tbody>{loading ? <TableSkeleton columns={8} /> : scores.content.length ? scores.content.map((score) => <tr key={score.id}><td><strong className="admin-cell-main">{score.subjectName}</strong><small>{score.subjectCode} · {score.academicYear}</small></td><td><span className="semester-badge">HK {score.semester}</span></td><td className="score-number">{formatScore(score.attendanceScore)}</td><td className="score-number">{formatScore(score.midtermScore)}</td><td className="score-number">{formatScore(score.finalScore)}</td><td className="score-number score-total">{formatScore(score.totalScore)}</td><td><span className={`grade-badge ${scoreGradeTone(score.grade)}`}>{score.grade ?? '—'}</span></td><td><div className="admin-row-actions"><button aria-label={`Sửa điểm môn ${score.subjectCode}`} title="Sửa điểm" onClick={() => { setEditingScore(score); setUpdateError(null); }} type="button"><Pencil aria-hidden="true" size={15} /></button><button aria-label={`Xóa điểm môn ${score.subjectCode}`} className="admin-danger-icon" title="Xóa điểm" onClick={() => { setDeletingScore(score); setDeleteError(null); }} type="button"><Trash2 aria-hidden="true" size={15} /></button></div></td></tr>) : <tr><td colSpan={8}><EmptyState title="Chưa có kết quả phù hợp" description="Thêm điểm mới hoặc thay đổi bộ lọc." /></td></tr>}</tbody></table></div>}
+          {error ? <PanelError message={error} onRetry={() => { setLoading(true); setError(null); setReloadKey((value) => value + 1); }} /> : <div className="admin-table-wrap" aria-busy={loading}><table className="admin-table admin-score-table"><thead><tr><th>Môn học</th><th>Học kỳ</th><th>CC</th><th>GK</th><th>CK</th><th>Tổng</th><th>Chữ</th>{!publicDemo && <th aria-label="Thao tác" />}</tr></thead><tbody>{loading ? <TableSkeleton columns={publicDemo ? 7 : 8} /> : scores.content.length ? scores.content.map((score) => <tr key={score.id}><td><strong className="admin-cell-main">{score.subjectName}</strong><small>{score.subjectCode} · {score.academicYear}</small></td><td><span className="semester-badge">HK {score.semester}</span></td><td className="score-number">{formatScore(score.attendanceScore)}</td><td className="score-number">{formatScore(score.midtermScore)}</td><td className="score-number">{formatScore(score.finalScore)}</td><td className="score-number score-total">{formatScore(score.totalScore)}</td><td><span className={`grade-badge ${scoreGradeTone(score.grade)}`}>{score.grade ?? '—'}</span></td>{!publicDemo && <td><div className="admin-row-actions"><button aria-label={`Sửa điểm môn ${score.subjectCode}`} title="Sửa điểm" onClick={() => { setEditingScore(score); setUpdateError(null); }} type="button"><Pencil aria-hidden="true" size={15} /></button><button aria-label={`Xóa điểm môn ${score.subjectCode}`} className="admin-danger-icon" title="Xóa điểm" onClick={() => { setDeletingScore(score); setDeleteError(null); }} type="button"><Trash2 aria-hidden="true" size={15} /></button></div></td>}</tr>) : <tr><td colSpan={publicDemo ? 7 : 8}><EmptyState title="Chưa có kết quả phù hợp" description={publicDemo ? 'Thử thay đổi bộ lọc.' : 'Thêm điểm mới hoặc thay đổi bộ lọc.'} /></td></tr>}</tbody></table></div>}
           {!error && !loading && <Pagination {...scores} onPageChange={(nextPage) => { setLoading(true); setError(null); setPage(nextPage); }} />}
         </>}
       </section>
 
-      {createOpen && selectedStudent && <Modal eyebrow={`Sinh viên ${selectedStudent.studentCode}`} title="Nhập kết quả môn học" description="Mỗi sinh viên chỉ có một kết quả cho mỗi môn; tổng kết và điểm chữ được tự động tính." onClose={() => { if (!createBusy) setCreateOpen(false); }} wide>
+      {!publicDemo && createOpen && selectedStudent && <Modal eyebrow={`Sinh viên ${selectedStudent.studentCode}`} title="Nhập kết quả môn học" description="Mỗi sinh viên chỉ có một kết quả cho mỗi môn; tổng kết và điểm chữ được tự động tính." onClose={() => { if (!createBusy) setCreateOpen(false); }} wide>
         <form className="admin-form" onSubmit={createScore}><FormAlert message={createError} /><ScoreFields subjects={subjects} /><div className="admin-form-footer"><button className="admin-text-button" disabled={createBusy} onClick={() => setCreateOpen(false)} type="button">Hủy</button><SubmitButton busy={createBusy}><ClipboardCheck aria-hidden="true" size={17} /> Lưu điểm</SubmitButton></div></form>
       </Modal>}
 
-      {editingScore && <Modal eyebrow={`${editingScore.studentCode} · ${editingScore.subjectCode}`} title="Cập nhật điểm" description="Sau khi lưu, tổng kết và điểm chữ sẽ được tính lại từ ba đầu điểm." onClose={() => { if (!updateBusy) setEditingScore(null); }} wide>
+      {!publicDemo && editingScore && <Modal eyebrow={`${editingScore.studentCode} · ${editingScore.subjectCode}`} title="Cập nhật điểm" description="Sau khi lưu, tổng kết và điểm chữ sẽ được tính lại từ ba đầu điểm." onClose={() => { if (!updateBusy) setEditingScore(null); }} wide>
         <form className="admin-form" key={editingScore.id} onSubmit={updateScore}><FormAlert message={updateError} /><ScoreFields score={editingScore} subjects={subjects} /><div className="admin-form-footer"><button className="admin-text-button" disabled={updateBusy} onClick={() => setEditingScore(null)} type="button">Đóng</button><SubmitButton busy={updateBusy}><Pencil aria-hidden="true" size={16} /> Lưu thay đổi</SubmitButton></div></form>
       </Modal>}
 
-      {deletingScore && <Modal eyebrow={`${deletingScore.studentCode} · ${deletingScore.subjectCode}`} title="Xóa điểm sinh viên?" description="Bản ghi điểm sẽ bị xóa khỏi hệ thống và không thể hoàn tác." onClose={() => { if (!deleteBusy) setDeletingScore(null); }}>
+      {!publicDemo && deletingScore && <Modal eyebrow={`${deletingScore.studentCode} · ${deletingScore.subjectCode}`} title="Xóa điểm sinh viên?" description="Bản ghi điểm sẽ bị xóa khỏi hệ thống và không thể hoàn tác." onClose={() => { if (!deleteBusy) setDeletingScore(null); }}>
         <div className="admin-delete-confirmation"><FormAlert message={deleteError} /><p>Bạn đang xóa điểm môn <strong>{deletingScore.subjectName}</strong>, học kỳ {deletingScore.semester}, năm học {deletingScore.academicYear}.</p><div className="admin-form-footer"><button className="admin-text-button" disabled={deleteBusy} onClick={() => setDeletingScore(null)} type="button">Hủy</button><button className="admin-primary-button admin-danger-button" disabled={deleteBusy} onClick={() => void deleteScore()} type="button"><Trash2 aria-hidden="true" size={16} /> {deleteBusy ? 'Đang xóa…' : 'Xóa điểm'}</button></div></div>
       </Modal>}
       </> : <SubjectScoreSheet optionsLoading={optionsLoading} subjects={subjects} onAuthenticationExpired={onAuthenticationExpired} onNotify={onNotify} />}

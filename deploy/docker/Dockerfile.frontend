@@ -1,4 +1,6 @@
-FROM node:24.16.0-bookworm-slim@sha256:ca520832af80fa37a57c14077ed0fcdd83b5aefccc356059fdc3a9a05b78ae1f AS build
+ARG NODE_IMAGE=node:24.22.2-bookworm-slim@sha256:01d566e8d94d8c619591d78652babfccd3c6992a3dffa9ed5ab39e11cf6c70e9
+FROM ${NODE_IMAGE} AS build
+RUN npm install --global npm@11.21.2 --ignore-scripts --no-audit --no-fund
 WORKDIR /app
 COPY frontend/package*.json ./
 RUN --mount=type=cache,target=/root/.npm npm ci --no-audit --no-fund
@@ -7,10 +9,14 @@ ARG KEYCLOAK_URL=https://localhost:8444
 ARG KEYCLOAK_REALM=zerotrust-demo
 ARG KEYCLOAK_CLIENT_ID=zerotrust-spa
 ARG API_BASE_URL=
+ARG PORTAL_MODE=standard
+ARG SITE_URL=http://localhost:3000
 ARG RUN_CHECKS=true
 ENV NEXT_TELEMETRY_DISABLED=1 NEXT_PUBLIC_KEYCLOAK_URL=$KEYCLOAK_URL NEXT_PUBLIC_KEYCLOAK_REALM=$KEYCLOAK_REALM NEXT_PUBLIC_KEYCLOAK_CLIENT_ID=$KEYCLOAK_CLIENT_ID NEXT_PUBLIC_API_BASE_URL=$API_BASE_URL
-RUN if [ "$RUN_CHECKS" = "true" ]; then npm run check && npm run test:student-scores && npm run test:portal-route; fi && npm run build
-FROM node:24.16.0-bookworm-slim@sha256:ca520832af80fa37a57c14077ed0fcdd83b5aefccc356059fdc3a9a05b78ae1f
+ENV NEXT_PUBLIC_PORTAL_MODE=$PORTAL_MODE NEXT_PUBLIC_SITE_URL=$SITE_URL
+RUN if [ "$RUN_CHECKS" = "true" ]; then npm run check && npm test; fi && npm run build
+FROM ${NODE_IMAGE}
+RUN npm install --global npm@11.21.2 --ignore-scripts --no-audit --no-fund
 ARG SOURCE_REVISION=unknown
 ARG SOURCE_SNAPSHOT=unknown
 LABEL org.opencontainers.image.revision=$SOURCE_REVISION io.zerotrust.source.snapshot=$SOURCE_SNAPSHOT

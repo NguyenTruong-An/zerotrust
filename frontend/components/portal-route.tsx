@@ -14,7 +14,7 @@ import {
 import { AdminPortal, ADMIN_VIEW_PATHS } from './admin-portal';
 import type { AdminView } from './admin-portal';
 import { StudentScoreDashboard } from './student-score-dashboard';
-import { AuthenticationExpiredError } from '../lib/api';
+import { AuthenticationExpiredError, publicDemo } from '../lib/api';
 import { appRedirectUri, getKeycloak, initializeKeycloak } from '../lib/keycloak';
 
 type Identity = {
@@ -59,7 +59,7 @@ function LoginScreen({ identityUnavailable = false, onLogin }: { identityUnavail
         <div className="login-intro-copy">
           <p className="login-kicker">Cổng học vụ bảo mật</p>
           <h1 id="login-brand-title">Dữ liệu học vụ của bạn, được bảo vệ tốt hơn.</h1>
-          <p>Một lần đăng nhập qua Keycloak để quản trị dữ liệu hoặc theo dõi kết quả học tập theo đúng quyền được cấp.</p>
+          <p>{publicDemo ? 'Đăng nhập qua Keycloak để xem dữ liệu học vụ mô phỏng theo quyền được cấp.' : 'Một lần đăng nhập qua Keycloak để quản trị dữ liệu hoặc theo dõi kết quả học tập theo đúng quyền được cấp.'}</p>
         </div>
         <div className="login-assurances" aria-label="Các lớp bảo vệ đăng nhập">
           <span><LockKeyhole aria-hidden="true" size={17} /> Authorization Code + PKCE S256</span>

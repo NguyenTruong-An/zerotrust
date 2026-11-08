@@ -20,7 +20,7 @@ import {
   UsersRound,
   X,
 } from 'lucide-react';
-import { AuthenticationExpiredError } from '../lib/api';
+import { AuthenticationExpiredError, publicDemo } from '../lib/api';
 import { adminRequest, PageResponse, Student } from '../lib/admin-api';
 import { accountSecurityUrl } from '../lib/keycloak';
 import { ClassesPanel, SubjectsPanel, UsersPanel } from './admin-catalogs';
@@ -127,7 +127,7 @@ export function AdminPortal({ username, view, onAuthenticationExpired, onLogout 
       <section className="workspace">
         <header className="topbar">
           <button aria-label="Mở menu" className="menu-button" onClick={() => setMobileNavOpen(true)} type="button"><Menu aria-hidden="true" size={20} /></button>
-          <div className="topbar-title"><span>Không gian quản trị</span><strong>{VIEW_TITLES[view]}</strong></div>
+          <div className="topbar-title"><span>Không gian quản trị</span><strong>{publicDemo && view === 'students' ? 'Hồ sơ sinh viên' : publicDemo && view === 'scores' ? 'Bảng điểm' : VIEW_TITLES[view]}</strong></div>
           <div className="topbar-actions">
             <div className="profile"><span className="avatar">{username.slice(0, 2).toUpperCase() || 'AD'}</span><div><strong>{username}</strong><span>ADMIN</span></div></div>
             <a aria-label="Bảo mật tài khoản" className="logout-button" href={accountSecurityUrl()} rel="noreferrer" target="_blank" title="Bảo mật tài khoản"><KeyRound aria-hidden="true" size={18} /></a>
@@ -185,8 +185,13 @@ function OverviewPanel({
   return (
     <>
       <section className="hero" aria-labelledby="dashboard-heading">
-        <div><p className="eyebrow">{today}</p><h1 id="dashboard-heading">Xin chào, <span>{username}.</span></h1><p className="hero-copy">Theo dõi dữ liệu học vụ và xử lý các công việc quan trọng từ một nơi duy nhất.</p>{loadingError && <p className="overview-warning">Chưa thể tải số liệu tổng quan. Các chức năng quản trị vẫn có thể sử dụng.</p>}</div>
-        <div className="term-card"><div className="term-topline"><span><CalendarDays aria-hidden="true" size={16} /> Học kỳ hiện tại</span><b>HK 1</b></div><strong>2026 — 2027</strong><div className="term-progress"><span /></div><p>Hệ thống sẵn sàng tiếp nhận dữ liệu học vụ.</p></div>
+        <div>
+          <p className="eyebrow">{today}</p>
+          <h1 id="dashboard-heading">Xin chào, <span>{username}.</span></h1>
+          <p className="hero-copy">{publicDemo ? 'Tra cứu hồ sơ, lớp, môn học và kết quả học tập.' : 'Theo dõi dữ liệu học vụ và xử lý các công việc quan trọng từ một nơi duy nhất.'}</p>
+          {loadingError && <p className="overview-warning">Chưa thể tải số liệu tổng quan.</p>}
+        </div>
+        <div className="term-card"><div className="term-topline"><span><CalendarDays aria-hidden="true" size={16} /> Học kỳ hiện tại</span><b>HK 1</b></div><strong>2026 — 2027</strong><div className="term-progress"><span /></div><p>{publicDemo ? 'Tra cứu dữ liệu học vụ theo học kỳ.' : 'Hệ thống sẵn sàng tiếp nhận dữ liệu học vụ.'}</p></div>
       </section>
 
       <section className="stats-grid" aria-label="Thống kê tổng quan">
@@ -195,7 +200,17 @@ function OverviewPanel({
         <button className="stat-card" onClick={() => onNavigate('subjects')} type="button"><div className="stat-index">03</div><p>Môn học</p><strong>{formatNumber(stats.subjects)}</strong><span>Trong danh mục đào tạo</span></button>
       </section>
 
-      <section className="dashboard-grid">
+      {publicDemo ? (
+        <section className="dashboard-grid">
+          <div className="quick-section">
+            <div className="section-heading"><h2>Kết quả học tập</h2></div>
+            <button className="quick-action" onClick={() => onNavigate('scores')} type="button">
+              <span className="quick-code teal"><ClipboardCheck aria-hidden="true" size={19} /></span>
+              <span className="quick-copy"><strong>Xem bảng điểm</strong><small>Tra cứu theo sinh viên hoặc môn học.</small></span>
+            </button>
+          </div>
+        </section>
+      ) : <section className="dashboard-grid">
         <div className="quick-section">
           <div className="section-heading"><div><p className="eyebrow">Thao tác nhanh</p><h2>Bắt đầu công việc</h2></div></div>
           <div className="quick-list">
@@ -205,7 +220,7 @@ function OverviewPanel({
             <button className="quick-action" onClick={() => onNavigate('subjects')} type="button"><span className="quick-code teal"><BookOpen aria-hidden="true" size={19} /></span><span className="quick-copy"><strong>Thêm môn học</strong><small>Cập nhật danh mục học phần và tín chỉ.</small></span></button>
           </div>
         </div>
-      </section>
+      </section>}
     </>
   );
 }

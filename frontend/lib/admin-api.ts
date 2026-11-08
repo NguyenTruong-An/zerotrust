@@ -1,4 +1,4 @@
-import { apiFetch, AuthenticationExpiredError } from './api';
+import { apiFetch, AuthenticationExpiredError, publicDemo } from './api';
 
 export type ApiResponse<T> = {
   data: T;
@@ -137,6 +137,7 @@ function errorMessage(body: ApiErrorBody | null, fallback: string): string {
   if (body?.error === 'MFA_RESET_COMPLETION_PENDING') {
     return 'Đã reset MFA nhưng chưa mở lại luồng khôi phục. Hãy thử reset lại để hoàn tất.';
   }
+  if (publicDemo) return fallback;
   if (typeof body?.message === 'string' && body.message.trim()) {
     return body.message;
   }
@@ -160,7 +161,10 @@ export async function portalRequest<T>(
     headers.set('Content-Type', 'application/json');
   }
 
-  const response = await apiFetch(path, { ...init, headers });
+  const response = await apiFetch(path, { ...init, headers }).catch((error: unknown) => {
+    if (!publicDemo || error instanceof AuthenticationExpiredError) throw error;
+    throw new AdminApiError('Không thể hoàn tất yêu cầu trong Public Demo.', 0);
+  });
   if (response.status === 401) throw new AuthenticationExpiredError();
 
   const payload = (await response.json().catch(() => null)) as
@@ -179,7 +183,7 @@ export async function portalRequest<T>(
     return undefined as T;
   }
 
-  if (!payload || !('data' in payload)) {
+  if (!payload || typeof payload !== 'object' || !('data' in payload)) {
     throw new AdminApiError('Phản hồi từ máy chủ không hợp lệ.', response.status);
   }
 

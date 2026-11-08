@@ -2,7 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { BookOpenCheck, Save, Search, UsersRound } from 'lucide-react';
-import { AuthenticationExpiredError } from '../lib/api';
+import { AuthenticationExpiredError, publicDemo } from '../lib/api';
 import {
   adminRequest,
   BatchScoreResult,
@@ -177,7 +177,7 @@ export function SubjectScoreSheet({
   };
 
   const saveScores = async () => {
-    if (!query || dirtyIds.size === 0) return;
+    if (publicDemo || !query || dirtyIds.size === 0) return;
     const changedRows = sheet.content.filter((row) => dirtyIds.has(row.studentId));
     const invalidRow = changedRows.find((row) => {
       const draft = drafts[row.studentId];
@@ -237,14 +237,14 @@ export function SubjectScoreSheet({
         <div className="picker-title">
           <span><BookOpenCheck aria-hidden="true" size={20} /></span>
           <div>
-            <strong>Nhập điểm theo môn học</strong>
-            <small>Chọn môn và lớp để nhập CC, GK, CK cho cả danh sách sinh viên.</small>
+            <strong>{publicDemo ? 'Xem điểm theo môn học' : 'Nhập điểm theo môn học'}</strong>
+            <small>{publicDemo ? 'Chọn môn và lớp để xem bảng điểm đã lưu.' : 'Chọn môn và lớp để nhập CC, GK, CK cho cả danh sách sinh viên.'}</small>
           </div>
         </div>
-        <div className="subject-score-hint">
+        {!publicDemo && <div className="subject-score-hint">
           <UsersRound aria-hidden="true" size={18} />
           <span>Mỗi sinh viên chỉ có một kết quả cho mỗi môn. Lưu lại sẽ cập nhật kết quả đã có.</span>
-        </div>
+        </div>}
       </section>
 
       <section className="admin-data-panel subject-score-panel">
@@ -263,19 +263,19 @@ export function SubjectScoreSheet({
               {classes.map((studentClass) => <option key={studentClass.id} value={studentClass.classCode}>{studentClass.classCode} · {studentClass.className}</option>)}
             </select>
           </label>
-          <label>
+          {!publicDemo && <label>
             <span>Học kỳ *</span>
             <select disabled={saving} required value={controls.semester} onChange={(event) => setControls((current) => ({ ...current, semester: event.target.value }))}>
               <option value="1">Học kỳ 1</option>
               <option value="2">Học kỳ 2</option>
             </select>
-          </label>
-          <label>
+          </label>}
+          {!publicDemo && <label>
             <span>Năm học *</span>
             <select disabled={saving} required value={controls.academicYear} onChange={(event) => setControls((current) => ({ ...current, academicYear: event.target.value }))}>
               {ACADEMIC_YEARS.map((year) => <option key={year} value={year}>{year}</option>)}
             </select>
-          </label>
+          </label>}
           <label className="subject-score-search">
             <span>Tìm trong lớp</span>
             <div className="admin-input-icon">
@@ -294,7 +294,7 @@ export function SubjectScoreSheet({
           <div className="subject-score-context">
             <div><span>Môn học</span><strong>{selectedSubject?.subjectCode} · {selectedSubject?.subjectName}</strong></div>
             <div><span>Lớp</span><strong>{selectedClass?.classCode} · {selectedClass?.className}</strong></div>
-            <div><span>Kỳ áp dụng</span><strong>HK {query.semester} · {query.academicYear}</strong></div>
+            {!publicDemo && <div><span>Kỳ áp dụng</span><strong>HK {query.semester} · {query.academicYear}</strong></div>}
           </div>
         )}
 
@@ -309,7 +309,7 @@ export function SubjectScoreSheet({
             setReloadKey((current) => current + 1);
           }} />
         ) : !query ? (
-          <EmptyState title="Chọn môn học và lớp" description="Danh sách sinh viên sẽ hiện ở đây để bạn nhập điểm trực tiếp theo hàng." />
+          <EmptyState title="Chọn môn học và lớp" description={publicDemo ? 'Tải danh sách để xem kết quả học tập.' : 'Danh sách sinh viên sẽ hiện ở đây để bạn nhập điểm trực tiếp theo hàng.'} />
         ) : (
           <>
             <div className="admin-table-wrap" aria-busy={loading}>
@@ -317,6 +317,19 @@ export function SubjectScoreSheet({
                 <thead><tr><th>Sinh viên</th><th>CC</th><th>GK</th><th>CK</th><th>Tổng</th><th>Chữ</th><th>Trạng thái</th></tr></thead>
                 <tbody>
                   {loading ? <TableSkeleton columns={7} /> : sheet.content.length ? sheet.content.map((row) => {
+                    if (publicDemo) {
+                      return (
+                        <tr key={row.studentId}>
+                          <td><strong className="admin-cell-main">{row.lastName} {row.firstName}</strong><small>{row.studentCode}</small></td>
+                          <td className="score-number">{formatScore(row.attendanceScore)}</td>
+                          <td className="score-number">{formatScore(row.midtermScore)}</td>
+                          <td className="score-number">{formatScore(row.finalScore)}</td>
+                          <td className="score-number score-total">{formatScore(row.totalScore)}</td>
+                          <td><span className={`grade-badge ${scoreGradeTone(row.grade)}`}>{row.grade ?? '—'}</span></td>
+                          <td>{row.scoreId ? `Đã lưu · HK ${row.semester} · ${row.academicYear}` : 'Chưa có điểm'}</td>
+                        </tr>
+                      );
+                    }
                     const draft = drafts[row.studentId] ?? toDraft(row);
                     const preview = calculateScoreResult(draft.attendanceScore, draft.midtermScore, draft.finalScore);
                     const dirty = dirtyIds.has(row.studentId);
@@ -339,7 +352,7 @@ export function SubjectScoreSheet({
               </table>
             </div>
 
-            <div className="subject-score-savebar">
+            {!publicDemo && <div className="subject-score-savebar">
               <div>
                 <strong>{dirtyIds.size ? `${dirtyIds.size} sinh viên có thay đổi` : 'Không có thay đổi chưa lưu'}</strong>
                 <span>Tổng kết làm tròn một chữ số; điểm chữ được backend tự tính.</span>
@@ -347,8 +360,8 @@ export function SubjectScoreSheet({
               <button className="admin-primary-button" disabled={saving || loading || dirtyIds.size === 0} onClick={saveScores} type="button">
                 <Save aria-hidden="true" size={17} /> {saving ? 'Đang lưu…' : 'Lưu bảng điểm'}
               </button>
-            </div>
-            <div className="subject-score-form-alert"><FormAlert message={saveError} /></div>
+            </div>}
+            {!publicDemo && <div className="subject-score-form-alert"><FormAlert message={saveError} /></div>}
             {!loading && <Pagination {...sheet} onPageChange={changePage} />}
           </>
         )}

@@ -44,7 +44,9 @@ class BuildTests(unittest.TestCase):
         self.assertEqual(package['engines']['node'], version)
         self.assertEqual(lock['packages']['']['engines']['node'], version)
         lines = (images.ROOT / 'deploy/docker/Dockerfile.frontend').read_text().splitlines()
-        self.assertTrue(all(line.startswith(f'FROM node:{version}-') for line in lines if line.startswith('FROM ')))
+        self.assertTrue(any(line.startswith(f'ARG NODE_IMAGE=node:{version}-') for line in lines))
+        self.assertEqual([line for line in lines if line.startswith('FROM ')],
+                         ['FROM ${NODE_IMAGE} AS build', 'FROM ${NODE_IMAGE}'])
         self.assertIn("node-version-file: '.node-version'", (images.ROOT / '.github/workflows/ci.yml').read_text())
 
 
