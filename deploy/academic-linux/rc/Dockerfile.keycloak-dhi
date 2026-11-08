@@ -1,0 +1,18 @@
+FROM eclipse-temurin:17.0.21_9-jdk-jammy@sha256:057a0daec60e87c96571bf5c9c7792065bcb19e804d584cd37d4144038a35717 AS spi
+WORKDIR /source
+COPY .mvn .mvn
+COPY mvnw pom.xml ./
+COPY keycloak-risk-extension/pom.xml keycloak-risk-extension/pom.xml
+COPY keycloak-risk-extension/src keycloak-risk-extension/src
+RUN --mount=type=cache,target=/root/.m2 chmod +x mvnw && ./mvnw --batch-mode --no-transfer-progress -f keycloak-risk-extension/pom.xml -Ppublic-demo-candidate -DskipTests package
+
+FROM dhi_base
+ARG SOURCE_REVISION
+ARG SOURCE_SNAPSHOT
+LABEL org.opencontainers.image.revision=$SOURCE_REVISION io.zerotrust.source.snapshot=$SOURCE_SNAPSHOT \
+      org.opencontainers.image.base.name=dhi.io/keycloak \
+      org.opencontainers.image.base.digest=sha256:44b3665b60304cb4448e3ab9943ab02727ee793c2ec4b954d2de2ee84f28b892
+COPY --from=spi --chown=65532:65532 /source/keycloak-risk-extension/target/keycloak-risk-extension.jar /opt/keycloak/providers/
+COPY --chown=65532:65532 keycloak-theme/zerotrust /opt/keycloak/themes/zerotrust
+USER 65532:65532
+RUN --network=none /opt/keycloak/bin/kc.sh build --db=mysql --health-enabled=true

@@ -1,0 +1,13 @@
+{
+  "mode": "rehearsal",
+  "release": "pd-r22-rc1",
+  "portal_host": "portal.pd-r22.test",
+  "auth_host": "auth.pd-r22.test",
+  "external_port": 34443,
+  "bind_port": 34443,
+  "core_subnet": "172.31.236.0/27",
+  "state_dir": "/tmp/zerotrust-pd-r22",
+  "certificate": null,
+  "private_key": null,
+  "edge_ca": null
+}

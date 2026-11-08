@@ -1,0 +1,13 @@
+{
+  "mode": "production-demo",
+  "release": "academic-demo-owner-review",
+  "portal_host": "portal.demo.example.org",
+  "auth_host": "auth.demo.example.org",
+  "external_port": 443,
+  "bind_port": 34443,
+  "core_subnet": "172.31.243.0/27",
+  "state_dir": "/var/lib/zerotrust/zerotrust-academic-prod",
+  "certificate": "/var/lib/zerotrust/pki/fullchain.pem",
+  "private_key": "/var/lib/zerotrust/pki/privkey.pem",
+  "edge_ca": "/etc/ssl/certs/ca-certificates.crt"
+}

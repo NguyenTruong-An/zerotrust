@@ -1,0 +1,81 @@
+services:
+  materialize:
+    labels: &owner {io.zerotrust.scope: "${AD_RC_PROJECT:?Use the RC driver}"}
+    volumes:
+      - ./../academic-linux/rc/materialize.sh:/script/materialize.sh:ro
+  mysql: &mysql
+    labels: *owner
+    image: mysql:8.4.13@sha256:72c368d898861f3b3a07af0e6d690400f44f048799ed46822783d9224cc2c86d
+    pull_policy: never
+  mysql80:
+    <<: *mysql
+    profiles: [bootstrap80]
+    platform: linux/amd64
+    restart: "no"
+    image: mysql:8.0.46@sha256:7dcddc01f13bab2f15cde676d44d01f61fc9f99fe7785e86196dfc07d358ae2b
+    mem_limit: 1024m
+    environment:
+      MYSQL_ROOT_PASSWORD_FILE: /fixture/root-password
+    entrypoint: [bash, -ec]
+    command:
+      - |
+        cp /fixture/init.sql /docker-entrypoint-initdb.d/10-academic.sql
+        chmod 0444 /docker-entrypoint-initdb.d/10-academic.sql
+        exec docker-entrypoint.sh mysqld --require-secure-transport=ON --ssl-ca=/fixture/ca.crt --ssl-cert=/fixture/server.crt --ssl-key=/fixture/server.key --default-time-zone=+00:00 --innodb-buffer-pool-size=128M
+    volumes: [mysql-config:/fixture:ro, mysql-bootstrap-data:/var/lib/mysql]
+    networks:
+      recovery:
+        aliases: [mysql]
+    healthcheck:
+      test: [CMD-SHELL, "mysql --defaults-extra-file=/fixture/school.cnf -Nse 'SELECT COUNT(*) FROM students' | grep -qx 2"]
+      interval: 5s
+      timeout: 4s
+      retries: 25
+  mysql-restore:
+    labels: *owner
+  redis:
+    labels: *owner
+  migrate:
+    labels: *owner
+    image: "${AD_RC_RISK:?}"
+  migrate80:
+    labels: *owner
+    image: "${AD_RC_RISK:?}"
+    pull_policy: never
+    profiles: [bootstrap80]
+    restart: "no"
+    platform: linux/amd64
+    mem_limit: 512m
+    entrypoint: [java, "@/run/demo/jvm.args", -cp, "/app/unpacked/BOOT-INF/classes:/app/unpacked/BOOT-INF/lib/*:/app/tools", Migrate]
+    volumes: [migrate-config:/run/demo:ro]
+    networks: [recovery]
+  keycloak-init:
+    labels: *owner
+    image: "${AD_RC_KC:?}"
+    user: "65532:65532"
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    healthcheck:
+      start_period: 240s
+  keycloak:
+    labels: *owner
+    image: "${AD_RC_KC:?}"
+    user: "65532:65532"
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+  risk:
+    labels: *owner
+    image: "${AD_RC_RISK:?}"
+  backend:
+    labels: *owner
+    image: "${AD_RC_BACKEND:?}"
+  gateway:
+    labels: *owner
+    image: "${AD_RC_GATEWAY:?}"
+  frontend:
+    labels: *owner
+  ingress:
+    labels: *owner
+
+volumes:
+  mysql-bootstrap-data: {}
