@@ -1,0 +1,2 @@
+{"concurrency":1,"operations":1000000,"duration_ms":468.141,"p50_us":0.263,"p95_us":0.451,"p99_us":0.754,"errors":0,"cpu_time_ms":690.000,"average_cpu_cores":1.474,"heap_used_bytes":30540136,"heap_max_bytes":259522560,"gc_time_ms":50}
+{"concurrency":4,"operations":1000000,"duration_ms":778.270,"p50_us":0.945,"p95_us":2.734,"p99_us":14.870,"errors":0,"cpu_time_ms":1590.000,"average_cpu_cores":2.043,"heap_used_bytes":48568800,"heap_max_bytes":259522560,"gc_time_ms":34}

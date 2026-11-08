@@ -1,0 +1,12 @@
+{
+  "evidence_class": "PUBLIC_SAFE_SUMMARY",
+  "scope": "Historical offline inspection of allowlisted configuration and public PKI metadata. Full receipt is retained in the private audit record.",
+  "configuration_groups_reviewed": 17,
+  "certificate_files_reviewed": 17,
+  "certificate_files_valid_at_observation": 17,
+  "certificate_files_verified_against_lab_ca": 17,
+  "crl_files_reviewed": 1,
+  "crl_signatures_valid_at_observation": 1,
+  "crls_unexpired_at_observation": 1,
+  "limits": "Offline evidence. It does not verify a live TLS handshake or revocation enforcement."
+}

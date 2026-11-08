@@ -1,0 +1,20 @@
+{
+  "observed_date": "2026-11-06 Asia/Saigon",
+  "git_head": "c401e17029d64f9a96738d845b8c0ad0f03fc164",
+  "remote_branch_head": "1c9fa972c9923ff3fb57ba982f89609e6c1cca28",
+  "remote_branch_protected": false,
+  "rulesets": [],
+  "head_lookup": "GitHub API 422 No commit found for SHA",
+  "latest_remote_ci": {
+    "id": 41021344954,
+    "sha": "1c9fa972c9923ff3fb57ba982f89609e6c1cca28",
+    "conclusion": "success",
+    "event": "push",
+    "url": "https://github.com/NguyenTruong-An/zerotrust/actions/runs/41021344954"
+  },
+  "sources": [
+    "https://api.github.com/repos/NguyenTruong-An/zerotrust/branches/zerotrust-v4-risk-scoring",
+    "https://api.github.com/repos/NguyenTruong-An/zerotrust/rulesets",
+    "https://api.github.com/repos/NguyenTruong-An/zerotrust/actions/runs?head_sha=1c9fa972c9923ff3fb57ba982f89609e6c1cca28&per_page=20"
+  ]
+}

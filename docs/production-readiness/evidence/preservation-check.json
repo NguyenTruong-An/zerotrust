@@ -1,0 +1,86 @@
+{
+  "scope": "Post-audit metadata comparison; mounts compared as sorted sets because Docker return order varies; no database rows/private file contents read",
+  "containers": [
+    {
+      "service": "school",
+      "same_id": true,
+      "same_image": true,
+      "still_stopped": true,
+      "same_mounts": true,
+      "same_networks": true
+    },
+    {
+      "service": "risk-db",
+      "same_id": true,
+      "same_image": true,
+      "still_stopped": true,
+      "same_mounts": true,
+      "same_networks": true
+    },
+    {
+      "service": "keycloak-db",
+      "same_id": true,
+      "same_image": true,
+      "still_stopped": true,
+      "same_mounts": true,
+      "same_networks": true
+    },
+    {
+      "service": "redis",
+      "same_id": true,
+      "same_image": true,
+      "still_stopped": true,
+      "same_mounts": true,
+      "same_networks": true
+    },
+    {
+      "service": "keycloak",
+      "same_id": true,
+      "same_image": true,
+      "still_stopped": true,
+      "same_mounts": true,
+      "same_networks": true
+    },
+    {
+      "service": "crl",
+      "same_id": true,
+      "same_image": true,
+      "still_stopped": true,
+      "same_mounts": true,
+      "same_networks": true
+    },
+    {
+      "service": "frontend",
+      "same_id": true,
+      "same_image": true,
+      "still_stopped": true,
+      "same_mounts": true,
+      "same_networks": true
+    },
+    {
+      "service": "risk",
+      "same_id": true,
+      "same_image": true,
+      "still_stopped": true,
+      "same_mounts": true,
+      "same_networks": true
+    },
+    {
+      "service": "backend",
+      "same_id": true,
+      "same_image": true,
+      "still_stopped": true,
+      "same_mounts": true,
+      "same_networks": true
+    },
+    {
+      "service": "gateway",
+      "same_id": true,
+      "same_image": true,
+      "still_stopped": true,
+      "same_mounts": true,
+      "same_networks": true
+    }
+  ],
+  "all_unchanged": true
+}

@@ -1,0 +1,1136 @@
+{
+  ".": {
+    "tests": 327,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "suites": [
+      {
+        "name": "com.zerotrust.zerotrust.config.KeycloakAdminConnectionPoolTest",
+        "tests": "1",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "4.389"
+      },
+      {
+        "name": "com.zerotrust.zerotrust.config.KeycloakAdminPropertiesTest",
+        "tests": "18",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "4.694"
+      },
+      {
+        "name": "com.zerotrust.zerotrust.config.PortalJwtDecoderTest",
+        "tests": "7",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "1.913"
+      },
+      {
+        "name": "com.zerotrust.zerotrust.config.SecurityConfigTest",
+        "tests": "3",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.083"
+      },
+      {
+        "name": "com.zerotrust.zerotrust.controller.AdminControllerSecurityTest",
+        "tests": "49",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "13.982"
+      },
+      {
+        "name": "com.zerotrust.zerotrust.controller.SchoolPortalPersistenceAcceptanceTest",
+        "tests": "2",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "22.02"
+      },
+      {
+        "name": "com.zerotrust.zerotrust.controller.StudentControllerSecurityTest",
+        "tests": "6",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "2.514"
+      },
+      {
+        "name": "com.zerotrust.zerotrust.controller.UserControllerTest",
+        "tests": "2",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.248"
+      },
+      {
+        "name": "com.zerotrust.zerotrust.converter.UserConverterTest",
+        "tests": "4",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.077"
+      },
+      {
+        "name": "com.zerotrust.zerotrust.entity.ScoreEntityMappingTest",
+        "tests": "2",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "3.464"
+      },
+      {
+        "name": "com.zerotrust.zerotrust.entity.UserEntityLifecycleTest",
+        "tests": "3",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.011"
+      },
+      {
+        "name": "com.zerotrust.zerotrust.identity.keycloak.KeycloakExceptionMapperTest",
+        "tests": "7",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.282"
+      },
+      {
+        "name": "com.zerotrust.zerotrust.identity.keycloak.KeycloakRoleClientTest",
+        "tests": "4",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.593"
+      },
+      {
+        "name": "com.zerotrust.zerotrust.identity.keycloak.KeycloakUserClientTest",
+        "tests": "19",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.154"
+      },
+      {
+        "name": "com.zerotrust.zerotrust.model.request.CreateScoreRequestDTOTest",
+        "tests": "3",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.08"
+      },
+      {
+        "name": "com.zerotrust.zerotrust.model.request.CreateStudentClassRequestDTOTest",
+        "tests": "2",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.042"
+      },
+      {
+        "name": "com.zerotrust.zerotrust.model.request.CreateStudentRequestDTOTest",
+        "tests": "2",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.049"
+      },
+      {
+        "name": "com.zerotrust.zerotrust.model.request.CreateSubjectRequestDTOTest",
+        "tests": "2",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.044"
+      },
+      {
+        "name": "com.zerotrust.zerotrust.model.request.ScoreValueContractTest",
+        "tests": "7",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.089"
+      },
+      {
+        "name": "com.zerotrust.zerotrust.model.request.UpdateScoreRequestDTOTest",
+        "tests": "2",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.041"
+      },
+      {
+        "name": "com.zerotrust.zerotrust.model.request.UpdateStudentRequestDTOTest",
+        "tests": "2",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.072"
+      },
+      {
+        "name": "com.zerotrust.zerotrust.model.request.UpsertSubjectScoresRequestDTOTest",
+        "tests": "3",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.176"
+      },
+      {
+        "name": "com.zerotrust.zerotrust.repository.StudentClassRepositoryTest",
+        "tests": "1",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "3.215"
+      },
+      {
+        "name": "com.zerotrust.zerotrust.repository.StudentRepositoryTest",
+        "tests": "1",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.282"
+      },
+      {
+        "name": "com.zerotrust.zerotrust.repository.SubjectRepositoryTest",
+        "tests": "2",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.169"
+      },
+      {
+        "name": "com.zerotrust.zerotrust.risk.RiskAdminPropertiesTest",
+        "tests": "13",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.582"
+      },
+      {
+        "name": "com.zerotrust.zerotrust.risk.RiskDeviceAdminClientHttpTest",
+        "tests": "1",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.741"
+      },
+      {
+        "name": "com.zerotrust.zerotrust.risk.RiskDeviceAdminClientTest",
+        "tests": "20",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.471"
+      },
+      {
+        "name": "com.zerotrust.zerotrust.security.CredentialExposureTest",
+        "tests": "3",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.03"
+      },
+      {
+        "name": "com.zerotrust.zerotrust.service.impl.ScoreAdministrationServiceImplTest",
+        "tests": "34",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.471"
+      },
+      {
+        "name": "com.zerotrust.zerotrust.service.impl.ScoreCalculatorTest",
+        "tests": "21",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.036"
+      },
+      {
+        "name": "com.zerotrust.zerotrust.service.impl.ScoreUpdateConcurrencyTest",
+        "tests": "1",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "3.462"
+      },
+      {
+        "name": "com.zerotrust.zerotrust.service.impl.StaleScoreEditAuditTest",
+        "tests": "1",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "25.65"
+      },
+      {
+        "name": "com.zerotrust.zerotrust.service.impl.student.StudentCreationServiceTest",
+        "tests": "5",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.229"
+      },
+      {
+        "name": "com.zerotrust.zerotrust.service.impl.student.StudentPersistenceServiceTest",
+        "tests": "2",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.067"
+      },
+      {
+        "name": "com.zerotrust.zerotrust.service.impl.student.StudentQueryServiceTest",
+        "tests": "6",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.021"
+      },
+      {
+        "name": "com.zerotrust.zerotrust.service.impl.student.StudentUpdateServiceTest",
+        "tests": "6",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.026"
+      },
+      {
+        "name": "com.zerotrust.zerotrust.service.impl.StudentAdministrationServiceImplTest",
+        "tests": "4",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.236"
+      },
+      {
+        "name": "com.zerotrust.zerotrust.service.impl.StudentClassAdministrationServiceImplTest",
+        "tests": "8",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.061"
+      },
+      {
+        "name": "com.zerotrust.zerotrust.service.impl.SubjectAdministrationServiceImplTest",
+        "tests": "11",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.078"
+      },
+      {
+        "name": "com.zerotrust.zerotrust.service.impl.SubjectCreationTransactionTest",
+        "tests": "4",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "3.044"
+      },
+      {
+        "name": "com.zerotrust.zerotrust.service.impl.UserServiceImplTest",
+        "tests": "8",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.15"
+      },
+      {
+        "name": "com.zerotrust.zerotrust.service.support.QueryParametersTest",
+        "tests": "18",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.095"
+      },
+      {
+        "name": "com.zerotrust.zerotrust.ZerotrustApplicationTests",
+        "tests": "8",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "5.334"
+      }
+    ],
+    "build_success": true
+  },
+  "risk-scoring-service": {
+    "tests": 709,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 96,
+    "suites": [
+      {
+        "name": "com.zerotrust.risk.audit.B1ImplementationTests",
+        "tests": "13",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "4.627"
+      },
+      {
+        "name": "com.zerotrust.risk.audit.http.RiskErrorDispatchHttpRegressionTests",
+        "tests": "9",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "9",
+        "time": "0.001"
+      },
+      {
+        "name": "com.zerotrust.risk.audit.http.RiskHttpAuditTests",
+        "tests": "22",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "22",
+        "time": "0.002"
+      },
+      {
+        "name": "com.zerotrust.risk.audit.http.RiskIpv6HttpRegressionTests",
+        "tests": "4",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "4",
+        "time": "0.001"
+      },
+      {
+        "name": "com.zerotrust.risk.audit.http.RiskSubjectHttpRegressionTests",
+        "tests": "7",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "7",
+        "time": "0.0"
+      },
+      {
+        "name": "com.zerotrust.risk.audit.http.RiskTemporalPrecisionHttpRegressionTests",
+        "tests": "1",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "1",
+        "time": "0.002"
+      },
+      {
+        "name": "com.zerotrust.risk.audit.IndependentRiskScoreAuditTests",
+        "tests": "36",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "2.717"
+      },
+      {
+        "name": "com.zerotrust.risk.audit.IndependentTemporalAuditTests",
+        "tests": "12",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.138"
+      },
+      {
+        "name": "com.zerotrust.risk.audit.mysql.DeviceTrustSnapshotMySqlRegressionTests",
+        "tests": "4",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "4",
+        "time": "0.0"
+      },
+      {
+        "name": "com.zerotrust.risk.audit.mysql.SubjectDeviceLifecycleRegressionTests",
+        "tests": "14",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "38.233"
+      },
+      {
+        "name": "com.zerotrust.risk.audit.redis.RedisEventCounterRegressionTests",
+        "tests": "9",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "9",
+        "time": "0.001"
+      },
+      {
+        "name": "com.zerotrust.risk.audit.redis.RedisLuaAuditTests",
+        "tests": "6",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "6",
+        "time": "0.0"
+      },
+      {
+        "name": "com.zerotrust.risk.audit.redis.RedisNegativeCounterRegressionTests",
+        "tests": "9",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "9",
+        "time": "0.002"
+      },
+      {
+        "name": "com.zerotrust.risk.audit.redis.RedisRiskAuditTests",
+        "tests": "6",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "6",
+        "time": "0.0"
+      },
+      {
+        "name": "com.zerotrust.risk.audit.RiskObservationTests",
+        "tests": "8",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.562"
+      },
+      {
+        "name": "com.zerotrust.risk.audit.TemporalFrequencyPrecisionRegressionTests",
+        "tests": "84",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "1.631"
+      },
+      {
+        "name": "com.zerotrust.risk.audit.TrustScoreResearchTests",
+        "tests": "9",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.44"
+      },
+      {
+        "name": "com.zerotrust.risk.config.GeoIpHealthIndicatorTests",
+        "tests": "2",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.004"
+      },
+      {
+        "name": "com.zerotrust.risk.config.GeoIpPropertiesTests",
+        "tests": "2",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.016"
+      },
+      {
+        "name": "com.zerotrust.risk.config.NetworkRiskPropertiesTests",
+        "tests": "5",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.046"
+      },
+      {
+        "name": "com.zerotrust.risk.config.TemporalRiskPropertiesTests",
+        "tests": "4",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.028"
+      },
+      {
+        "name": "com.zerotrust.risk.controller.B1RiskEvaluationControllerTests",
+        "tests": "5",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "10.869"
+      },
+      {
+        "name": "com.zerotrust.risk.controller.RiskEvaluationControllerTests",
+        "tests": "3",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "6.763"
+      },
+      {
+        "name": "com.zerotrust.risk.controller.TrustedDeviceControllerTests",
+        "tests": "3",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "6.139"
+      },
+      {
+        "name": "com.zerotrust.risk.controller.TrustedDeviceRevocationControllerTests",
+        "tests": "3",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.165"
+      },
+      {
+        "name": "com.zerotrust.risk.diagnostic.SubjectIdentityMySqlInvestigationTests",
+        "tests": "1",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "1",
+        "time": "0.0"
+      },
+      {
+        "name": "com.zerotrust.risk.domain.DeviceTrustTimestampTests",
+        "tests": "22",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.079"
+      },
+      {
+        "name": "com.zerotrust.risk.domain.SubjectIdentifierNormalizerTests",
+        "tests": "14",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.019"
+      },
+      {
+        "name": "com.zerotrust.risk.entity.KnownDeviceEntityTests",
+        "tests": "4",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.007"
+      },
+      {
+        "name": "com.zerotrust.risk.feature.DatabaseBackedRiskFeatureExtractorTests",
+        "tests": "16",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.39"
+      },
+      {
+        "name": "com.zerotrust.risk.migration.AuthenticationSuccessEventsMigrationTests",
+        "tests": "3",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "5.741"
+      },
+      {
+        "name": "com.zerotrust.risk.migration.KnownDevicesMigrationTests",
+        "tests": "2",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.046"
+      },
+      {
+        "name": "com.zerotrust.risk.migration.SubjectIdentityMigrationMySqlTests",
+        "tests": "2",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "2",
+        "time": "0.0"
+      },
+      {
+        "name": "com.zerotrust.risk.migration.SubjectIdentityMigrationPreflightTests",
+        "tests": "77",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "2.121"
+      },
+      {
+        "name": "com.zerotrust.risk.repository.AuthenticationSuccessEventRepositoryTests",
+        "tests": "1",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "4.343"
+      },
+      {
+        "name": "com.zerotrust.risk.repository.KnownDeviceRepositoryTests",
+        "tests": "3",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.115"
+      },
+      {
+        "name": "com.zerotrust.risk.repository.RedisAuthenticationFailureStoreTests",
+        "tests": "11",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.319"
+      },
+      {
+        "name": "com.zerotrust.risk.RiskScoringApplicationTests",
+        "tests": "1",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.436"
+      },
+      {
+        "name": "com.zerotrust.risk.rule.BlockedIpPrioritySecurityRuleTests",
+        "tests": "13",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.038"
+      },
+      {
+        "name": "com.zerotrust.risk.security.RiskApiHttpsSecurityTests",
+        "tests": "1",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "3.817"
+      },
+      {
+        "name": "com.zerotrust.risk.security.RiskApiSecurityTests",
+        "tests": "11",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "4.531"
+      },
+      {
+        "name": "com.zerotrust.risk.service.AuthenticationFailureServiceTests",
+        "tests": "2",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.005"
+      },
+      {
+        "name": "com.zerotrust.risk.service.AuthenticationHistoryKeyHasherTests",
+        "tests": "8",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.037"
+      },
+      {
+        "name": "com.zerotrust.risk.service.AuthenticationHistoryRiskCalculatorTests",
+        "tests": "5",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.036"
+      },
+      {
+        "name": "com.zerotrust.risk.service.AuthenticationSuccessServiceTests",
+        "tests": "2",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.01"
+      },
+      {
+        "name": "com.zerotrust.risk.service.DeviceFingerprintHasherTests",
+        "tests": "3",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.004"
+      },
+      {
+        "name": "com.zerotrust.risk.service.DeviceRecognitionServiceTests",
+        "tests": "6",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.129"
+      },
+      {
+        "name": "com.zerotrust.risk.service.DeviceTrustLifecycleTests",
+        "tests": "5",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "6.182"
+      },
+      {
+        "name": "com.zerotrust.risk.service.IpCidrRegressionTests",
+        "tests": "80",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.459"
+      },
+      {
+        "name": "com.zerotrust.risk.service.MaxMindGeoIpProviderTests",
+        "tests": "2",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.001"
+      },
+      {
+        "name": "com.zerotrust.risk.service.NetworkRiskCalculatorTests",
+        "tests": "12",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.026"
+      },
+      {
+        "name": "com.zerotrust.risk.service.RiskEvaluationServiceTests",
+        "tests": "5",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.196"
+      },
+      {
+        "name": "com.zerotrust.risk.service.RiskScoringServiceTests",
+        "tests": "6",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.008"
+      },
+      {
+        "name": "com.zerotrust.risk.service.SubjectIdentityIsolationRegressionTests",
+        "tests": "9",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "6.183"
+      },
+      {
+        "name": "com.zerotrust.risk.service.TemporalRiskCalculatorTests",
+        "tests": "9",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.03"
+      },
+      {
+        "name": "com.zerotrust.risk.service.TimestampJdbcMySqlTests",
+        "tests": "1",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "1",
+        "time": "0.0"
+      },
+      {
+        "name": "com.zerotrust.risk.service.TimestampLifecycleBaselineMySqlTests",
+        "tests": "1",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "1",
+        "time": "0.001"
+      },
+      {
+        "name": "com.zerotrust.risk.service.TimestampLifecyclePrecisionH2Tests",
+        "tests": "32",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "7.4"
+      },
+      {
+        "name": "com.zerotrust.risk.service.TimestampLifecyclePrecisionMySqlTests",
+        "tests": "13",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "13",
+        "time": "0.0"
+      },
+      {
+        "name": "com.zerotrust.risk.service.TimestampMySqlSupportTests",
+        "tests": "7",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.106"
+      },
+      {
+        "name": "com.zerotrust.risk.service.TimestampSubjectIsolationMySqlTests",
+        "tests": "1",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "1",
+        "time": "0.001"
+      },
+      {
+        "name": "com.zerotrust.risk.service.TrustedDeviceRegistrationServiceTests",
+        "tests": "3",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "4.131"
+      },
+      {
+        "name": "com.zerotrust.risk.validation.IpAddressNormalizerTests",
+        "tests": "35",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.036"
+      }
+    ],
+    "build_success": true
+  },
+  "keycloak-risk-extension": {
+    "tests": 203,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 27,
+    "suites": [
+      {
+        "name": "com.zerotrust.keycloak.risk.audit.AdaptiveFlowSpiAuditTests",
+        "tests": "9",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "9",
+        "time": "0.022"
+      },
+      {
+        "name": "com.zerotrust.keycloak.risk.audit.EventConfigSelectionRegressionTests",
+        "tests": "12",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "8.456"
+      },
+      {
+        "name": "com.zerotrust.keycloak.risk.audit.EventDeliverySpiAuditTests",
+        "tests": "8",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "8",
+        "time": "0.002"
+      },
+      {
+        "name": "com.zerotrust.keycloak.risk.audit.TransportSpiAuditTests",
+        "tests": "10",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "10",
+        "time": "0.0"
+      },
+      {
+        "name": "com.zerotrust.keycloak.risk.authenticator.ProviderRegistrationTest",
+        "tests": "4",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.06"
+      },
+      {
+        "name": "com.zerotrust.keycloak.risk.authenticator.RiskAuthenticatorTest",
+        "tests": "10",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.493"
+      },
+      {
+        "name": "com.zerotrust.keycloak.risk.authenticator.RiskStepUpConditionTest",
+        "tests": "9",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.037"
+      },
+      {
+        "name": "com.zerotrust.keycloak.risk.authenticator.TrustedDeviceRegistrationAuthenticatorTest",
+        "tests": "8",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.211"
+      },
+      {
+        "name": "com.zerotrust.keycloak.risk.client.BoundedJsonResponseReaderTest",
+        "tests": "10",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.132"
+      },
+      {
+        "name": "com.zerotrust.keycloak.risk.client.ClientCredentialsTokenProviderTest",
+        "tests": "16",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.568"
+      },
+      {
+        "name": "com.zerotrust.keycloak.risk.client.HttpRiskScoringClientTest",
+        "tests": "15",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.484"
+      },
+      {
+        "name": "com.zerotrust.keycloak.risk.config.BrowserFlowRiskConfigLocatorRegressionTests",
+        "tests": "18",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.076"
+      },
+      {
+        "name": "com.zerotrust.keycloak.risk.config.BrowserFlowRiskConfigLocatorTest",
+        "tests": "2",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.004"
+      },
+      {
+        "name": "com.zerotrust.keycloak.risk.config.RiskAuthenticatorConfigResolverTest",
+        "tests": "5",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.009"
+      },
+      {
+        "name": "com.zerotrust.keycloak.risk.config.RiskEventListenerConfigResolverTest",
+        "tests": "2",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.004"
+      },
+      {
+        "name": "com.zerotrust.keycloak.risk.config.RiskScoringClientConfigTest",
+        "tests": "5",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.011"
+      },
+      {
+        "name": "com.zerotrust.keycloak.risk.config.ServiceTokenConfigTest",
+        "tests": "3",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.04"
+      },
+      {
+        "name": "com.zerotrust.keycloak.risk.context.KeycloakDeviceCookieWriterTest",
+        "tests": "2",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.235"
+      },
+      {
+        "name": "com.zerotrust.keycloak.risk.context.KeycloakLoginContextExtractorTest",
+        "tests": "2",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.003"
+      },
+      {
+        "name": "com.zerotrust.keycloak.risk.context.SecureRandomDeviceIdGeneratorTest",
+        "tests": "1",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.017"
+      },
+      {
+        "name": "com.zerotrust.keycloak.risk.dto.RiskEvaluationRequestTest",
+        "tests": "2",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.003"
+      },
+      {
+        "name": "com.zerotrust.keycloak.risk.forms.MfaFormTraceTest",
+        "tests": "3",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.04"
+      },
+      {
+        "name": "com.zerotrust.keycloak.risk.forms.ZeroTrustLoginFormsProviderTest",
+        "tests": "12",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.13"
+      },
+      {
+        "name": "com.zerotrust.keycloak.risk.listener.RiskEventListenerTest",
+        "tests": "8",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.155"
+      },
+      {
+        "name": "com.zerotrust.keycloak.risk.policy.RiskDecisionHandlerTest",
+        "tests": "5",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.038"
+      },
+      {
+        "name": "com.zerotrust.keycloak.risk.trace.RiskEvaluationTraceTest",
+        "tests": "22",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.376"
+      }
+    ],
+    "build_success": true
+  },
+  "gateway": {
+    "tests": 20,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "suites": [
+      {
+        "name": "com.zerotrust.gateway.GatewayHeaderTests",
+        "tests": "9",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "2.171"
+      },
+      {
+        "name": "com.zerotrust.gateway.GatewayRouteTests",
+        "tests": "4",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "17.309"
+      },
+      {
+        "name": "com.zerotrust.gateway.GatewaySecurityTests",
+        "tests": "7",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "4.012"
+      }
+    ],
+    "build_success": true
+  },
+  "stale_score_characterization": [
+    {
+      "name": "com.zerotrust.zerotrust.service.impl.StaleScoreEditAuditTest",
+      "tests": "1",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "time": "25.65"
+    }
+  ]
+}

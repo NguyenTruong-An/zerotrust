@@ -19,6 +19,28 @@ chưa deploy Docker hoặc tạo fixture A5/A6. Không thay thế kết quả Br
 
 ## Runtime canonical hiện tại
 
+[PUBLIC_DEMO_ROADMAP](production-readiness/PUBLIC_DEMO_ROADMAP.md) là nguồn chính thức duy nhất
+quản lý phạm vi và tiến độ Public Demo; mọi nhiệm vụ Public Demo phải đọc và cập nhật tại đó.
+
+PD-R18 ghi [xác minh rootfs Keycloak DHI](production-readiness/evidence/PD-02-02_DHI_ROOTFS_SECURITY_VERIFICATION.md),
+[kế hoạch thử nghiệm và rollback](production-readiness/evidence/PD-02-02_DHI_RUNTIME_TRIAL_PLAN.md),
+[checklist chuẩn bị PD-02-08](production-readiness/evidence/PD-02-08_REGRESSION_READINESS.md)
+và [runbook bảo vệ đồ án](DEFENSE_DEMO_RUNBOOK_DRAFT.md).
+
+Academic Demo có [profile và runbook vận hành](../deploy/academic-demo/README.md),
+[snapshot staging và checklist phát hành](production-readiness/evidence/ACADEMIC_DEMO_RELEASE.md)
+và [hướng dẫn giảng viên](demo/ACADEMIC_DEMO_TEACHER_GUIDE.md).
+
+PD-R20 bổ sung [gói triển khai Linux, smoke và backup](../deploy/academic-linux/README.md).
+
+Đánh giá Production ngày 06/11/2026: **NO-GO**, không triển khai trong lượt audit.
+Xem [Production Readiness Report](production-readiness/PRODUCTION_READINESS_REPORT.md),
+[Security Audit](production-readiness/SECURITY_AUDIT.md),
+[kiến trúc đề xuất](production-readiness/PRODUCTION_ARCHITECTURE.md) và
+[Go / No-Go với các điều kiện bắt buộc](production-readiness/PRODUCTION_GO_NO_GO.md).
+Bộ tài liệu có inventory/evidence, deployment, operations, rollback và acceptance riêng;
+unit test hoặc trạng thái healthy lịch sử không thay nghiệm thu Production.
+
 Dùng project `zerotrust-legacy-integration-20261026`, bắt đầu từ
 [bộ lệnh vận hành và bản đồ cấu hình/volume](operations/CURRENT_RUNTIME.md),
 [hồ sơ tích hợp legacy](operations/LEGACY_INTEGRATION.md)

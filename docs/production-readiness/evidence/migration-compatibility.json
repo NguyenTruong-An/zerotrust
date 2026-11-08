@@ -1,0 +1,1 @@
+{"result":"PASS_CHARACTERIZATION","mysql_metadata_version":"8.4.13","preflight_rejected":true,"reason":"UNREVIEWED_MYSQL_VERSION","sql_calls":0,"v5_checksum":661092940,"scope":"Compiled migration + metadata proxy only; not real MySQL migration/restore"}

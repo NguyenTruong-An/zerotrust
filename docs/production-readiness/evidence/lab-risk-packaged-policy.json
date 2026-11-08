@@ -1,0 +1,12 @@
+{
+  "scope": "Read-only copy of packaged application.jar from stopped canonical Risk container; selected nonsecret baseline defaults only; private config/environment can override",
+  "packaged_policy_defaults": {
+    "risk.policy.model": "${RISK_SCORING_MODEL:BASELINE_B0}",
+    "risk.policy.weights.device": "${RISK_WEIGHT_DEVICE:0.25}",
+    "risk.policy.weights.network": "${RISK_WEIGHT_NETWORK:0.25}",
+    "risk.policy.weights.temporal": "${RISK_WEIGHT_TEMPORAL:0.25}",
+    "risk.policy.weights.authentication-history": "${RISK_WEIGHT_AUTHENTICATION_HISTORY:0.25}",
+    "risk.policy.thresholds.medium-minimum": "${RISK_THRESHOLD_MEDIUM_MINIMUM:40}",
+    "risk.policy.thresholds.high-minimum": "${RISK_THRESHOLD_HIGH_MINIMUM:75}"
+  }
+}

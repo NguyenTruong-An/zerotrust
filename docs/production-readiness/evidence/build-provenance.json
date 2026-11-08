@@ -1,0 +1,58 @@
+{
+  "revision": "c401e17029d64f9a96738d845b8c0ad0f03fc164",
+  "source_mode": "committed_head",
+  "snapshot": "74d896368c3a49a4434bf5e81ac23f9f0074a076bc3494f3103388f24200ce64",
+  "input_count": 473,
+  "services": {
+    "backend": {
+      "status": "passed",
+      "tag": "zerotrust-build/backend:c401e17029d6-74d896368c3a-lab",
+      "image_id": "sha256:b76677aa93e4bd58eb39f364c80a1ce4b02e6b626f349d47747b0adcde2615ad",
+      "metadata_image_exists": true,
+      "label_revision_matches": true,
+      "label_snapshot_matches": true
+    },
+    "risk": {
+      "status": "passed",
+      "tag": "zerotrust-build/risk:c401e17029d6-74d896368c3a-lab",
+      "image_id": "sha256:3d1b1f5ff5f4457a3df375d63fcae5ebfe397535bc8cd4c8a31dfca040ada8f8",
+      "metadata_image_exists": true,
+      "label_revision_matches": true,
+      "label_snapshot_matches": true
+    },
+    "gateway": {
+      "status": "passed",
+      "tag": "zerotrust-build/gateway:c401e17029d6-74d896368c3a-lab",
+      "image_id": "sha256:08e90cfba64dfbfe727b68c0a5a0fce961d31cf7afa8d910f9084dff09157eca",
+      "metadata_image_exists": true,
+      "label_revision_matches": true,
+      "label_snapshot_matches": true
+    },
+    "frontend": {
+      "status": "passed",
+      "tag": "zerotrust-build/frontend:c401e17029d6-74d896368c3a-lab",
+      "image_id": "sha256:cd002aa43f9e47c0e1c88265007ad708c2dbd0598f34f769965c69e75e7efb41",
+      "metadata_image_exists": true,
+      "label_revision_matches": true,
+      "label_snapshot_matches": true
+    },
+    "keycloak": {
+      "status": "passed",
+      "tag": "zerotrust-build/keycloak:c401e17029d6-74d896368c3a-lab",
+      "image_id": "sha256:43dfe27827901bba2281abb2ca162ab0bafc8acfa2b855fedf51ecd562581c43",
+      "metadata_image_exists": true,
+      "label_revision_matches": true,
+      "label_snapshot_matches": true
+    },
+    "crl": {
+      "status": "passed",
+      "tag": "zerotrust-build/crl:c401e17029d6-74d896368c3a-lab",
+      "image_id": "sha256:691f153f8d8efd7835ccf2b8379eb02ad786ca2407bf2549fc172b6bf8cac0c1",
+      "metadata_image_exists": true,
+      "label_revision_matches": true,
+      "label_snapshot_matches": true
+    }
+  },
+  "comparison": "SHA256 directly against git cat-file HEAD:path bytes; git archive on Windows converts line endings",
+  "git_head_input_mismatches": []
+}

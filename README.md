@@ -69,6 +69,10 @@ tương thích, không phải source thứ hai.
 
 ## Tài liệu
 
+[PUBLIC_DEMO_ROADMAP](docs/production-readiness/PUBLIC_DEMO_ROADMAP.md) là nguồn duy nhất
+về phạm vi, task và tiến độ Public Demo Production; đọc trước mọi nhiệm vụ Public Demo.
+Quyền CRUD mô tả ở source/Lab không phải quyền ghi trên Public Demo đã chốt read-only.
+
 Xem tín hiệu, điểm D/N/T/H, quyết định và MFA khi test:
 
 ```powershell

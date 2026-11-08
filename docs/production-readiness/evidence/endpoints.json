@@ -1,0 +1,198 @@
+[
+  {
+    "module": "Portal",
+    "method": "POST",
+    "path": "/api/admin/student-classes",
+    "source": "src/main/java/com/zerotrust/zerotrust/controller/AdminController.java",
+    "line": 53
+  },
+  {
+    "module": "Portal",
+    "method": "GET",
+    "path": "/api/admin/student-classes",
+    "source": "src/main/java/com/zerotrust/zerotrust/controller/AdminController.java",
+    "line": 62
+  },
+  {
+    "module": "Portal",
+    "method": "DELETE",
+    "path": "/api/admin/student-classes/{classId}",
+    "source": "src/main/java/com/zerotrust/zerotrust/controller/AdminController.java",
+    "line": 82
+  },
+  {
+    "module": "Portal",
+    "method": "POST",
+    "path": "/api/admin/subjects",
+    "source": "src/main/java/com/zerotrust/zerotrust/controller/AdminController.java",
+    "line": 88
+  },
+  {
+    "module": "Portal",
+    "method": "GET",
+    "path": "/api/admin/subjects",
+    "source": "src/main/java/com/zerotrust/zerotrust/controller/AdminController.java",
+    "line": 96
+  },
+  {
+    "module": "Portal",
+    "method": "DELETE",
+    "path": "/api/admin/subjects/{subjectId}",
+    "source": "src/main/java/com/zerotrust/zerotrust/controller/AdminController.java",
+    "line": 111
+  },
+  {
+    "module": "Portal",
+    "method": "GET",
+    "path": "/api/admin/subjects/{subjectId}/score-sheet",
+    "source": "src/main/java/com/zerotrust/zerotrust/controller/AdminController.java",
+    "line": 117
+  },
+  {
+    "module": "Portal",
+    "method": "POST",
+    "path": "/api/admin/subjects/{subjectId}/scores/batch",
+    "source": "src/main/java/com/zerotrust/zerotrust/controller/AdminController.java",
+    "line": 131
+  },
+  {
+    "module": "Portal",
+    "method": "POST",
+    "path": "/api/admin/students/{studentId}/scores",
+    "source": "src/main/java/com/zerotrust/zerotrust/controller/AdminController.java",
+    "line": 140
+  },
+  {
+    "module": "Portal",
+    "method": "GET",
+    "path": "/api/admin/students/{studentId}/scores",
+    "source": "src/main/java/com/zerotrust/zerotrust/controller/AdminController.java",
+    "line": 151
+  },
+  {
+    "module": "Portal",
+    "method": "PATCH",
+    "path": "/api/admin/scores/{scoreId}",
+    "source": "src/main/java/com/zerotrust/zerotrust/controller/AdminController.java",
+    "line": 172
+  },
+  {
+    "module": "Portal",
+    "method": "DELETE",
+    "path": "/api/admin/scores/{scoreId}",
+    "source": "src/main/java/com/zerotrust/zerotrust/controller/AdminController.java",
+    "line": 181
+  },
+  {
+    "module": "Portal",
+    "method": "POST",
+    "path": "/api/admin/students",
+    "source": "src/main/java/com/zerotrust/zerotrust/controller/AdminController.java",
+    "line": 187
+  },
+  {
+    "module": "Portal",
+    "method": "GET",
+    "path": "/api/admin/students",
+    "source": "src/main/java/com/zerotrust/zerotrust/controller/AdminController.java",
+    "line": 195
+  },
+  {
+    "module": "Portal",
+    "method": "GET",
+    "path": "/api/admin/students/{id}",
+    "source": "src/main/java/com/zerotrust/zerotrust/controller/AdminController.java",
+    "line": 214
+  },
+  {
+    "module": "Portal",
+    "method": "PATCH",
+    "path": "/api/admin/students/{id}",
+    "source": "src/main/java/com/zerotrust/zerotrust/controller/AdminController.java",
+    "line": 222
+  },
+  {
+    "module": "Portal",
+    "method": "GET",
+    "path": "/api/admin/users",
+    "source": "src/main/java/com/zerotrust/zerotrust/controller/AdminController.java",
+    "line": 231
+  },
+  {
+    "module": "Portal",
+    "method": "POST",
+    "path": "/api/admin/users/{id}/mfa/reset",
+    "source": "src/main/java/com/zerotrust/zerotrust/controller/AdminController.java",
+    "line": 237
+  },
+  {
+    "module": "Portal",
+    "method": "GET",
+    "path": "/api/students/me",
+    "source": "src/main/java/com/zerotrust/zerotrust/controller/StudentController.java",
+    "line": 32
+  },
+  {
+    "module": "Portal",
+    "method": "GET",
+    "path": "/api/students/me/scores/summary",
+    "source": "src/main/java/com/zerotrust/zerotrust/controller/StudentController.java",
+    "line": 41
+  },
+  {
+    "module": "Portal",
+    "method": "GET",
+    "path": "/api/students/me/scores",
+    "source": "src/main/java/com/zerotrust/zerotrust/controller/StudentController.java",
+    "line": 50
+  },
+  {
+    "module": "Portal",
+    "method": "GET",
+    "path": "/api/users/me",
+    "source": "src/main/java/com/zerotrust/zerotrust/controller/UserController.java",
+    "line": 22
+  },
+  {
+    "module": "Risk",
+    "method": "POST",
+    "path": "/internal/v1/authentication-failures",
+    "source": "risk-scoring-service/src/main/java/com/zerotrust/risk/controller/AuthenticationFailureController.java",
+    "line": 20
+  },
+  {
+    "module": "Risk",
+    "method": "POST",
+    "path": "/internal/v1/authentication-successes",
+    "source": "risk-scoring-service/src/main/java/com/zerotrust/risk/controller/AuthenticationSuccessController.java",
+    "line": 20
+  },
+  {
+    "module": "Risk",
+    "method": "POST",
+    "path": "/internal/v1/risk/evaluations",
+    "source": "risk-scoring-service/src/main/java/com/zerotrust/risk/controller/RiskEvaluationController.java",
+    "line": 22
+  },
+  {
+    "module": "Risk",
+    "method": "POST",
+    "path": "/internal/v1/trusted-devices",
+    "source": "risk-scoring-service/src/main/java/com/zerotrust/risk/controller/TrustedDeviceController.java",
+    "line": 20
+  },
+  {
+    "module": "Risk",
+    "method": "POST",
+    "path": "/internal/v1/subjects/{subjectId}/trusted-devices/revocations",
+    "source": "risk-scoring-service/src/main/java/com/zerotrust/risk/controller/TrustedDeviceRevocationController.java",
+    "line": 19
+  },
+  {
+    "module": "Risk",
+    "method": "POST",
+    "path": "/internal/v1/subjects/{subjectId}/trusted-devices/revocations/completion",
+    "source": "risk-scoring-service/src/main/java/com/zerotrust/risk/controller/TrustedDeviceRevocationController.java",
+    "line": 28
+  }
+]

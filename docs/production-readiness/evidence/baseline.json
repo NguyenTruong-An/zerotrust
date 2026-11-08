@@ -1,0 +1,15 @@
+{
+  "evidence_class": "PUBLIC_SAFE_SUMMARY",
+  "scope": "Historical Docker Lab inspection. Full receipt is retained in the private audit record.",
+  "container_count": 10,
+  "states": {
+    "exited": 10
+  },
+  "bind_mount_count": 9,
+  "named_volume_count": 4,
+  "docker_network_count": 2,
+  "internal_docker_network_count": 1,
+  "published_binding_count": 3,
+  "published_bindings_loopback_only": true,
+  "limits": "Historical metadata. No live health, database access, or Production acceptance was verified by this inspection."
+}

@@ -1,0 +1,77 @@
+{
+  "ops-tests": {
+    "tests": 25,
+    "duration_seconds": 0.096,
+    "success": true
+  },
+  "build-tool-tests": {
+    "tests": 5,
+    "duration_seconds": 0.009,
+    "success": true
+  },
+  "portability-tests": {
+    "tests": 3,
+    "duration_seconds": 2.408,
+    "success": true
+  },
+  "fixture-tests": {
+    "tests": 3,
+    "duration_seconds": 0.009,
+    "success": true
+  },
+  "observation-tests": {
+    "tests": 13,
+    "duration_seconds": 0.095,
+    "success": true
+  },
+  "frontend": {
+    "check_success": true,
+    "node_test_groups": [
+      {
+        "tests": 6,
+        "passed": 6
+      },
+      {
+        "tests": 9,
+        "passed": 9
+      },
+      {
+        "tests": 4,
+        "passed": 4
+      }
+    ],
+    "eslint_warning": true
+  },
+  "dockerfiles": {
+    "passed_services": [
+      "backend",
+      "risk",
+      "gateway",
+      "frontend",
+      "keycloak",
+      "crl"
+    ],
+    "scope": "BuildKit check, no image build/deploy"
+  },
+  "image_scan": {
+    "tool": "Docker Scout 1.20.4",
+    "targets_attempted": [
+      "zerotrust-legacy-frontend:20261026-candidate",
+      "zerotrust-legacy-risk:20261026-candidate"
+    ],
+    "status": "NOT VERIFIED",
+    "reason": "Docker ID login required; no SARIF report generated; no login or installation performed"
+  },
+  "host": {
+    "os": "Windows host, Docker Desktop Linux containers",
+    "host_ram_bytes": 16893382656,
+    "host_logical_cpus": 12,
+    "docker_memory_bytes": 8184336384,
+    "docker_cpus": 12,
+    "test_helper_image": "sha256:e30e722a3d86",
+    "jdk": "17.0.10",
+    "container_cpu_limit": 2,
+    "suite_memory_limit_gib": 3,
+    "network": "none"
+  }
+}

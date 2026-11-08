@@ -1,0 +1,11 @@
+{
+  "required_documents": 9,
+  "markdown_files": 12,
+  "local_links_checked": 148,
+  "python_syntax": "parsed",
+  "json_syntax": "parsed",
+  "version_coordinates_triaged_as_not_email": 38,
+  "issues": [],
+  "mermaid_rendered": false,
+  "scope": "Authored document/link/syntax/limited-redaction QA; not application acceptance or complete secret scan"
+}

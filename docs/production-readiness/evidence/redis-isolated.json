@@ -1,0 +1,1 @@
+{"engine":"Redis 7.4.7","isolation":"network none; tmpfs; no Lab mounts","cases":7,"result":"PASS","scope":["first increment","event dedup","counter and event TTL","malformed counter no partial write","int64 overflow no partial write","fixed first-failure TTL not refreshed","counter increment after prior event"]}
