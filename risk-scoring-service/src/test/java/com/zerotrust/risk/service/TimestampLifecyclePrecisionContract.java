@@ -1,6 +1,6 @@
 package com.zerotrust.risk.service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.zerotrust.risk.domain.LoginContext;
 import com.zerotrust.risk.entity.DeviceStatus;
 import com.zerotrust.risk.entity.KnownDeviceEntity;

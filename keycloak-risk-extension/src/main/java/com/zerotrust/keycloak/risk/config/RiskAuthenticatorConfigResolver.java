@@ -13,6 +13,10 @@ public final class RiskAuthenticatorConfigResolver {
     public static final String TOKEN_ENDPOINT_URL = "tokenEndpointUrl";
     public static final String SERVICE_CLIENT_ID = "serviceClientId";
     public static final String SERVICE_CLIENT_SECRET = "serviceClientSecret";
+    public static final String SERVICE_CLIENT_SECRET_FILE = "serviceClientSecretFile";
+    private final PublicDemoServiceSecrets secrets;
+    public RiskAuthenticatorConfigResolver(){this(new PublicDemoServiceSecrets());}
+    RiskAuthenticatorConfigResolver(PublicDemoServiceSecrets secrets){this.secrets=secrets;}
     public static final String TOKEN_REFRESH_SKEW_MS = "tokenRefreshSkewMs";
     public static final String CONNECTION_REQUEST_TIMEOUT_MS = "connectionRequestTimeoutMs";
     public static final String CONNECT_TIMEOUT_MS = "connectTimeoutMs";
@@ -42,7 +46,7 @@ public final class RiskAuthenticatorConfigResolver {
             ServiceTokenConfig serviceTokenConfig = new ServiceTokenConfig(
                     uri(values, TOKEN_ENDPOINT_URL),
                     text(values, SERVICE_CLIENT_ID, ServiceTokenConfig.DEFAULT_CLIENT_ID),
-                    requireText(values.get(SERVICE_CLIENT_SECRET), SERVICE_CLIENT_SECRET),
+                    secrets.resolve(values),
                     nonNegativeDuration(
                             values,
                             TOKEN_REFRESH_SKEW_MS,
@@ -56,8 +60,7 @@ public final class RiskAuthenticatorConfigResolver {
             );
         } catch (IllegalArgumentException exception) {
             throw new RiskAuthenticatorConfigurationException(
-                    "Risk authenticator configuration is invalid",
-                    exception
+                    "Risk authenticator configuration is invalid (values redacted)"
             );
         }
     }
@@ -68,8 +71,7 @@ public final class RiskAuthenticatorConfigResolver {
             return URI.create(value);
         } catch (IllegalArgumentException exception) {
             throw new RiskAuthenticatorConfigurationException(
-                    key + " is not a valid URI",
-                    exception
+                    key + " is not a valid URI (value redacted)"
             );
         }
     }
@@ -116,8 +118,7 @@ public final class RiskAuthenticatorConfigResolver {
             return Duration.ofMillis(parsed);
         } catch (NumberFormatException exception) {
             throw new RiskAuthenticatorConfigurationException(
-                    key + " must be a non-negative integer",
-                    exception
+                    key + " must be a non-negative integer (value redacted)"
             );
         }
     }
@@ -131,8 +132,7 @@ public final class RiskAuthenticatorConfigResolver {
             return parsed;
         } catch (NumberFormatException exception) {
             throw new RiskAuthenticatorConfigurationException(
-                    key + " must be a positive integer",
-                    exception
+                    key + " must be a positive integer (value redacted)"
             );
         }
     }
@@ -143,8 +143,7 @@ public final class RiskAuthenticatorConfigResolver {
             return RiskFailureMode.valueOf(value.trim().toUpperCase(java.util.Locale.ROOT));
         } catch (IllegalArgumentException exception) {
             throw new RiskAuthenticatorConfigurationException(
-                    FAILURE_MODE + " must be DENY or STEP_UP_MFA",
-                    exception
+                    FAILURE_MODE + " must be DENY or STEP_UP_MFA (value redacted)"
             );
         }
     }

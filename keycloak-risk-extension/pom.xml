@@ -70,6 +70,15 @@
         </dependency>
     </dependencies>
 
+    <profiles>
+        <profile>
+            <id>public-demo-candidate</id>
+            <properties>
+                <keycloak.version>26.8.2</keycloak.version>
+            </properties>
+        </profile>
+    </profiles>
+
     <build>
         <finalName>keycloak-risk-extension</finalName>
         <plugins>

@@ -99,6 +99,7 @@ public final class TrustedDeviceRegistrationAuthenticatorFactory
 
     @Override
     public void init(Config.Scope config) {
+        new com.zerotrust.keycloak.risk.config.PublicDemoServiceSecrets().validateStartup();
         // This provider reuses the evaluator execution configuration by auth-note reference.
     }
 

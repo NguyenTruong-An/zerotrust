@@ -69,7 +69,7 @@ class SubjectIdentityMigrationMySqlTests {
             if(scenario.equals("partial_seed")) {
                 insert(c,"INSERT INTO subject_device_trust(subject_id,generation) VALUES(?,0)",subject("Alice"));
                 var before=SubjectIdentityMigrationPreflight.snapshot(c);
-                String json=new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(Map.of("expected_application_sha256",before.sha256(),"expected_v4_schema_sha256",SubjectIdentityMySqlSupport.schemaFingerprint(c)));
+                String json=new tools.jackson.databind.ObjectMapper().writeValueAsString(Map.of("expected_application_sha256",before.sha256(),"expected_v4_schema_sha256",SubjectIdentityMySqlSupport.schemaFingerprint(c)));
                 Files.writeString(Path.of(System.getProperty("postfix03a.recoveryOutput")),json);
                 SubjectIdentityMySqlSupport.assertBudget(c,scenario);return;
             }
@@ -114,7 +114,7 @@ class SubjectIdentityMigrationMySqlTests {
                 assertThat(SubjectIdentityMySqlSupport.schemaFingerprint(c)).isNotEqualTo(oldSchema);
                 assertThatThrownBy(()->SubjectIdentityMigrationPreflight.inspect(c,true)).hasMessageContaining("PARTIAL_SCHEMA");
                 // Recovery is a separately approved external restore into the restore schema, never automatic repair.
-                String json=new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(Map.of("expected_application_sha256",before.sha256(),"expected_v4_schema_sha256",oldSchema,"completed_ddl",1));
+                String json=new tools.jackson.databind.ObjectMapper().writeValueAsString(Map.of("expected_application_sha256",before.sha256(),"expected_v4_schema_sha256",oldSchema,"completed_ddl",1));
                 Files.writeString(Path.of(System.getProperty("postfix03a.recoveryOutput")),json);
             } else {
                 if(scenario.startsWith("collision_")) {
@@ -169,7 +169,7 @@ class SubjectIdentityMigrationMySqlTests {
 
     @Nested
     @EnabledIfSystemProperty(named="postfix03a.scenario",matches="production")
-    @SpringBootTest(properties={"spring.datasource.url=${PF03A_MYSQL_URL}","spring.datasource.driver-class-name=com.mysql.cj.jdbc.Driver","spring.datasource.username=pf03a_app","spring.datasource.password=${PF03A_MYSQL_PASSWORD}","spring.jpa.hibernate.ddl-auto=validate","spring.flyway.enabled=false","spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration,org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration"})
+    @SpringBootTest(properties={"spring.datasource.url=${PF03A_MYSQL_URL}","spring.datasource.driver-class-name=com.mysql.cj.jdbc.Driver","spring.datasource.username=pf03a_app","spring.datasource.password=${PF03A_MYSQL_PASSWORD}","spring.jpa.hibernate.ddl-auto=validate","spring.flyway.enabled=false","spring.autoconfigure.exclude=org.springframework.boot.data.redis.autoconfigure.RedisAutoConfiguration,org.springframework.boot.data.redis.autoconfigure.RedisRepositoriesAutoConfiguration"})
     @ActiveProfiles("test")
     @ContextConfiguration(initializers=SubjectIdentityMySqlSupport.class)
     @Import(SubjectIdentityMySqlSupport.TimeConfig.class)

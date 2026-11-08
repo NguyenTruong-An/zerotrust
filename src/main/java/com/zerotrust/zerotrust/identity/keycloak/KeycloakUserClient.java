@@ -58,9 +58,8 @@ public class KeycloakUserClient {
         } catch (RuntimeException cleanupException) {
             closeFailureResponse(cleanupException);
             log.error(
-                    "Failed to roll back Keycloak user {}",
-                    provisionedUser.userId(),
-                    cleanupException);
+                    "Keycloak rollback failed: stage=delete reason={}",
+                    cleanupException.getClass().getSimpleName());
         }
     }
 
@@ -110,7 +109,7 @@ public class KeycloakUserClient {
             userResource.update(user);
         } catch (RuntimeException cleanupException) {
             closeFailureResponse(cleanupException);
-            log.error("Failed to roll back Keycloak profile for user {}", userId, cleanupException);
+            log.error("Keycloak rollback failed: stage=profile reason={}", cleanupException.getClass().getSimpleName());
         }
     }
 
@@ -202,13 +201,12 @@ public class KeycloakUserClient {
                 users.get(exactMatches.get(0).getId()).remove();
             } else {
                 log.error(
-                        "Unable to identify the newly created Keycloak user for rollback: username={}, matches={}",
-                        username,
+                        "Unable to identify newly created Keycloak user for rollback: matches={}",
                         exactMatches.size());
             }
         } catch (RuntimeException cleanupException) {
             closeFailureResponse(cleanupException);
-            log.error("Failed to roll back Keycloak user with username {}", username, cleanupException);
+            log.error("Keycloak rollback failed: stage=lookup reason={}", cleanupException.getClass().getSimpleName());
         }
     }
 

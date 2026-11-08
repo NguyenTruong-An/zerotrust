@@ -2,6 +2,15 @@
 
 # Bảo vệ Risk API và danh tính giữa các dịch vụ
 
+**Bổ sung source contract 06/11/2026 — PD-02-04, chưa rollout:** SPI gửi UUID ngẫu nhiên
+riêng từng HTTP evaluation attempt qua `X-ZeroTrust-Risk-Request`; Risk kiểm format và
+echo sau JWT/caller authorization. SPI yêu cầu đúng một echo khớp, ngoài subject/session
+và tính nhất quán decision/level/dataStatus/score. Header này không cấp quyền, không là
+scoring input, không thay evaluation ID/correlation của Keycloak. Risk giữ compatibility
+cho legacy callers không có header; SPI mới từ chối Risk cũ thiếu echo. Hai artifact phải
+được nghiệm thu cùng release; không áp vào Lab trong task. Đây là chống dùng nhầm response
+giữa HTTP attempts, không là token revocation, exactly-once hoặc bằng chứng runtime.
+
 **Ngày đối chiếu mã:** 2026-10-05.
 
 **Trạng thái:** Cơ chế JWT/caller/role có trong mã và test. Realm, TLS, mạng và

@@ -1,6 +1,6 @@
 package com.zerotrust.zerotrust.security;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.zerotrust.zerotrust.config.KeycloakAdminProperties;
 import com.zerotrust.zerotrust.identity.model.CreateIdentityUserCommand;
 import com.zerotrust.zerotrust.model.request.CreateStudentRequestDTO;

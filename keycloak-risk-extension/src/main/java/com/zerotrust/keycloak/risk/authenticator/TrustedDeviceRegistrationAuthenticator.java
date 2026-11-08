@@ -79,14 +79,26 @@ public final class TrustedDeviceRegistrationAuthenticator implements Authenticat
                 RiskAuthenticationNotes.EVALUATOR_CONFIG_ID
         );
         String generation = authenticationSession.getAuthNote(RiskAuthenticationNotes.TRUST_GENERATION);
+        String evaluatedSubject = authenticationSession.getAuthNote(RiskAuthenticationNotes.EVALUATED_SUBJECT);
+        String evaluatedSession = authenticationSession.getAuthNote(RiskAuthenticationNotes.EVALUATED_SESSION);
         boolean rotate = Boolean.parseBoolean(authenticationSession.getAuthNote(RiskAuthenticationNotes.ROTATE_DEVICE));
         clearRegistrationNotes(authenticationSession);
+
+        if (!matchesEvaluation(context, evaluatedSubject, evaluatedSession)) {
+            context.failure(org.keycloak.authentication.AuthenticationFlowError.ACCESS_DENIED);
+            return;
+        }
 
         // Required actions run after the browser flow: enrollment has not yet proved MFA.
         if (requireUser(context).getRequiredActionsStream().anyMatch("CONFIGURE_TOTP"::equals)) {
             RiskEvaluationTrace.DEFAULT.observe(context, DEVICE_REGISTRATION, ENROLLMENT_PENDING);
             if (rotate) expireRejectedCookie(context);
             context.success();
+            return;
+        }
+
+        if (!completedMfa(authenticationSession, context.getRealm())) {
+            context.failure(org.keycloak.authentication.AuthenticationFlowError.ACCESS_DENIED);
             return;
         }
 
@@ -165,6 +177,27 @@ public final class TrustedDeviceRegistrationAuthenticator implements Authenticat
         session.removeAuthNote(RiskAuthenticationNotes.EVALUATOR_CONFIG_ID);
         session.removeAuthNote(RiskAuthenticationNotes.TRUST_GENERATION);
         session.removeAuthNote(RiskAuthenticationNotes.ROTATE_DEVICE);
+        session.removeAuthNote(RiskAuthenticationNotes.EVALUATED_SUBJECT);
+        session.removeAuthNote(RiskAuthenticationNotes.EVALUATED_SESSION);
+    }
+
+    private static boolean matchesEvaluation(AuthenticationFlowContext context, String subject, String sessionId) {
+        AuthenticationSessionModel session = context.getAuthenticationSession();
+        return subject != null && sessionId != null && context.getUser() != null
+                && subject.equals(context.getUser().getId()) && session.getParentSession() != null
+                && session.getParentSession().getId() != null && session.getTabId() != null
+                && sessionId.equals(session.getParentSession().getId() + ":" + session.getTabId());
+    }
+
+    private static boolean completedMfa(AuthenticationSessionModel session, RealmModel realm) {
+        if (realm == null || session.getExecutionStatus() == null) return false;
+        for (var status : session.getExecutionStatus().entrySet()) {
+            if (status.getValue() != AuthenticationSessionModel.ExecutionStatus.SUCCESS) continue;
+            var execution = realm.getAuthenticationExecutionById(status.getKey());
+            if (execution != null && ("auth-otp-form".equals(execution.getAuthenticator())
+                    || "auth-recovery-authn-code-form".equals(execution.getAuthenticator()))) return true;
+        }
+        return false;
     }
 
     private static AuthenticatorConfigModel findEvaluatorConfig(

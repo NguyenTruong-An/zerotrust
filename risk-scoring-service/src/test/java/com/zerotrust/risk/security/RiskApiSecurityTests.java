@@ -25,7 +25,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -52,6 +52,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         TrustedDeviceController.class,
         AuthenticationFailureController.class,
         AuthenticationSuccessController.class
+        ,com.zerotrust.risk.controller.TrustedDeviceRevocationController.class
 })
 @Import(RiskApiSecurityConfig.class)
 @EnableConfigurationProperties(RiskApiSecurityProperties.class)
@@ -285,11 +286,89 @@ class RiskApiSecurityTests {
                 .contentType(MediaType.APPLICATION_JSON).content(TRUSTED_DEVICE_BODY));
     }
 
+    @Test void authorizedRiskAttemptEchoesItsNonceWithoutChangingEvaluationCorrelation() throws Exception {
+        String nonce = UUID.randomUUID().toString();
+        mvc.perform(post(EVALUATION_PATH).header("Authorization", "Bearer " + sign(claims(), KEY))
+                .header("X-ZeroTrust-Risk-Request", nonce).contentType(MediaType.APPLICATION_JSON).content(BODY))
+                .andExpect(status().isOk()).andExpect(header().string("X-ZeroTrust-Risk-Request", nonce))
+                .andExpect(jsonPath("$.subjectId").value("student-1"))
+                .andExpect(jsonPath("$.authenticationSessionId").value("session-1"))
+                .andExpect(jsonPath("$.decision").value("DENY"));
+    }
+
+    @Test void invalidOrDuplicateAttemptNonceIsRejectedBeforeSecurityStateWork() throws Exception {
+        String token = sign(claims(), KEY);
+        for (String nonce : List.of("not-a-uuid", "untrusted-secret-canary", "")) {
+            mvc.perform(post(EVALUATION_PATH).header("Authorization", "Bearer " + token)
+                    .header("X-ZeroTrust-Risk-Request", nonce).contentType(MediaType.APPLICATION_JSON).content(BODY))
+                    .andExpect(status().isBadRequest()).andExpect(content().string(
+                            org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("untrusted-secret-canary"))));
+        }
+        mvc.perform(post(EVALUATION_PATH).header("Authorization", "Bearer " + token)
+                .header("X-ZeroTrust-Risk-Request", UUID.randomUUID().toString(), UUID.randomUUID().toString())
+                .contentType(MediaType.APPLICATION_JSON).content(BODY)).andExpect(status().isBadRequest());
+        verifyNoInteractions(service, lifecycle);
+    }
+
+    @Test void nonceCannotAuthenticateOrGrantAnUnauthorizedServiceCaller() throws Exception {
+        mvc.perform(post(EVALUATION_PATH).header("X-ZeroTrust-Risk-Request", UUID.randomUUID().toString())
+                .contentType(MediaType.APPLICATION_JSON).content(BODY)).andExpect(status().isUnauthorized());
+        mvc.perform(post(EVALUATION_PATH).header("Authorization", "Bearer " + sign(claims().claim("azp", "zerotrust-spa"), KEY))
+                .header("X-ZeroTrust-Risk-Request", UUID.randomUUID().toString())
+                .contentType(MediaType.APPLICATION_JSON).content(BODY)).andExpect(status().isForbidden());
+        verifyNoInteractions(service, lifecycle);
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"RS384", "RS512", "PS256", "HS256"})
+    void unsupportedSignedAlgorithmsCannotReachRisk(String algorithm) throws Exception {
+        SignedJWT token = new SignedJWT(new JWSHeader.Builder(JWSAlgorithm.parse(algorithm))
+                .keyID(KEY.getKeyID()).build(), claims().build());
+        if (algorithm.equals("HS256")) token.sign(new com.nimbusds.jose.crypto.MACSigner(new byte[32]));
+        else token.sign(new RSASSASigner(KEY));
+        mvc.perform(post(EVALUATION_PATH).header("Authorization", "Bearer " + token.serialize())
+                .contentType(MediaType.APPLICATION_JSON).content(BODY)).andExpect(status().isUnauthorized());
+        verifyNoInteractions(service, lifecycle);
+    }
+
+    @Test void callerSuppliedScoreAndDecisionCannotReplaceTheServerEvaluation()throws Exception{
+        String injected=BODY.strip().replace("}",",\"riskScore\":0,\"decision\":\"ALLOW\"}");
+        mvc.perform(post(EVALUATION_PATH).header("Authorization","Bearer "+sign(claims(),KEY))
+                .contentType(MediaType.APPLICATION_JSON).content(injected))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.decision").value("DENY"))
+                .andExpect(jsonPath("$.riskScore").isEmpty());
+        verify(service).evaluate(any(LoginContext.class));
+    }
+
     private ResultActions callAuthenticationFailure(String token) throws Exception {
         return mvc.perform(post(AUTHENTICATION_FAILURE_PATH)
                 .header("Authorization", "Bearer " + token)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(AUTHENTICATION_FAILURE_BODY));
+    }
+
+    @Test void forgedForwardingDoesNotReplaceAuthenticatedCallerIpForNetworkOrHistory() throws Exception {
+        String forwarded="10.0.0.1, 127.0.0.1";
+        mvc.perform(post(EVALUATION_PATH).header("Authorization","Bearer "+sign(claims(),KEY))
+                .header("X-Forwarded-For",forwarded).header("Forwarded","for=10.0.0.1")
+                .header("X-Real-IP","10.0.0.1").contentType(MediaType.APPLICATION_JSON).content(BODY))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.decision").value("DENY"));
+        var captured=org.mockito.ArgumentCaptor.forClass(LoginContext.class);
+        verify(service).evaluate(captured.capture());
+        org.junit.jupiter.api.Assertions.assertEquals("203.0.113.10",captured.getValue().ipAddress());
+        mvc.perform(post(AUTHENTICATION_FAILURE_PATH).header("Authorization","Bearer "+sign(
+                        claimsWithRoles(RiskJwtAuthenticationConverter.EVENTS_WRITE_AUTHORITY),KEY))
+                .header("X-Forwarded-For",forwarded).header("Forwarded","for=10.0.0.1").header("X-Real-IP","10.0.0.1")
+                .contentType(MediaType.APPLICATION_JSON).content(AUTHENTICATION_FAILURE_BODY))
+                .andExpect(status().isNoContent());
+        verify(authenticationFailureService).recordFailure("event-1","student-1","203.0.113.10");
+    }
+
+    @Test void forwardingCannotAuthenticateADirectInternalRequest() throws Exception {
+        mvc.perform(post(EVALUATION_PATH).header("X-Forwarded-For","127.0.0.1").header("Forwarded","for=127.0.0.1")
+                .header("X-Role","risk:evaluate").header("X-Subject","service-account-id")
+                .contentType(MediaType.APPLICATION_JSON).content(BODY)).andExpect(status().isUnauthorized());
+        verifyNoInteractions(service,lifecycle);
     }
 
     private ResultActions callAuthenticationSuccess(String token) throws Exception {
@@ -301,6 +380,41 @@ class RiskApiSecurityTests {
 
     private static JWTClaimsSet.Builder claims() {
         return claimsWithRoles(RiskJwtAuthenticationConverter.EVALUATE_AUTHORITY);
+    }
+
+    static java.util.stream.Stream<org.junit.jupiter.params.provider.Arguments> serviceMatrix(){
+        var cases=new java.util.ArrayList<org.junit.jupiter.params.provider.Arguments>();
+        for(int endpoint=0;endpoint<6;endpoint++)for(String caller:List.of("zerotrust-risk-caller","zerotrust-portal-risk-admin","zerotrust-provisioner","zerotrust-spa","application-admin"))
+            for(String role:List.of("risk:evaluate","risk:device:write","risk:events:write","risk:device:revoke",""))cases.add(org.junit.jupiter.params.provider.Arguments.of(endpoint,caller,role));
+        return cases.stream();
+    }
+    static String matrixPath(int endpoint){return switch(endpoint){
+        case 0->EVALUATION_PATH;case 1->TRUSTED_DEVICE_PATH;case 2->AUTHENTICATION_FAILURE_PATH;case 3->AUTHENTICATION_SUCCESS_PATH;
+        default->"/internal/v1/subjects/11111111-1111-4111-8111-111111111111/trusted-devices/revocations"+(endpoint==5?"/completion":"");};}
+    static String matrixBody(int endpoint){return switch(endpoint){
+        case 0->BODY;case 1->TRUSTED_DEVICE_BODY;case 2->AUTHENTICATION_FAILURE_BODY;case 3->AUTHENTICATION_SUCCESS_BODY;
+        default->"{\"operationId\":\"22222222-2222-4222-8222-222222222222\",\"requestedBy\":\"synthetic-admin\"}";};}
+    @org.junit.jupiter.params.ParameterizedTest @org.junit.jupiter.params.provider.MethodSource("serviceMatrix")
+    void signedCallerAndRoleMatrixDoesNotGrantCrossServiceAuthority(int endpoint,String caller,String role)throws Exception{
+        String expectedRole=List.of("risk:evaluate","risk:device:write","risk:events:write","risk:events:write","risk:device:revoke","risk:device:revoke").get(endpoint);
+        boolean allowed=caller.equals(endpoint>=4?"zerotrust-portal-risk-admin":"zerotrust-risk-caller") && role.equals(expectedRole);
+        String token=sign(claimsWithRoles(role).claim("azp",caller).claim("realm_access",Map.of("roles",List.of("ADMIN"))),KEY);
+        mvc.perform(post(matrixPath(endpoint)).header("Authorization","Bearer "+token).header("X-Role",expectedRole)
+                .contentType(MediaType.APPLICATION_JSON).content(matrixBody(endpoint)))
+                .andExpect(status().is(allowed?(endpoint==0?200:204):403));
+        if(!allowed)verifyNoInteractions(service,lifecycle,registrationService,authenticationFailureService,authenticationSuccessService);
+    }
+    @org.junit.jupiter.params.ParameterizedTest @org.junit.jupiter.params.provider.ValueSource(ints={0,1,2,3,4,5})
+    void wrongIssuerAudienceOrExpiryCannotAuthenticateAnyServiceEndpoint(int endpoint)throws Exception{
+        for(String invalid:List.of("issuer","audience","expiry")){
+            var claims=claimsWithRoles("risk:evaluate","risk:device:write","risk:events:write","risk:device:revoke")
+                    .claim("azp",endpoint>=4?"zerotrust-portal-risk-admin":"zerotrust-risk-caller");
+            if(invalid.equals("issuer"))claims.issuer("https://wrong.invalid");
+            else if(invalid.equals("audience"))claims.audience("zerotrust-api");else claims.expirationTime(null);
+            mvc.perform(post(matrixPath(endpoint)).header("Authorization","Bearer "+sign(claims,KEY))
+                    .contentType(MediaType.APPLICATION_JSON).content(matrixBody(endpoint))).andExpect(status().isUnauthorized());
+        }
+        verifyNoInteractions(service,lifecycle,registrationService,authenticationFailureService,authenticationSuccessService);
     }
 
     private static JWTClaimsSet.Builder claimsWithRoles(String... roles) {

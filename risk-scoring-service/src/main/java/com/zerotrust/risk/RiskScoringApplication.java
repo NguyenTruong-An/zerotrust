@@ -9,6 +9,8 @@ import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 public class RiskScoringApplication {
 
     public static void main(String[] args) {
-        SpringApplication.run(RiskScoringApplication.class, args);
+        SpringApplication application = new SpringApplication(RiskScoringApplication.class);
+        application.addInitializers(new com.zerotrust.risk.config.PublicDemoStartupInitializer());
+        application.run(args);
     }
 }

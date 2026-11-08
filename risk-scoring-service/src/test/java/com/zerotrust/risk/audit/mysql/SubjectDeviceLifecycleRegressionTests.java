@@ -28,7 +28,7 @@ import static org.awaitility.Awaitility.await;
 
 /** Same business oracle on H2 by default and isolated, guarded MySQL with explicit QA opt-in. */
 @SpringBootTest(properties={"spring.jpa.hibernate.ddl-auto=validate","spring.flyway.clean-disabled=true",
-        "spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration,org.springframework.boot.autoconfigure.data.redis.RedisReactiveAutoConfiguration,org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration"})
+        "spring.autoconfigure.exclude=org.springframework.boot.data.redis.autoconfigure.RedisAutoConfiguration,org.springframework.boot.data.redis.autoconfigure.RedisReactiveAutoConfiguration,org.springframework.boot.data.redis.autoconfigure.RedisRepositoriesAutoConfiguration"})
 @ActiveProfiles("test")
 @ContextConfiguration(initializers=SubjectDeviceLifecycleRegressionTests.StorageGuard.class)
 @Import(SubjectDeviceLifecycleRegressionTests.Fixture.class)

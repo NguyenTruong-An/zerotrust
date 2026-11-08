@@ -36,6 +36,8 @@ public final class ClientCredentialsTokenProvider implements ServiceTokenProvide
             "Token endpoint response exceeds the size limit");
     private static final ObjectReader TOKEN_JSON_READER = JsonSerialization.mapper
             .readerFor(new TypeReference<Map<String, Object>>() {})
+            .with(DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
+            .with(com.fasterxml.jackson.core.JsonParser.Feature.STRICT_DUPLICATE_DETECTION)
             .with(DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS);
 
     private final CloseableHttpClient httpClient;

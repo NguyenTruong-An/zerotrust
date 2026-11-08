@@ -18,7 +18,7 @@ import com.zerotrust.zerotrust.service.SubjectAdministrationService;
 import com.zerotrust.zerotrust.service.UserService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -659,6 +659,21 @@ class AdminControllerSecurityTest {
                 .andExpect(status().isNoContent());
 
         verify(userService).resetMfa(userId);
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings={"not-a-uuid","11111111","untrusted-reset-input"})
+    void malformedMfaResetTargetCannotReachUserService(String target)throws Exception{
+        mockMvc.perform(post("/api/admin/users/{id}/mfa/reset",target)
+                .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
+                .andExpect(status().isBadRequest());
+        verify(userService,never()).resetMfa(any());
+    }
+
+    @Test void unauthenticatedMfaResetIsRejectedBeforeAnyResetCall()throws Exception{
+        mockMvc.perform(post("/api/admin/users/{id}/mfa/reset",UUID.randomUUID()))
+                .andExpect(status().isUnauthorized());
+        verify(userService,never()).resetMfa(any());
     }
 
     @Test

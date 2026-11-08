@@ -1,0 +1,85 @@
+{
+  "not_a_realm_export": true,
+  "registrationAllowed": false,
+  "realmRoles": [
+    "ADMIN",
+    "STUDENT"
+  ],
+  "portalOrigin": "https://portal.example.invalid",
+  "authOrigin": "https://auth.example.invalid",
+  "redirectUris": [
+    "https://portal.example.invalid/",
+    "https://portal.example.invalid/silent-check-sso.html"
+  ],
+  "webOrigins": [
+    "https://portal.example.invalid"
+  ],
+  "clients": {
+    "zerotrust-spa": {
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "serviceAccountsEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "fullScopeAllowed": false,
+      "pkce": "S256",
+      "roles": [],
+      "realmManagementRoles": [],
+      "secretRef": null
+    },
+    "zerotrust-risk-caller": {
+      "publicClient": false,
+      "standardFlowEnabled": false,
+      "serviceAccountsEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "fullScopeAllowed": false,
+      "roles": [
+        "risk:evaluate",
+        "risk:device:write",
+        "risk:events:write"
+      ],
+      "realmManagementRoles": [],
+      "secretRef": "risk-caller-client"
+    },
+    "zerotrust-portal-risk-admin": {
+      "publicClient": false,
+      "standardFlowEnabled": false,
+      "serviceAccountsEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "fullScopeAllowed": false,
+      "roles": [
+        "risk:device:revoke"
+      ],
+      "realmManagementRoles": [],
+      "secretRef": "portal-risk-client"
+    },
+    "zerotrust-provisioner": {
+      "publicClient": false,
+      "standardFlowEnabled": false,
+      "serviceAccountsEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "fullScopeAllowed": false,
+      "roles": [],
+      "realmManagementRoles": [
+        "manage-users"
+      ],
+      "secretRef": "portal-identity-client"
+    }
+  },
+  "demoAccounts": [
+    {
+      "alias": "demo-admin",
+      "role": "ADMIN"
+    },
+    {
+      "alias": "demo-student-a",
+      "role": "STUDENT"
+    },
+    {
+      "alias": "demo-student-b",
+      "role": "STUDENT"
+    }
+  ],
+  "d10": "PENDING_OWNER_DECISION_CURRENT_ADMIN_RESET_UNCHANGED",
+  "sessionEnrollmentRecoveryPolicy": "PENDING_OWNER_D10",
+  "nativeFineGrainedAdminAcceptanceRequired": true
+}

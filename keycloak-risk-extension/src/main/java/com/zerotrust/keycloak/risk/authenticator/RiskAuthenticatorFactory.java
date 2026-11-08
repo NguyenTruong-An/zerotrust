@@ -66,6 +66,9 @@ public final class RiskAuthenticatorFactory implements AuthenticatorFactory {
                     "Risk caller client secret",
                     "Secret of the confidential risk caller client. The value is never logged."
             ),
+            property(RiskAuthenticatorConfigResolver.SERVICE_CLIENT_SECRET_FILE,
+                    "Risk caller secret file", "Public Demo: fixed read-only secret reference; leave inline secret empty.",
+                    ProviderConfigProperty.STRING_TYPE, ""),
             property(
                     RiskAuthenticatorConfigResolver.TOKEN_REFRESH_SKEW_MS,
                     "Token refresh skew (ms)",
@@ -179,6 +182,7 @@ public final class RiskAuthenticatorFactory implements AuthenticatorFactory {
 
     @Override
     public void init(Config.Scope config) {
+        new com.zerotrust.keycloak.risk.config.PublicDemoServiceSecrets().validateStartup();
         // Configuration is stored per authentication-flow execution.
     }
 

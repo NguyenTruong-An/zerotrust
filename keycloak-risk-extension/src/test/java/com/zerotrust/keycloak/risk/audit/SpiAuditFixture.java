@@ -102,6 +102,9 @@ final class SpiAuditFixture implements AutoCloseable {
         when(auth.getParentSession()).thenReturn(root);
         when(root.getId()).thenReturn("qa-root");
         when(auth.getTabId()).thenReturn("qa-tab");
+        when(auth.getExecutionStatus()).thenReturn(Map.of("qa-mfa", AuthenticationSessionModel.ExecutionStatus.SUCCESS));
+        var mfa = new AuthenticationExecutionModel(); mfa.setAuthenticator("auth-otp-form");
+        when(realm.getAuthenticationExecutionById("qa-mfa")).thenReturn(mfa);
         when(auth.getAuthNote(anyString())).thenAnswer(i->notes.get(i.getArgument(0)));
         doAnswer(i->{notes.put(i.getArgument(0),i.getArgument(1));return null;}).when(auth).setAuthNote(anyString(),anyString());
         doAnswer(i->{notes.remove(i.getArgument(0));return null;}).when(auth).removeAuthNote(anyString());
@@ -113,6 +116,7 @@ final class SpiAuditFixture implements AutoCloseable {
         when(form.setError(eq("accessDenied"))).thenReturn(form);
         when(form.createErrorPage(Response.Status.FORBIDDEN)).thenAnswer(i->Response.status(403).build());
         doAnswer(i->{denials.incrementAndGet();order.add("execution-denied");return null;}).when(context).failure(eq(AuthenticationFlowError.ACCESS_DENIED),any(Response.class),anyString(),anyString());
+        doAnswer(i->{denials.incrementAndGet();order.add("execution-denied");return null;}).when(context).failure(AuthenticationFlowError.ACCESS_DENIED);
         totpAction.setAlias("CONFIGURE_TOTP");totpAction.setProviderId("CONFIGURE_TOTP");totpAction.setEnabled(true);
         when(realm.getRequiredActionProviderByAlias("CONFIGURE_TOTP")).thenReturn(totpAction);
         when(realm.getName()).thenReturn("qa02a");
@@ -156,7 +160,7 @@ final class SpiAuditFixture implements AutoCloseable {
         AuthenticationExecutionModel e=new AuthenticationExecutionModel();e.setId("exec-"+configId);e.setAuthenticator(RiskAuthenticatorFactory.PROVIDER_ID);e.setAuthenticatorConfig(configId);e.setPriority(priority);e.setRequirement(requirement);return e;
     }
     void decision(String decision,Long generation,boolean rotate){handlers.put(EVALUATE,c->Reply.json(200,evaluation(decision,generation,rotate)));}
-    static String evaluation(String decision,Long generation,boolean rotate){return "{\"evaluationId\":\"2a000000-0000-4000-8000-000000000002\",\"subjectId\":\""+SUBJECT+"\",\"authenticationSessionId\":\""+SESSION+"\",\"riskScore\":"+(decision.equals("ALLOW")?"0":"90")+",\"riskLevel\":\""+(decision.equals("ALLOW")?"LOW":"HIGH")+"\",\"decision\":\""+decision+"\",\"dataStatus\":\"COMPLETE\",\"reasons\":"+(rotate?"[\"DEVICE_REAUTHENTICATION_REQUIRED\"]":"[]")+",\"evaluatedAt\":\"2026-10-12T01:00:00Z\",\"trustGeneration\":"+generation+"}";}
+    static String evaluation(String decision,Long generation,boolean rotate){return "{\"evaluationId\":\"2a000000-0000-4000-8000-000000000002\",\"subjectId\":\""+SUBJECT+"\",\"authenticationSessionId\":\""+SESSION+"\",\"riskScore\":"+(decision.equals("ALLOW")?"0":decision.equals("STEP_UP_MFA")?"50":"90")+",\"riskLevel\":\""+(decision.equals("ALLOW")?"LOW":decision.equals("STEP_UP_MFA")?"MEDIUM":"HIGH")+"\",\"decision\":\""+decision+"\",\"dataStatus\":\"COMPLETE\",\"reasons\":"+(rotate?"[\"DEVICE_REAUTHENTICATION_REQUIRED\"]":"[]")+",\"evaluatedAt\":\"2026-10-12T01:00:00Z\",\"trustGeneration\":"+generation+"}";}
     Authenticator evaluator(){return riskFactory.create(session);}
     Authenticator registration(){return registrationFactory.create(session);}
     EventListenerProvider listener(){return eventFactory.create(session);}
@@ -169,6 +173,8 @@ final class SpiAuditFixture implements AutoCloseable {
         calls.add(call);order.add("wire:"+path);
         try{Reply reply=handlers.getOrDefault(path,c->Reply.empty(404)).handle(call);
             exchange.getResponseHeaders().set("Content-Type",reply.contentType);
+            String nonce=exchange.getRequestHeaders().getFirst("X-ZeroTrust-Risk-Request");
+            if(nonce!=null)exchange.getResponseHeaders().set("X-ZeroTrust-Risk-Request",nonce);
             if(reply.location!=null)exchange.getResponseHeaders().set("Location",reply.location);
             byte[] body=reply.body.getBytes(StandardCharsets.UTF_8);
             exchange.sendResponseHeaders(reply.status,reply.status==204?-1:body.length);

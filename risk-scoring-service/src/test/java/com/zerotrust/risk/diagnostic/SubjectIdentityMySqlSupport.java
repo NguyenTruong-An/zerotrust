@@ -1,6 +1,6 @@
 package com.zerotrust.risk.diagnostic;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import db.migration.V5__isolate_subject_identity;
 import com.zerotrust.risk.migration.SubjectIdentityMigrationPreflight;
 import org.flywaydb.core.Flyway;

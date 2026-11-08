@@ -30,6 +30,10 @@ jobs:
           - module: keycloak-extension
             pom: keycloak-risk-extension/pom.xml
             reports: keycloak-risk-extension/target/surefire-reports
+          - module: keycloak-extension-public-demo
+            pom: keycloak-risk-extension/pom.xml
+            profile: public-demo-candidate
+            reports: keycloak-risk-extension/target/surefire-reports
           - module: gateway
             pom: gateway/pom.xml
             reports: gateway/target/surefire-reports
@@ -42,7 +46,12 @@ jobs:
           cache: maven
           cache-dependency-path: '**/pom.xml'
       - name: Run tests
-        run: bash mvnw --batch-mode --no-transfer-progress -f "${{ matrix.pom }}" verify
+        env:
+          MAVEN_PROFILE: ${{ matrix.profile }}
+        run: |
+          args=()
+          if [ -n "$MAVEN_PROFILE" ]; then args+=("-P$MAVEN_PROFILE"); fi
+          bash mvnw --batch-mode --no-transfer-progress -f "${{ matrix.pom }}" "${args[@]}" verify
       - name: Save test reports
         if: always()
         uses: actions/upload-artifact@v4

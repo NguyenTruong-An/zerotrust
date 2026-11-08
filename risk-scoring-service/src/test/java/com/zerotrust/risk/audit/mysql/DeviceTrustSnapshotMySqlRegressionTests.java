@@ -40,7 +40,7 @@ import static org.assertj.core.api.SoftAssertions.assertSoftly;
         "spring.datasource.url=jdbc:mysql://127.0.0.1:3308/risk_qa?serverTimezone=UTC",
         "spring.datasource.username=risk_qa","spring.jpa.hibernate.ddl-auto=validate",
         "spring.flyway.clean-disabled=true","spring.jpa.show-sql=true",
-        "spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration,org.springframework.boot.autoconfigure.data.redis.RedisReactiveAutoConfiguration,org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration"})
+        "spring.autoconfigure.exclude=org.springframework.boot.data.redis.autoconfigure.RedisAutoConfiguration,org.springframework.boot.data.redis.autoconfigure.RedisReactiveAutoConfiguration,org.springframework.boot.data.redis.autoconfigure.RedisRepositoriesAutoConfiguration"})
 @ActiveProfiles("test")
 @ContextConfiguration(initializers=MySqlQaBootstrap.class)
 @Import(DeviceTrustSnapshotMySqlRegressionTests.Fixture.class)

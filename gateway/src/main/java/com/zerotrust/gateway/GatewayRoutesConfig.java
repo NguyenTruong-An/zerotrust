@@ -25,7 +25,7 @@ public class GatewayRoutesConfig {
         @Override public int getOrder() { return 1000; }
         @Override public HttpHeaders filter(HttpHeaders input,ServerWebExchange exchange) {
             HttpHeaders clean=new HttpHeaders();clean.addAll(input);
-            new ArrayList<>(clean.keySet()).stream().filter(CanonicalRequestFilter::untrusted).forEach(clean::remove);
+            new ArrayList<>(clean.headerNames()).stream().filter(CanonicalRequestFilter::untrusted).forEach(clean::remove);
             return clean;
         }
     }

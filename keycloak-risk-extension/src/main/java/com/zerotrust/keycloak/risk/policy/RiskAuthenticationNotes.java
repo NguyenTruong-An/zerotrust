@@ -14,6 +14,8 @@ public final class RiskAuthenticationNotes {
     public static final String FAILURE_TYPE = "zerotrust.risk.failure-type";
     public static final String TRUST_DEVICE_ELIGIBLE = "zerotrust.risk.trust-device-eligible";
     public static final String EVALUATOR_CONFIG_ID = "zerotrust.risk.evaluator-config-id";
+    public static final String EVALUATED_SUBJECT = "zerotrust.risk.evaluated-subject";
+    public static final String EVALUATED_SESSION = "zerotrust.risk.evaluated-session";
 
     private RiskAuthenticationNotes() {
     }
@@ -29,5 +31,7 @@ public final class RiskAuthenticationNotes {
         session.removeAuthNote(FAILURE_TYPE);
         session.removeAuthNote(TRUST_DEVICE_ELIGIBLE);
         session.removeAuthNote(EVALUATOR_CONFIG_ID);
+        session.removeAuthNote(EVALUATED_SUBJECT);
+        session.removeAuthNote(EVALUATED_SESSION);
     }
 }

@@ -1,5 +1,6 @@
 package com.zerotrust.zerotrust.controller;
 
+import com.zerotrust.zerotrust.security.PublicDemoEndpoint;
 import com.zerotrust.zerotrust.exception.ErrorCode;
 import com.zerotrust.zerotrust.exception.WebException;
 import com.zerotrust.zerotrust.model.response.ApiResponse;
@@ -30,6 +31,7 @@ public class StudentController {
     private final StudentQueryService studentQueryService;
 
     @GetMapping("/me")
+    @PublicDemoEndpoint(PublicDemoEndpoint.Kind.READ)
     public ResponseEntity<ApiResponse<StudentResponseDTO>> getCurrentStudent(
             @AuthenticationPrincipal Jwt jwt) {
         UUID keycloakUserId = parseKeycloakUserId(jwt == null ? null : jwt.getSubject());
@@ -39,6 +41,7 @@ public class StudentController {
     }
 
     @GetMapping("/me/scores/summary")
+    @PublicDemoEndpoint(PublicDemoEndpoint.Kind.READ)
     public ResponseEntity<ApiResponse<StudentScoreSummaryResponseDTO>>
             getCurrentStudentScoreSummary(@AuthenticationPrincipal Jwt jwt) {
         UUID keycloakUserId = parseKeycloakUserId(jwt == null ? null : jwt.getSubject());
@@ -48,6 +51,7 @@ public class StudentController {
     }
 
     @GetMapping("/me/scores")
+    @PublicDemoEndpoint(PublicDemoEndpoint.Kind.READ)
     public ResponseEntity<ApiResponse<PageResponse<ScoreResponseDTO>>> getCurrentStudentScores(
             @AuthenticationPrincipal Jwt jwt,
             @RequestParam(required = false) UUID subjectId,

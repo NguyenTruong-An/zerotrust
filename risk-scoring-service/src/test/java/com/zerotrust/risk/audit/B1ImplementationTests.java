@@ -1,6 +1,6 @@
 package com.zerotrust.risk.audit;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.zerotrust.risk.config.RiskPolicyProperties;
 import com.zerotrust.risk.domain.*;
 import com.zerotrust.risk.rule.PrioritySecurityRuleEvaluator;

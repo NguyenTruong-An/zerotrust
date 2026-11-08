@@ -27,6 +27,13 @@ public final class HttpRiskScoringClient implements
         TrustedDeviceClient,
         AuthenticationEventClient {
 
+    private static final String REQUEST_NONCE_HEADER = "X-ZeroTrust-Risk-Request";
+    private static final com.fasterxml.jackson.databind.ObjectReader EVALUATION_JSON_READER = JsonSerialization.mapper
+            .readerFor(RiskEvaluationResponse.class)
+            .with(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
+            .with(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_NUMBERS_FOR_ENUMS)
+            .with(com.fasterxml.jackson.core.JsonParser.Feature.STRICT_DUPLICATE_DETECTION);
+
     private static final ContentType JSON_UTF_8 = ContentType.create(
             "application/json",
             StandardCharsets.UTF_8
@@ -123,10 +130,12 @@ public final class HttpRiskScoringClient implements
             String accessToken
     ) {
         HttpPost httpRequest = authorizedJsonPost(evaluationUri, requestBody, accessToken);
+        String requestNonce = java.util.UUID.randomUUID().toString();
+        httpRequest.setHeader(REQUEST_NONCE_HEADER, requestNonce);
 
         try (CloseableHttpResponse httpResponse = httpClient.execute(httpRequest)) {
             int statusCode = httpResponse.getStatusLine().getStatusCode();
-            if (statusCode < 200 || statusCode >= 300) {
+            if (statusCode != 200) {
                 throw RiskScoringClientException.httpStatus(statusCode);
             }
 
@@ -140,6 +149,12 @@ public final class HttpRiskScoringClient implements
 
             RiskEvaluationResponse response = deserialize(responseReader.read(responseEntity));
             verifyCorrelation(request, response);
+            RiskResponseContract.validate(response);
+            org.apache.http.Header echoedNonce = httpResponse.getFirstHeader(REQUEST_NONCE_HEADER);
+            if (echoedNonce == null || !requestNonce.equals(echoedNonce.getValue())
+                    || httpResponse.getHeaders(REQUEST_NONCE_HEADER).length > 1) {
+                throw RiskScoringClientException.invalidResponse("Risk response does not match this HTTP attempt", null);
+            }
             return response;
         } catch (RiskScoringClientException exception) {
             throw exception;
@@ -229,11 +244,11 @@ public final class HttpRiskScoringClient implements
 
     private static RiskEvaluationResponse deserialize(String responseBody) {
         try {
-            return JsonSerialization.readValue(responseBody, RiskEvaluationResponse.class);
+            return EVALUATION_JSON_READER.readValue(responseBody);
         } catch (IOException | RuntimeException exception) {
             throw RiskScoringClientException.invalidResponse(
                     "Risk Scoring Service returned invalid JSON",
-                    exception
+                    null // Parser causes may retain credential-bearing response excerpts.
             );
         }
     }

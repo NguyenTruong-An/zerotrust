@@ -149,6 +149,16 @@ class TrustedDeviceRegistrationAuthenticatorTest {
             when(clientFactory.create(config)).thenReturn(client);
             when(context.getUser()).thenReturn(user);
             when(user.getId()).thenReturn("user-1");
+            when(authenticationSession.getAuthNote(RiskAuthenticationNotes.EVALUATED_SUBJECT)).thenReturn("user-1");
+            when(authenticationSession.getAuthNote(RiskAuthenticationNotes.EVALUATED_SESSION)).thenReturn("root-session:tab-1");
+            var root = mock(org.keycloak.sessions.RootAuthenticationSessionModel.class);
+            when(authenticationSession.getParentSession()).thenReturn(root);
+            when(root.getId()).thenReturn("root-session");
+            when(authenticationSession.getTabId()).thenReturn("tab-1");
+            when(authenticationSession.getExecutionStatus()).thenReturn(java.util.Map.of("mfa-execution", AuthenticationSessionModel.ExecutionStatus.SUCCESS));
+            var otp = new org.keycloak.models.AuthenticationExecutionModel();
+            otp.setAuthenticator("auth-otp-form");
+            when(realm.getAuthenticationExecutionById("mfa-execution")).thenReturn(otp);
             when(deviceIdGenerator.generate()).thenReturn("generated-device-id");
 
             authenticator = new TrustedDeviceRegistrationAuthenticator(
@@ -201,5 +211,75 @@ class TrustedDeviceRegistrationAuthenticatorTest {
         fixture.authenticator.authenticate(fixture.context);
         verifyNoInteractions(fixture.client, fixture.cookieWriter);
         verify(fixture.context).success();
+    }
+
+    @Test
+    void eligibilityWithoutSuccessfulOtpOrRecoveryCannotCreateTrust() {
+        Fixture fixture = new Fixture(true);
+        when(fixture.authenticationSession.getExecutionStatus()).thenReturn(java.util.Map.of());
+        fixture.authenticator.authenticate(fixture.context);
+        verifyNoInteractions(fixture.client, fixture.cookieWriter);
+        verify(fixture.context).failure(org.keycloak.authentication.AuthenticationFlowError.ACCESS_DENIED);
+        verify(fixture.context, never()).success();
+    }
+
+    @Test
+    void eligibilityFromAnotherAccountCannotBeUsedByTheCurrentUser() {
+        Fixture fixture = new Fixture(true);
+        when(fixture.authenticationSession.getAuthNote("zerotrust.risk.evaluated-subject")).thenReturn("previous-user");
+        fixture.authenticator.authenticate(fixture.context);
+        verifyNoInteractions(fixture.client, fixture.cookieWriter);
+        verify(fixture.context).failure(org.keycloak.authentication.AuthenticationFlowError.ACCESS_DENIED);
+        verify(fixture.context, never()).success();
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.EnumSource(value = AuthenticationSessionModel.ExecutionStatus.class,
+            mode = org.junit.jupiter.params.provider.EnumSource.Mode.EXCLUDE, names = "SUCCESS")
+    void challengedAttemptedOrFailedMfaIsNotProof(AuthenticationSessionModel.ExecutionStatus status) {
+        Fixture fixture = new Fixture(true);
+        when(fixture.authenticationSession.getExecutionStatus()).thenReturn(java.util.Map.of("mfa-execution", status));
+        fixture.authenticator.authenticate(fixture.context);
+        verifyNoInteractions(fixture.client, fixture.cookieWriter);
+        verify(fixture.context).failure(org.keycloak.authentication.AuthenticationFlowError.ACCESS_DENIED);
+    }
+
+    @Test
+    void completedRecoveryIsValidMfaProof() {
+        Fixture fixture = new Fixture(true);
+        var recovery = new org.keycloak.models.AuthenticationExecutionModel();
+        recovery.setAuthenticator("auth-recovery-authn-code-form");
+        when(fixture.realm.getAuthenticationExecutionById("mfa-execution")).thenReturn(recovery);
+        fixture.authenticator.authenticate(fixture.context);
+        verify(fixture.client).register(new TrustedDeviceRegistrationRequest("user-1", "generated-device-id", 0));
+        verify(fixture.cookieWriter).issue(fixture.context, "generated-device-id");
+    }
+
+    @Test
+    void completedMfaInAnotherAuthenticationTabCannotReuseEligibility() {
+        Fixture fixture = new Fixture(true);
+        when(fixture.authenticationSession.getTabId()).thenReturn("new-tab");
+        fixture.authenticator.authenticate(fixture.context);
+        verifyNoInteractions(fixture.client, fixture.cookieWriter);
+        verify(fixture.context).failure(org.keycloak.authentication.AuthenticationFlowError.ACCESS_DENIED);
+    }
+
+    @Test
+    void successfulRegistrationConsumesEligibilityBeforeAnotherInvocation() {
+        Fixture fixture = new Fixture(true);
+        java.util.Map<String, String> notes = new java.util.HashMap<>(java.util.Map.of(
+                RiskAuthenticationNotes.TRUST_DEVICE_ELIGIBLE, "true", RiskAuthenticationNotes.TRUST_GENERATION, "0",
+                RiskAuthenticationNotes.EVALUATOR_CONFIG_ID, "risk-config-1",
+                RiskAuthenticationNotes.EVALUATED_SUBJECT, "user-1",
+                RiskAuthenticationNotes.EVALUATED_SESSION, "root-session:tab-1"));
+        when(fixture.authenticationSession.getAuthNote(org.mockito.ArgumentMatchers.anyString()))
+                .thenAnswer(call -> notes.get(call.getArgument(0)));
+        org.mockito.Mockito.doAnswer(call -> notes.remove(call.getArgument(0)))
+                .when(fixture.authenticationSession).removeAuthNote(org.mockito.ArgumentMatchers.anyString());
+        fixture.authenticator.authenticate(fixture.context);
+        fixture.authenticator.authenticate(fixture.context);
+        verify(fixture.client, org.mockito.Mockito.times(1)).register(org.mockito.ArgumentMatchers.any());
+        org.junit.jupiter.api.Assertions.assertFalse(notes.containsKey(RiskAuthenticationNotes.EVALUATED_SUBJECT));
+        org.junit.jupiter.api.Assertions.assertFalse(notes.containsKey(RiskAuthenticationNotes.TRUST_DEVICE_ELIGIBLE));
     }
 }

@@ -142,4 +142,20 @@ class PortalJwtDecoderTest {
         jwt.sign(new RSASSASigner(signingKey));
         return jwt.serialize();
     }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"RS384", "RS512", "PS256", "HS256"})
+    void rejectsUnsupportedAlgorithmsEvenWithTheTrustedSigningKey(String algorithm) throws JOSEException {
+        SignedJWT token = new SignedJWT(new JWSHeader.Builder(JWSAlgorithm.parse(algorithm))
+                .keyID(signingKey.getKeyID()).build(),
+                claims().expirationTime(Date.from(Instant.now().plusSeconds(300))).build());
+        if (algorithm.equals("HS256")) token.sign(new com.nimbusds.jose.crypto.MACSigner(new byte[32]));
+        else token.sign(new RSASSASigner(signingKey));
+        assertThatThrownBy(() -> decoder.decode(token.serialize())).isInstanceOf(JwtException.class);
+    }
+
+    @Test void unsignedTokenCannotUseTheTrustedIssuerAndAudience() {
+        var token = new com.nimbusds.jwt.PlainJWT(claims().expirationTime(Date.from(Instant.now().plusSeconds(300))).build());
+        assertThatThrownBy(() -> decoder.decode(token.serialize())).isInstanceOf(JwtException.class);
+    }
 }

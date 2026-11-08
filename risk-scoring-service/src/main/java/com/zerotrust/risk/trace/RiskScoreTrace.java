@@ -1,6 +1,6 @@
 package com.zerotrust.risk.trace;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.zerotrust.risk.config.*;
 import com.zerotrust.risk.domain.*;
 import org.jboss.logging.Logger;

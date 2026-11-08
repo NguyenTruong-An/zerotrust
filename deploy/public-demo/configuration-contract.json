@@ -1,0 +1,61 @@
+{
+  "_comment": "Configuration fragment only; NOT a complete or accepted deployment manifest. Merge and preflight the final rendered config at PD-03-03/04. No images or resources created here.",
+  "services": {
+    "backend": {
+      "environment": {
+        "SPRING_PROFILES_ACTIVE": "public-demo",
+        "PUBLIC_DEMO_MODE": "public-demo",
+        "PUBLIC_DEMO_ACADEMIC_READ_ONLY": "true",
+        "PUBLIC_DEMO_ENVIRONMENT": "${PUBLIC_DEMO_ENVIRONMENT:?staging or production required}",
+        "DB_URL": "${PD_SCHOOL_DB_URL:?explicit verified-identity JDBC URL required}",
+        "DB_USERNAME": "${PD_SCHOOL_DB_USERNAME:?dedicated School runtime user required}",
+        "SPRING_CONFIG_IMPORT": "configtree:/run/secrets/"
+      },
+      "entrypoint": [
+        "java",
+        "@/run/public-demo/jvm.args",
+        "-jar",
+        "/app/application.jar",
+        "--spring.config.additional-location=file:/run/public-demo/application.properties",
+        "--spring.profiles.active=public-demo",
+        "--app.public-demo.mode=public-demo",
+        "--app.public-demo.academic-read-only=true"
+      ]
+    },
+    "risk": {
+      "environment": {
+        "SPRING_PROFILES_ACTIVE": "public-demo",
+        "PUBLIC_DEMO_MODE": "public-demo",
+        "PUBLIC_DEMO_ACADEMIC_READ_ONLY": "true",
+        "PUBLIC_DEMO_ENVIRONMENT": "${PUBLIC_DEMO_ENVIRONMENT:?staging or production required}",
+        "RISK_DB_URL": "${PD_RISK_DB_URL:?explicit verified-identity JDBC URL required}",
+        "RISK_DB_USERNAME": "${PD_RISK_DB_USERNAME:?dedicated Risk runtime user required}",
+        "SPRING_CONFIG_IMPORT": "configtree:/run/secrets/"
+      },
+      "entrypoint": [
+        "java",
+        "@/run/public-demo/jvm.args",
+        "-jar",
+        "/app/application.jar",
+        "--spring.config.additional-location=file:/run/public-demo/application.properties",
+        "--spring.profiles.active=public-demo",
+        "--app.public-demo.mode=public-demo",
+        "--app.public-demo.academic-read-only=true"
+      ]
+    },
+    "keycloak": {
+      "environment": {
+        "KC_DB": "mysql",
+        "KC_DB_URL": "${PD_KEYCLOAK_DB_URL:?explicit verified-identity JDBC URL required}",
+        "KC_DB_USERNAME": "${PD_KEYCLOAK_DB_USERNAME:?dedicated Keycloak runtime user required}",
+        "KC_SPI_CONNECTIONS_JPA__QUARKUS__MIGRATION_STRATEGY": "validate",
+        "KC_SPI_CONNECTIONS_JPA__QUARKUS__INITIALIZE_EMPTY": "false"
+      },
+      "command": [
+        "--config-file=/run/public-demo/keycloak.conf",
+        "start",
+        "--optimized"
+      ]
+    }
+  }
+}

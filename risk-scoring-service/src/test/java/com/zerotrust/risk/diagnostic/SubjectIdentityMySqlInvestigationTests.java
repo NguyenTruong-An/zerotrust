@@ -1,5 +1,5 @@
 package com.zerotrust.risk.diagnostic;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.zerotrust.risk.domain.LoginContext;
 import com.zerotrust.risk.repository.*;
 import com.zerotrust.risk.service.*;
@@ -19,7 +19,7 @@ import static org.assertj.core.api.Assertions.*;
 
 // PROPOSED, NOT RUN. One approved pair per invocation; report observations BEFORE contract assertions.
 @EnabledIfSystemProperty(named="postfix03a.gateB",matches="APPROVED")
-@SpringBootTest(properties={"spring.datasource.url=${PF03A_MYSQL_URL}","spring.datasource.driver-class-name=com.mysql.cj.jdbc.Driver","spring.datasource.username=pf03a_app","spring.datasource.password=${PF03A_MYSQL_PASSWORD}","spring.jpa.hibernate.ddl-auto=validate","spring.flyway.enabled=false","spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration,org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration"})
+@SpringBootTest(properties={"spring.datasource.url=${PF03A_MYSQL_URL}","spring.datasource.driver-class-name=com.mysql.cj.jdbc.Driver","spring.datasource.username=pf03a_app","spring.datasource.password=${PF03A_MYSQL_PASSWORD}","spring.jpa.hibernate.ddl-auto=validate","spring.flyway.enabled=false","spring.autoconfigure.exclude=org.springframework.boot.data.redis.autoconfigure.RedisAutoConfiguration,org.springframework.boot.data.redis.autoconfigure.RedisRepositoriesAutoConfiguration"})
 @ActiveProfiles("test")
 @ContextConfiguration(initializers=SubjectIdentityMySqlSupport.class)
 @Import(SubjectIdentityMySqlSupport.TimeConfig.class)

@@ -3,6 +3,7 @@ package com.zerotrust.gateway;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.webtestclient.autoconfigure.AutoConfigureWebTestClient;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.*;
 import org.springframework.test.web.reactive.server.WebTestClient;
@@ -10,7 +11,8 @@ import java.time.Instant;
 import static org.junit.jupiter.api.Assertions.*;
 
 @SpringBootTest(webEnvironment=SpringBootTest.WebEnvironment.RANDOM_PORT,
-        properties="spring.cloud.gateway.server.webflux.httpclient.response-timeout=100ms")
+        properties={"server.address=127.0.0.1","spring.cloud.gateway.server.webflux.httpclient.response-timeout=100ms"})
+@AutoConfigureWebTestClient
 @DirtiesContext(classMode=DirtiesContext.ClassMode.AFTER_CLASS)
 class GatewayRouteTests {
     static final GatewayMockUpstream upstream=new GatewayMockUpstream();

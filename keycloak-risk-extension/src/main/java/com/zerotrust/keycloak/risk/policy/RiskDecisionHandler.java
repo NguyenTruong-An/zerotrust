@@ -49,6 +49,8 @@ public final class RiskDecisionHandler {
             if (evaluation.trustGeneration() != null && evaluation.trustGeneration() >= 0) {
                 session.setAuthNote(RiskAuthenticationNotes.TRUST_DEVICE_ELIGIBLE, Boolean.TRUE.toString());
                 session.setAuthNote(RiskAuthenticationNotes.TRUST_GENERATION, evaluation.trustGeneration().toString());
+                session.setAuthNote(RiskAuthenticationNotes.EVALUATED_SUBJECT, evaluation.subjectId());
+                session.setAuthNote(RiskAuthenticationNotes.EVALUATED_SESSION, evaluation.authenticationSessionId());
                 session.setAuthNote(RiskAuthenticationNotes.ROTATE_DEVICE, Boolean.toString(evaluation.reasons().contains(
                         com.zerotrust.keycloak.risk.dto.RiskReason.DEVICE_REAUTHENTICATION_REQUIRED)));
             }

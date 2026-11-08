@@ -20,7 +20,7 @@ import static org.assertj.core.api.Assertions.*;
 @EnabledIfSystemProperty(named="postfix03b.sourceScope",matches="BASELINE")
 @SpringBootTest(properties={"spring.datasource.url=${PF03B_MYSQL_URL}","spring.datasource.driver-class-name=com.mysql.cj.jdbc.Driver",
         "spring.datasource.username=pf03b_app","spring.datasource.password=${PF03B_MYSQL_PASSWORD}","spring.jpa.hibernate.ddl-auto=validate","spring.flyway.enabled=false",
-        "spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration,org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration"})
+        "spring.autoconfigure.exclude=org.springframework.boot.data.redis.autoconfigure.RedisAutoConfiguration,org.springframework.boot.data.redis.autoconfigure.RedisRepositoriesAutoConfiguration"})
 @ActiveProfiles("test")
 @ContextConfiguration(initializers=TimestampMySqlSupport.class)
 @Import(TimestampLifecyclePrecisionContract.TimeConfig.class)

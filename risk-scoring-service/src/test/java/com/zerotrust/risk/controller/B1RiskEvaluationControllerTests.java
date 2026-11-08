@@ -1,6 +1,6 @@
 package com.zerotrust.risk.controller;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.zerotrust.risk.domain.*;
 import com.zerotrust.risk.repository.AuthenticationFailureStore;
 import com.zerotrust.risk.repository.AuthenticationSuccessEventRepository;
@@ -9,7 +9,7 @@ import com.zerotrust.risk.service.DeviceTrustLifecycle;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -66,8 +66,7 @@ class B1RiskEvaluationControllerTests {
                 .andReturn().getResponse().getContentAsString();
         // B0 on the same inputs would be37.50/ALLOW; this distinguishes actual bean wiring.
         var row = new ObjectMapper().readTree(response);
-        Set<String> fields = new HashSet<>(); row.fieldNames().forEachRemaining(fields::add);
-        assertThat(fields).containsExactlyInAnyOrder("evaluationId", "subjectId", "authenticationSessionId",
+        assertThat(row.propertyNames()).containsExactlyInAnyOrder("evaluationId", "subjectId", "authenticationSessionId",
                 "riskScore", "riskLevel", "decision", "dataStatus", "reasons", "evaluatedAt", "trustGeneration");
     }
 

@@ -1,5 +1,6 @@
 package com.zerotrust.zerotrust.controller;
 
+import com.zerotrust.zerotrust.security.PublicDemoEndpoint;
 import com.zerotrust.zerotrust.exception.ErrorCode;
 import com.zerotrust.zerotrust.exception.WebException;
 import com.zerotrust.zerotrust.model.response.ApiResponse;
@@ -20,6 +21,7 @@ public class UserController {
     private final UserService userService;
 
     @GetMapping("/me")
+    @PublicDemoEndpoint(PublicDemoEndpoint.Kind.READ)
     public ResponseEntity<?> getCurrentUser(@AuthenticationPrincipal Jwt jwt) {
         UUID keycloakUserId = parseKeycloakUserId(
                 jwt == null ? null : jwt.getSubject());

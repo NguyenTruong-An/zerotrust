@@ -42,6 +42,10 @@ class KeycloakLoginContextExtractorTest {
         when(context.getHttpRequest()).thenReturn(request);
         when(request.getHttpHeaders()).thenReturn(headers);
         when(headers.getHeaderString("User-Agent")).thenReturn("Mozilla/5.0");
+        // HTTP header spoofing cannot replace Keycloak's native, proxy-policy-resolved connection address.
+        when(headers.getHeaderString("X-Forwarded-For")).thenReturn("10.0.0.1, 127.0.0.1");
+        when(headers.getHeaderString("Forwarded")).thenReturn("for=10.0.0.1;proto=http;host=attacker.invalid");
+        when(headers.getHeaderString("X-Real-IP")).thenReturn("10.0.0.1");
         when(deviceIdResolver.resolve(context)).thenReturn("device-123");
 
         var result = new KeycloakLoginContextExtractor(
@@ -54,6 +58,9 @@ class KeycloakLoginContextExtractorTest {
         assertEquals("203.0.113.10", result.ipAddress());
         assertEquals("Mozilla/5.0", result.userAgent());
         assertEquals("device-123", result.deviceId());
+        org.mockito.Mockito.verify(headers, org.mockito.Mockito.never()).getHeaderString("X-Forwarded-For");
+        org.mockito.Mockito.verify(headers, org.mockito.Mockito.never()).getHeaderString("Forwarded");
+        org.mockito.Mockito.verify(headers, org.mockito.Mockito.never()).getHeaderString("X-Real-IP");
     }
 
     @Test

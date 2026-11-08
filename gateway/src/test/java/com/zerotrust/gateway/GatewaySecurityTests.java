@@ -8,6 +8,7 @@ import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.webtestclient.autoconfigure.AutoConfigureWebTestClient;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.*;
 import org.springframework.test.web.reactive.server.WebTestClient;
@@ -20,7 +21,8 @@ import java.time.Instant;
 import java.util.*;
 import static org.junit.jupiter.api.Assertions.*;
 
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = "server.address=127.0.0.1")
+@AutoConfigureWebTestClient
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 class GatewaySecurityTests {
     static final GatewayMockUpstream upstream=new GatewayMockUpstream();
@@ -73,6 +75,34 @@ class GatewaySecurityTests {
         assertTrue(org.springframework.web.cors.reactive.CorsUtils.isCorsRequest(cross.getRequest()));
         assertTrue(org.springframework.web.cors.reactive.CorsUtils.isPreFlightRequest(cross.getRequest()));
         assertEquals(-1,cross.getRequest().getURI().getPort());
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings={"RS384","RS512","PS256","HS256"})
+    void unsupportedSignedAlgorithmsNeverReachTheBackend(String algorithm) throws Exception {
+        int before=upstream.apiCalls;
+        JWTClaimsSet claims=new JWTClaimsSet.Builder().subject("synthetic-subject").issuer(upstream.issuer())
+                .audience("zerotrust-api").expirationTime(Date.from(Instant.now().plusSeconds(300)))
+                .claim("realm_access",Map.of("roles",List.of("ADMIN"))).build();
+        SignedJWT token=new SignedJWT(new JWSHeader.Builder(JWSAlgorithm.parse(algorithm))
+                .keyID(upstream.key.getKeyID()).build(),claims);
+        if(algorithm.equals("HS256"))token.sign(new com.nimbusds.jose.crypto.MACSigner(new byte[32]));
+        else token.sign(new RSASSASigner(upstream.key));
+        client.get().uri("/api/admin/users").headers(h->h.setBearerAuth(token.serialize())).exchange().expectStatus().isUnauthorized();
+        assertEquals(before,upstream.apiCalls);
+    }
+
+    @Test void futureNotBeforeAndUnsignedTokensNeverReachBackend() throws Exception {
+        int before=upstream.apiCalls;
+        JWTClaimsSet claims=new JWTClaimsSet.Builder().subject("synthetic-subject").issuer(upstream.issuer())
+                .audience("zerotrust-api").notBeforeTime(Date.from(Instant.now().plusSeconds(300)))
+                .expirationTime(Date.from(Instant.now().plusSeconds(600)))
+                .claim("realm_access",Map.of("roles",List.of("ADMIN"))).build();
+        SignedJWT signed=new SignedJWT(new JWSHeader.Builder(JWSAlgorithm.RS256).keyID(upstream.key.getKeyID()).build(),claims);
+        signed.sign(new RSASSASigner(upstream.key));
+        for(String token:List.of(signed.serialize(),new PlainJWT(claims).serialize()))
+            client.get().uri("/api/admin/users").headers(h->h.setBearerAuth(token)).exchange().expectStatus().isUnauthorized();
+        assertEquals(before,upstream.apiCalls);
     }
 }
 

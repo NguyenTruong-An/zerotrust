@@ -521,6 +521,8 @@ class HttpRiskScoringClientTest {
     ) throws IOException {
         byte[] responseBytes = responseBody.getBytes(StandardCharsets.UTF_8);
         exchange.getResponseHeaders().set("Content-Type", contentType);
+        String nonce = exchange.getRequestHeaders().getFirst("X-ZeroTrust-Risk-Request");
+        if (nonce != null) exchange.getResponseHeaders().set("X-ZeroTrust-Risk-Request", nonce);
         exchange.sendResponseHeaders(statusCode, responseBytes.length);
         exchange.getResponseBody().write(responseBytes);
         exchange.close();

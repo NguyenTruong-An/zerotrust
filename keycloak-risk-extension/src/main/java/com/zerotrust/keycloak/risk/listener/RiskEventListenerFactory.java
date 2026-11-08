@@ -52,6 +52,7 @@ public final class RiskEventListenerFactory implements EventListenerProviderFact
 
     @Override
     public void init(Config.Scope config) {
+        new com.zerotrust.keycloak.risk.config.PublicDemoServiceSecrets().validateStartup();
         // Reuses the configuration of ZeroTrust Risk Evaluation in the browser flow.
     }
 

@@ -170,6 +170,64 @@ class RiskEventListenerTest {
                 .thenReturn(new RiskEventListenerConfig(riskConfig, monitoredClientId));
     }
 
+    @Test
+    void redeliveringAnEventWithoutAnOriginalIdKeepsOneIdempotencyKey() {
+        prepareConfig("zerotrust-spa");
+        when(clientFactory.create(riskConfig)).thenReturn(client);
+        Event event = loginEvent(EventType.LOGIN_ERROR, "zerotrust-spa");
+        event.setUserId("subject-A");
+        listener.onEvent(event);
+        listener.onEvent(event);
+        ArgumentCaptor<AuthenticationFailureRequest> requests = ArgumentCaptor.forClass(AuthenticationFailureRequest.class);
+        org.mockito.Mockito.verify(client, org.mockito.Mockito.times(2)).recordFailure(requests.capture());
+        assertEquals(requests.getAllValues().get(0).eventId(), requests.getAllValues().get(1).eventId());
+        assertEquals(requests.getAllValues().get(0).eventId(), event.getId());
+    }
+
+    @Test
+    void retryAfterUnknownRemoteCommitKeepsTheOriginalEventIdAndAuthenticationResult() {
+        prepareConfig("zerotrust-spa");
+        when(clientFactory.create(riskConfig)).thenReturn(client);
+        org.mockito.Mockito.doThrow(new IllegalStateException("synthetic-commit-then-timeout"))
+                .doNothing().when(client).recordFailure(org.mockito.ArgumentMatchers.any());
+        Event event = loginEvent(EventType.LOGIN_ERROR, "zerotrust-spa");
+        assertDoesNotThrow(() -> listener.onEvent(event));
+        assertDoesNotThrow(() -> listener.onEvent(event));
+        ArgumentCaptor<AuthenticationFailureRequest> requests = ArgumentCaptor.forClass(AuthenticationFailureRequest.class);
+        org.mockito.Mockito.verify(client, org.mockito.Mockito.times(2)).recordFailure(requests.capture());
+        assertEquals(requests.getAllValues().get(0).eventId(), requests.getAllValues().get(1).eventId());
+    }
+
+    @Test
+    void distinctSuccessEventsStayDistinctEvenWithIdenticalTimeAndSubject() {
+        prepareConfig("zerotrust-spa");
+        when(clientFactory.create(riskConfig)).thenReturn(client);
+        Event first = loginEvent(EventType.LOGIN, "zerotrust-spa");
+        first.setUserId("subject-A"); first.setTime(1793923200000L);
+        Event second = loginEvent(EventType.LOGIN, "zerotrust-spa");
+        second.setUserId("subject-A"); second.setTime(first.getTime());
+        listener.onEvent(first); listener.onEvent(second);
+        org.junit.jupiter.api.Assertions.assertNotNull(first.getId());
+        org.junit.jupiter.api.Assertions.assertNotEquals(first.getId(), second.getId());
+    }
+
+    @Test
+    void concurrentCallbacksForOneEventStillUseOneIdempotencyKey() throws Exception {
+        prepareConfig("zerotrust-spa");
+        when(clientFactory.create(riskConfig)).thenReturn(client);
+        Event event=loginEvent(EventType.LOGIN_ERROR,"zerotrust-spa");
+        var workers=java.util.concurrent.Executors.newFixedThreadPool(4);
+        var start=new java.util.concurrent.CountDownLatch(1);
+        try{
+            java.util.List<java.util.concurrent.Future<?>> callbacks=new java.util.ArrayList<>();
+            for(int i=0;i<8;i++)callbacks.add(workers.submit(()->{try{start.await();listener.onEvent(event);}catch(InterruptedException e){Thread.currentThread().interrupt();}}));
+            start.countDown();for(var callback:callbacks)callback.get(5,java.util.concurrent.TimeUnit.SECONDS);
+            ArgumentCaptor<AuthenticationFailureRequest> requests=ArgumentCaptor.forClass(AuthenticationFailureRequest.class);
+            org.mockito.Mockito.verify(client,org.mockito.Mockito.times(8)).recordFailure(requests.capture());
+            assertEquals(1,requests.getAllValues().stream().map(AuthenticationFailureRequest::eventId).distinct().count());
+        }finally{start.countDown();workers.shutdownNow();}
+    }
+
     private static Event loginEvent(EventType eventType, String clientId) {
         Event event = new Event();
         event.setType(eventType);

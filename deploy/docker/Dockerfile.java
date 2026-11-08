@@ -1,4 +1,5 @@
-FROM eclipse-temurin:17.0.10_7-jdk-jammy@sha256:58aead1bf67b0009ce2acb496b7b6220ae0275ae9ade5989e0077c67bb7fbd14 AS build
+FROM eclipse-temurin:17.0.21_9-jdk-jammy@sha256:057a0daec60e87c96571bf5c9c7792065bcb19e804d584cd37d4144038a35717 AS build
+RUN apt-get update && apt-get install -y --no-install-recommends --only-upgrade apt=2.4.15ubuntu0.1 libapt-pkg6.0=2.4.15ubuntu0.1 && rm -rf /var/lib/apt/lists/*
 WORKDIR /source
 COPY . .
 ARG MODULE=.
@@ -12,7 +13,8 @@ RUN --mount=type=cache,target=/root/.m2 chmod +x mvnw && \
     if [ "$MODULE" = "risk-scoring-service" ]; then \
       cd /out/unpacked && jar xf /out/application.jar && \
       javac -cp 'BOOT-INF/classes:BOOT-INF/lib/*' -d /out/tools /source/deploy/demo/Migrate.java /source/deploy/legacy/InspectRisk.java /source/deploy/legacy/MigrateLegacyRisk.java; fi
-FROM eclipse-temurin:17-jre@sha256:3f28040954c30a9deb5cdd1116f806029c435ac6dca8c228f5b6f1d96f82b827
+FROM eclipse-temurin:17.0.21_9-jre-resolute@sha256:d532593b4d17f9455bcc74b4b45046fd0f9799db3b50b3486091e3e33ad99a26
+RUN apt-get update && apt-get install -y --no-install-recommends --only-upgrade apt=3.2.1ubuntu0.1 libapt-pkg7.0=3.2.1ubuntu0.1 libbrotli1=1.2.0-3ubuntu0.1 && rm -rf /var/lib/apt/lists/*
 ARG SOURCE_REVISION=unknown
 ARG SOURCE_SNAPSHOT=unknown
 LABEL org.opencontainers.image.revision=$SOURCE_REVISION io.zerotrust.source.snapshot=$SOURCE_SNAPSHOT

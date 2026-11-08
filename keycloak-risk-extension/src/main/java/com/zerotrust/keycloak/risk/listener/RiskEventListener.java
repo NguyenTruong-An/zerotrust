@@ -158,8 +158,16 @@ public final class RiskEventListener implements EventListenerProvider {
     }
 
     private static String eventId(Event event) {
-        String id = optionalText(event.getId());
-        return id == null ? UUID.randomUUID().toString() : id;
+        // Assign once before delivery: retrying this event (or a later clone) must not
+        // increment history again after an unknown remote commit. Distinct events stay distinct.
+        synchronized (event) {
+            String id = optionalText(event.getId());
+            if (id == null) {
+                id = UUID.randomUUID().toString();
+                event.setId(id);
+            }
+            return id;
+        }
     }
 
     private static String optionalText(String value) {

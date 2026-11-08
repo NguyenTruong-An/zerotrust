@@ -1,12 +1,13 @@
 package com.zerotrust.risk.config;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.zerotrust.risk.security.RiskJwtAuthenticationConverter;
 import jakarta.servlet.DispatcherType;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.Environment;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.authorization.AuthorizationDecision;
 import org.springframework.security.core.Authentication;
@@ -45,7 +46,11 @@ public class RiskApiSecurityConfig {
 
     @Bean
     public SecurityFilterChain riskSecurityFilterChain(
-            HttpSecurity http, RiskApiSecurityProperties properties, ObjectMapper mapper) throws Exception {
+            HttpSecurity http, RiskApiSecurityProperties properties, ObjectMapper mapper,
+            Environment environment) throws Exception {
+        String[] healthPaths = environment.matchesProfiles("public-demo")
+                ? new String[]{"/actuator/health", "/actuator/health/liveness", "/actuator/health/readiness"}
+                : new String[]{"/actuator/health"};
         AuthenticationEntryPoint unauthorized = (request, response, exception) -> {
             response.setHeader("WWW-Authenticate", "Bearer");
             writeError(mapper, request, response, 401, "UNAUTHORIZED");
@@ -53,6 +58,8 @@ public class RiskApiSecurityConfig {
         AccessDeniedHandler forbidden = (request, response, exception) ->
                 writeError(mapper, request, response, 403, "FORBIDDEN");
         http.csrf(csrf -> csrf.disable())
+                .addFilterAfter(new com.zerotrust.risk.security.RiskEvaluationCorrelationFilter(),
+                        org.springframework.security.web.access.intercept.AuthorizationFilter.class)
                 .cors(cors -> cors.disable())
                 .requestCache(cache -> cache.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -60,7 +67,7 @@ public class RiskApiSecurityConfig {
                         // Permit only container error rendering; direct requests still use default deny.
                         .requestMatchers(request -> request.getDispatcherType() == DispatcherType.ERROR
                                 && "/error".equals(request.getServletPath())).permitAll()
-                        .requestMatchers(HttpMethod.GET, "/actuator/health").permitAll()
+                        .requestMatchers(HttpMethod.GET, healthPaths).permitAll()
                         .requestMatchers(HttpMethod.POST, "/internal/v1/subjects/*/trusted-devices/revocations",
                                 "/internal/v1/subjects/*/trusted-devices/revocations/completion")
                         .access((authentication, context) -> new AuthorizationDecision(

@@ -3,9 +3,13 @@ package com.zerotrust.zerotrust.config;
 import com.zerotrust.zerotrust.exception.CustomAccessDeniedHandler;
 import com.zerotrust.zerotrust.exception.CustomAuthenticationEntryPoint;
 import com.zerotrust.zerotrust.security.KeycloakJwtAuthenticationConverter;
+import com.zerotrust.zerotrust.security.PublicDemoAcademicReadOnlyFilter;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
@@ -21,9 +25,11 @@ import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtValidators;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.access.intercept.AuthorizationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
 
 import java.time.Instant;
 import java.util.Arrays;
@@ -33,6 +39,7 @@ import java.util.Objects;
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity
+@Import(PublicDemoConfiguration.class)
 public class SecurityConfig {
 
     @Bean
@@ -40,9 +47,13 @@ public class SecurityConfig {
             HttpSecurity httpSecurity,
             CustomAuthenticationEntryPoint authenticationEntryPoint,
             CustomAccessDeniedHandler accessDeniedHandler,
-            KeycloakJwtAuthenticationConverter jwtAuthenticationConverter
+            KeycloakJwtAuthenticationConverter jwtAuthenticationConverter,
+            PublicDemoProperties publicDemoProperties,
+            @Qualifier("requestMappingHandlerMapping") ObjectProvider<RequestMappingHandlerMapping> handlerMapping
     ) throws Exception {
         httpSecurity
+                .addFilterAfter(new PublicDemoAcademicReadOnlyFilter(publicDemoProperties, handlerMapping),
+                        AuthorizationFilter.class)
                 .cors(Customizer.withDefaults())
                 .csrf(csrf -> csrf.disable())
                 .requestCache(cache -> cache.disable())

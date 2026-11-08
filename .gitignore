@@ -51,3 +51,4 @@ application-local.properties
 
 /.presentation-build/
 /.build-artifacts/
+/.public-demo-private/

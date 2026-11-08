@@ -1,0 +1,23 @@
+{
+  "approval": "PROPOSED — NOT APPROVED",
+  "listen_ip": "0.0.0.0",
+  "listen_port": 443,
+  "portal_host": "portal.example.invalid",
+  "auth_host": "auth.example.invalid",
+  "admin_host": "operator.private.example.invalid",
+  "realm": "public-demo",
+  "trusted_proxy_cidrs": ["10.50.0.2/32"],
+  "certificate": "/run/secrets/public_tls_certificate",
+  "certificate_key": "/run/secrets/public_tls_private_key",
+  "upstream_ca": "/run/secrets/private_upstream_ca",
+  "gateway": {"url": "https://gateway.internal:8443", "tls_name": "gateway.internal"},
+  "keycloak": {"url": "https://keycloak.internal:8443", "tls_name": "keycloak.internal"},
+  "limits": {
+    "api": {"bytes": 65536, "rate": 100, "burst": 200},
+    "static": {"bytes": 8192, "rate": 100, "burst": 200},
+    "auth": {"bytes": 32768, "rate": 10, "burst": 60},
+    "token": {"bytes": 32768, "rate": 5, "burst": 30}
+  },
+  "connections": {"global": 128, "per_ip": 64},
+  "timeouts": {"header": 5, "body_idle": 5, "keepalive": 15, "connect": 2, "upstream_read": 5, "upstream_send": 5, "client_send": 10}
+}

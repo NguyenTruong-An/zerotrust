@@ -1,5 +1,6 @@
 package com.zerotrust.zerotrust.controller;
 
+import com.zerotrust.zerotrust.security.PublicDemoEndpoint;
 import com.zerotrust.zerotrust.model.request.CreateStudentRequestDTO;
 import com.zerotrust.zerotrust.model.request.CreateStudentClassRequestDTO;
 import com.zerotrust.zerotrust.model.request.CreateScoreRequestDTO;
@@ -60,6 +61,7 @@ public class AdminController {
     }
 
     @GetMapping("/student-classes")
+    @PublicDemoEndpoint(PublicDemoEndpoint.Kind.READ)
     public ResponseEntity<ApiResponse<PageResponse<StudentClassResponseDTO>>> getStudentClasses(
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) String department,
@@ -94,6 +96,7 @@ public class AdminController {
     }
 
     @GetMapping("/subjects")
+    @PublicDemoEndpoint(PublicDemoEndpoint.Kind.READ)
     public ResponseEntity<ApiResponse<PageResponse<SubjectResponseDTO>>> getSubjects(
             @RequestParam(required = false) String keyword,
             @RequestParam(defaultValue = "0") int page,
@@ -115,6 +118,7 @@ public class AdminController {
     }
 
     @GetMapping("/subjects/{subjectId}/score-sheet")
+    @PublicDemoEndpoint(PublicDemoEndpoint.Kind.READ)
     public ResponseEntity<ApiResponse<PageResponse<SubjectScoreSheetRowResponseDTO>>>
             getSubjectScoreSheet(
                     @PathVariable UUID subjectId,
@@ -149,6 +153,7 @@ public class AdminController {
     }
 
     @GetMapping("/students/{studentId}/scores")
+    @PublicDemoEndpoint(PublicDemoEndpoint.Kind.READ)
     public ResponseEntity<ApiResponse<PageResponse<ScoreResponseDTO>>> getStudentScores(
             @PathVariable UUID studentId,
             @RequestParam(required = false) UUID subjectId,
@@ -193,6 +198,7 @@ public class AdminController {
     }
 
     @GetMapping("/students")
+    @PublicDemoEndpoint(PublicDemoEndpoint.Kind.READ)
     public ResponseEntity<ApiResponse<PageResponse<StudentResponseDTO>>> getStudents(
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) String classCode,
@@ -212,6 +218,7 @@ public class AdminController {
     }
 
     @GetMapping("/students/{id}")
+    @PublicDemoEndpoint(PublicDemoEndpoint.Kind.READ)
     public ResponseEntity<ApiResponse<StudentResponseDTO>> getStudent(
             @PathVariable UUID id) {
         return ResponseEntity.ok(ApiResponse.success(
@@ -229,12 +236,14 @@ public class AdminController {
     }
 
     @GetMapping("/users")
+    @PublicDemoEndpoint(PublicDemoEndpoint.Kind.READ)
     public ResponseEntity<ApiResponse<List<UserResponseDTO>>> getAllUsers() {
         return ResponseEntity.ok(
                 ApiResponse.success(userService.getAllUsers(), "Fetched all users successfully"));
     }
 
     @PostMapping("/users/{id}/mfa/reset")
+    @PublicDemoEndpoint(PublicDemoEndpoint.Kind.SECURITY_STATE)
     public ResponseEntity<Void> resetUserMfa(@PathVariable UUID id) {
         userService.resetMfa(id);
         return ResponseEntity.noContent().build();

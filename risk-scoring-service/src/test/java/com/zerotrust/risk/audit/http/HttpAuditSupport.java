@@ -1,6 +1,6 @@
 package com.zerotrust.risk.audit.http;
 
-import com.fasterxml.jackson.databind.*;
+import tools.jackson.databind.*;
 import com.zerotrust.risk.repository.*;
 import com.zerotrust.risk.service.*;
 import org.junit.jupiter.api.BeforeEach;
@@ -46,9 +46,9 @@ abstract class HttpAuditSupport {
         p.add("spring.datasource.driver-class-name",()->"org.h2.Driver");
         p.add("spring.datasource.username",()->"sa"); p.add("spring.datasource.password",()->"");
         p.add("spring.autoconfigure.exclude",()->String.join(",",
-                "org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration",
-                "org.springframework.boot.autoconfigure.data.redis.RedisReactiveAutoConfiguration",
-                "org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration"));
+                "org.springframework.boot.data.redis.autoconfigure.RedisAutoConfiguration",
+                "org.springframework.boot.data.redis.autoconfigure.RedisReactiveAutoConfiguration",
+                "org.springframework.boot.data.redis.autoconfigure.RedisRepositoriesAutoConfiguration"));
         p.add("spring.data.redis.host",()->"127.0.0.1"); p.add("spring.data.redis.port",()->6380);
         p.add("spring.data.redis.ssl.enabled",()->false);
         p.add("risk.authentication-history.key-prefix",()->"qa01d:"+RUN);

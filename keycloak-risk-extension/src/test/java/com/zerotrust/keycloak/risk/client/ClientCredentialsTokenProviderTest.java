@@ -242,6 +242,23 @@ class ClientCredentialsTokenProviderTest {
         );
     }
 
+    @ParameterizedTest
+    @ValueSource(strings={
+            "{\"access_token\":\"synthetic-prefix\",\"token_type\":\"Bearer\",\"expires_in\":300} {}",
+            "{\"access_token\":\"synthetic-prefix\",\"token_type\":\"Bearer\",\"expires_in\":300} trailing",
+            "{\"access_token\":\"first\",\"access_token\":\"second\",\"token_type\":\"Bearer\",\"expires_in\":300}",
+            "{\"access_token\":\"synthetic-prefix\",\"token_type\":\"Bearer\",\"expires_in\":0,\"expires_in\":300}"
+    })
+    void ambiguousTokenJsonIsRejectedAndNeverCached(String malformed){
+        AtomicInteger calls=new AtomicInteger();
+        server.createContext(TOKEN_PATH,exchange->respond(exchange,200,calls.incrementAndGet()==1?malformed:
+                "{\"access_token\":\"synthetic-valid\",\"token_type\":\"Bearer\",\"expires_in\":300}"));
+        var provider=provider(new MutableClock(START),new ServiceTokenCache());
+        assertThrows(RiskScoringClientException.class,provider::accessToken);
+        assertEquals("synthetic-valid",provider.accessToken());
+        assertEquals("synthetic-valid",provider.accessToken());assertEquals(2,calls.get());
+    }
+
     private URI tokenUri() {
         return serviceUri().resolve(TOKEN_PATH);
     }

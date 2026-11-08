@@ -1,0 +1,18 @@
+FROM eclipse-temurin:17.0.21_9-jdk-jammy@sha256:057a0daec60e87c96571bf5c9c7792065bcb19e804d584cd37d4144038a35717 AS spi
+RUN apt-get update && apt-get install -y --no-install-recommends --only-upgrade apt=2.4.15ubuntu0.1 libapt-pkg6.0=2.4.15ubuntu0.1 && rm -rf /var/lib/apt/lists/*
+WORKDIR /source
+COPY . .
+RUN --mount=type=cache,target=/root/.m2 chmod +x mvnw && \
+    ./mvnw --batch-mode --no-transfer-progress -f keycloak-risk-extension/pom.xml -Ppublic-demo-candidate verify
+
+# OCI linux/amd64 child manifest of the upstream Keycloak 26.8.2 index.
+FROM quay.io/keycloak/keycloak:26.8.2@sha256:4340d05ee7d15be34293868d495ac772d61f1a4d0e43d53bae2e75e2f05de185 AS build
+COPY --from=spi --chown=keycloak:keycloak /source/keycloak-risk-extension/target/keycloak-risk-extension.jar /opt/keycloak/providers/
+COPY --chown=keycloak:keycloak keycloak-theme/zerotrust /opt/keycloak/themes/zerotrust
+RUN /opt/keycloak/bin/kc.sh build --db=mysql --health-enabled=true
+
+FROM quay.io/keycloak/keycloak:26.8.2@sha256:4340d05ee7d15be34293868d495ac772d61f1a4d0e43d53bae2e75e2f05de185
+ARG SOURCE_REVISION=unknown
+ARG SOURCE_SNAPSHOT=unknown
+LABEL org.opencontainers.image.revision=$SOURCE_REVISION io.zerotrust.source.snapshot=$SOURCE_SNAPSHOT
+COPY --from=build /opt/keycloak/ /opt/keycloak/
