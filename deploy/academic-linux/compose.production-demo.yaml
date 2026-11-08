@@ -1,0 +1,47 @@
+# Merge after ../academic-demo/compose.academic-demo.yaml with the deployment driver.
+name: zt-academic-linux
+
+x-owner: &owner
+  io.zerotrust.scope: academic-demo-linux
+
+services:
+  materialize:
+    labels: *owner
+  mysql:
+    labels: *owner
+  redis:
+    labels: *owner
+  migrate:
+    labels: *owner
+  mysql-restore:
+    labels: *owner
+  keycloak-init:
+    labels: *owner
+    stop_grace_period: 60s
+  keycloak:
+    labels: *owner
+    networks: !override [core]
+    stop_grace_period: 45s
+  risk:
+    labels: *owner
+  backend:
+    labels: *owner
+  gateway:
+    labels: *owner
+  frontend:
+    labels: *owner
+    image: ${AD_FRONTEND_IMAGE:?Frontend image lock required}
+  ingress:
+    labels: *owner
+    ports: !override ["127.0.0.1:${AD_BIND_PORT:?Loopback port required}:8443"]
+    networks:
+      core:
+        ipv4_address: ${AD_INGRESS_IP:?Ingress IP required}
+    healthcheck:
+      test: [CMD, curl, --fail, --silent, --max-time, "4", --cacert, /run/demo/edge-ca.crt, --connect-to, "${AD_PORTAL_HOST}:${AD_EXTERNAL_PORT}:127.0.0.1:8443", "https://${AD_PORTAL_HOST}:${AD_EXTERNAL_PORT}/"]
+      timeout: 6s
+
+networks:
+  core:
+    ipam: !override
+      config: [{subnet: "${AD_CORE_SUBNET:?Internal subnet required}"}]

@@ -1,0 +1,243 @@
+name: zt-academic-demo
+
+x-runtime: &runtime
+  platform: linux/amd64
+  restart: unless-stopped
+  cpus: 2
+  logging:
+    driver: local
+    options:
+      max-size: 10m
+      max-file: "3"
+  labels:
+    io.zerotrust.scope: academic-demo-local
+  networks: [core]
+
+x-keycloak: &keycloak
+  <<: *runtime
+  image: zt-pd02-candidate/keycloak:pd-r11-c401e17
+  pull_policy: never
+  mem_limit: 1g
+  environment:
+    PUBLIC_DEMO_MODE: public-demo
+    PUBLIC_DEMO_ACADEMIC_READ_ONLY: "true"
+    PUBLIC_DEMO_RISK_CALLER_SECRET_FILE: /run/secrets/risk-caller-client-secret
+    JAVA_OPTS_APPEND: -Xms128m -Xmx384m -XX:ActiveProcessorCount=2
+  healthcheck:
+    test: [CMD, bash, /run/secrets/ready.sh]
+    interval: 5s
+    timeout: 4s
+    retries: 18
+    start_period: 20s
+
+services:
+  materialize:
+    platform: linux/amd64
+    labels: {io.zerotrust.scope: academic-demo-local}
+    image: &redis_image redis@sha256:ec1c2d3603c3d7d65b153bedda0248b641aa3bd7684503406b27b9e870ac0796
+    profiles: [bootstrap]
+    restart: "no"
+    network_mode: none
+    user: "0"
+    mem_limit: 96m
+    entrypoint: [sh, /script/materialize.sh]
+    volumes:
+      - ./materialize.sh:/script/materialize.sh:ro
+      - type: bind
+        source: ${ACADEMIC_STATE:?Run the local deployment driver}
+        target: /in
+        read_only: true
+        bind:
+          create_host_path: false
+      - mysql-config:/out/mysql
+      - redis-config:/out/redis
+      - keycloak-config:/out/keycloak
+      - installer-config:/out/installer
+      - risk-config:/out/risk
+      - backend-config:/out/backend
+      - gateway-config:/out/gateway
+      - migrate-config:/out/migrate
+      - ingress-config:/out/ingress
+
+  mysql:
+    <<: *runtime
+    image: mysql:8.0.46@sha256:7dcddc01f13bab2f15cde676d44d01f61fc9f99fe7785e86196dfc07d358ae2b
+    mem_limit: 1024m
+    environment:
+      MYSQL_ROOT_PASSWORD_FILE: /fixture/root-password
+    entrypoint: [bash, -ec]
+    command:
+      - |
+        cp /fixture/init.sql /docker-entrypoint-initdb.d/10-academic.sql
+        chmod 0444 /docker-entrypoint-initdb.d/10-academic.sql
+        exec docker-entrypoint.sh mysqld --require-secure-transport=ON --ssl-ca=/fixture/ca.crt --ssl-cert=/fixture/server.crt --ssl-key=/fixture/server.key --default-time-zone=+00:00 --innodb-buffer-pool-size=128M
+    volumes: [mysql-config:/fixture:ro, mysql-data:/var/lib/mysql]
+    healthcheck:
+      test: [CMD-SHELL, "mysql --defaults-extra-file=/fixture/school.cnf -Nse 'SELECT COUNT(*) FROM students' | grep -qx 2"]
+      interval: 5s
+      timeout: 4s
+      retries: 25
+
+  redis:
+    <<: *runtime
+    image: *redis_image
+    mem_limit: 128m
+    command: [redis-server, /fixture/redis.conf]
+    volumes: [redis-config:/fixture:ro, redis-data:/data]
+    healthcheck:
+      test: [CMD-SHELL, "REDISCLI_AUTH=$$(cat /fixture/password) redis-cli --tls --cacert /fixture/ca.crt -h redis ping | grep -qx PONG"]
+      interval: 5s
+      timeout: 4s
+      retries: 12
+
+  mysql-restore:
+    <<: *runtime
+    image: mysql:8.4.13@sha256:72c368d898861f3b3a07af0e6d690400f44f048799ed46822783d9224cc2c86d
+    profiles: [recovery]
+    restart: "no"
+    mem_limit: 1024m
+    environment:
+      MYSQL_ROOT_PASSWORD_FILE: /fixture/root-password
+    command: [mysqld, --skip-networking, --innodb-buffer-pool-size=128M]
+    networks: [recovery]
+    volumes: [mysql-config:/fixture:ro, mysql-recovery-data:/var/lib/mysql]
+    healthcheck:
+      test: [CMD-SHELL, "mysql --defaults-extra-file=/fixture/root.cnf -Nse 'SELECT 1' | grep -qx 1"]
+      interval: 5s
+      timeout: 4s
+      retries: 20
+
+  migrate:
+    <<: *runtime
+    image: &risk_image zt-pd02-candidate/risk:pd-r12-c401e17
+    pull_policy: never
+    profiles: [bootstrap]
+    restart: "no"
+    mem_limit: 512m
+    entrypoint: [java, "@/run/demo/jvm.args", -cp, "/app/unpacked/BOOT-INF/classes:/app/unpacked/BOOT-INF/lib/*:/app/tools", Migrate]
+    volumes: [migrate-config:/run/demo:ro]
+
+  keycloak-init:
+    <<: *keycloak
+    profiles: [bootstrap]
+    restart: "no"
+    command: ["--config-file=/run/secrets/keycloak.conf", start, --optimized, --import-realm]
+    volumes: [installer-config:/run/secrets:ro, "installer-config:/opt/keycloak/data/import:ro"]
+
+  keycloak:
+    <<: *keycloak
+    command: ["--config-file=/run/secrets/keycloak.conf", start, --optimized]
+    volumes: [keycloak-config:/run/secrets:ro]
+    depends_on:
+      mysql: {condition: service_healthy}
+    networks:
+      core:
+        aliases: [auth.academic-demo.test]
+
+  risk:
+    <<: *runtime
+    image: *risk_image
+    pull_policy: never
+    mem_limit: 512m
+    volumes: [risk-config:/run/demo:ro]
+    depends_on:
+      mysql: {condition: service_healthy}
+      redis: {condition: service_healthy}
+      keycloak: {condition: service_healthy}
+    healthcheck:
+      test: [CMD, java, "@/run/demo/jvm.args", -cp, /app/tools, Health, "https://risk:8443/actuator/health/readiness", "200"]
+      interval: 15s
+      timeout: 8s
+      retries: 8
+
+  backend:
+    <<: *runtime
+    image: zt-pd02-candidate/portal:pd-r11-c401e17
+    pull_policy: never
+    mem_limit: 512m
+    volumes: [backend-config:/run/demo:ro]
+    depends_on:
+      mysql: {condition: service_healthy}
+      keycloak: {condition: service_healthy}
+    healthcheck:
+      test: [CMD, java, "@/run/demo/jvm.args", -cp, /app/tools, Health, "https://backend:8443/api/admin/classes", "401"]
+      interval: 15s
+      timeout: 8s
+      retries: 8
+
+  frontend:
+    <<: *runtime
+    image: zt-academic-demo/frontend:alpine
+    pull_policy: never
+    mem_limit: 384m
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:3000').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 8
+
+  gateway:
+    <<: *runtime
+    image: zt-pd02-candidate/gateway:pd-r11-c401e17
+    pull_policy: never
+    mem_limit: 512m
+    volumes: [gateway-config:/run/demo:ro]
+    depends_on:
+      backend: {condition: service_healthy}
+      frontend: {condition: service_healthy}
+      risk: {condition: service_healthy}
+    healthcheck:
+      # A direct request has no trusted ingress peer and must receive 403.
+      test: [CMD, java, "@/run/demo/jvm.args", -cp, /app/tools, Health, "https://gateway:8443/", "403"]
+      interval: 15s
+      timeout: 8s
+      retries: 8
+
+  ingress:
+    <<: *runtime
+    image: nginx:1.30.6-alpine@sha256:bb8f722b4be005fcd7827816a136ab779fd40185d85b5171be915cc7fc0575c7
+    entrypoint: [nginx, -c, /run/demo/nginx.conf, -g, "daemon off;"]
+    user: "101:101"
+    mem_limit: 96m
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    read_only: true
+    tmpfs: [/tmp:mode=1777, /var/cache/nginx:mode=1777]
+    volumes: [ingress-config:/run/demo:ro]
+    ports:
+      - "127.0.0.1:19443:8443"
+    networks:
+      core:
+        ipv4_address: 172.31.230.9
+      edge: {}
+    depends_on:
+      gateway: {condition: service_healthy}
+      keycloak: {condition: service_healthy}
+    healthcheck:
+      test: [CMD, wget, -q, -O, /dev/null, --no-check-certificate, --header, "Host: portal.academic-demo.test", "https://127.0.0.1:8443/"]
+      interval: 10s
+      timeout: 5s
+      retries: 8
+
+networks:
+  core:
+    internal: true
+    ipam:
+      config: [{subnet: 172.31.230.0/27}]
+  edge: {}
+  recovery:
+    internal: true
+
+volumes:
+  mysql-config: {}
+  redis-config: {}
+  keycloak-config: {}
+  installer-config: {}
+  risk-config: {}
+  backend-config: {}
+  gateway-config: {}
+  migrate-config: {}
+  ingress-config: {}
+  mysql-data: {}
+  redis-data: {}
+  mysql-recovery-data: {}

@@ -1,0 +1,13 @@
+{
+  "mode": "production-demo",
+  "release": "pd-r20-owner-review",
+  "portal_host": "portal.demo.example.org",
+  "auth_host": "auth.demo.example.org",
+  "external_port": 443,
+  "bind_port": 29443,
+  "core_subnet": "172.31.231.0/27",
+  "state_dir": "/var/lib/zerotrust/academic-linux",
+  "certificate": "/var/lib/zerotrust/pki/fullchain.pem",
+  "private_key": "/var/lib/zerotrust/pki/privkey.pem",
+  "edge_ca": "/etc/ssl/certs/ca-certificates.crt"
+}

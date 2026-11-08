@@ -1,0 +1,13 @@
+{
+  "mode": "rehearsal",
+  "release": "pd-r20-rehearsal",
+  "portal_host": "portal.pd-r20.test",
+  "auth_host": "auth.pd-r20.test",
+  "external_port": 29443,
+  "bind_port": 29443,
+  "core_subnet": "172.31.231.0/27",
+  "state_dir": "/tmp/zerotrust-pd-r20-linux",
+  "certificate": null,
+  "private_key": null,
+  "edge_ca": null
+}
