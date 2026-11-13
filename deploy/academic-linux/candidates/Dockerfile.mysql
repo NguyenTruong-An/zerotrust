@@ -1,0 +1,26 @@
+# Build separately for the exact 8.0.46 and 8.4.13 bases. No release pin changes.
+ARG MYSQL_BASE
+FROM golang:1.27.3-bookworm@sha256:025eefc1e8dbe63201734a72aaa0a55d7a077f2d8410432f8ae2f3e939f32871 AS gosu
+ADD --checksum=sha256:207a2045e890d3ca3326027c5f585733085960b401a49dbc00e3bb628c054cf8 https://codeload.github.com/tianon/gosu/tar.gz/refs/tags/1.20 /tmp/gosu.tar.gz
+WORKDIR /source
+RUN tar -xzf /tmp/gosu.tar.gz --strip-components=1 -C /source
+RUN GOTOOLCHAIN=local CGO_ENABLED=0 go build -trimpath -buildvcs=false -ldflags='-X main.version=1.20' -o /gosu .
+
+FROM ${MYSQL_BASE}
+ARG MYSQLD_SHA256
+ARG MYSQL_VERSION_EXPECTED
+ARG SOURCE_REVISION
+LABEL org.opencontainers.image.revision=$SOURCE_REVISION io.zerotrust.scope=bounded-remediation-20261110
+RUN test -n "$MYSQLD_SHA256" && test -n "$MYSQL_VERSION_EXPECTED" \
+    && printf '%s  /usr/sbin/mysqld\n' "$MYSQLD_SHA256" > /tmp/mysqld.sha256 \
+    && sha256sum -c /tmp/mysqld.sha256 \
+    && rpm -qa 'mysql-community*' | sort > /tmp/mysql-rpms.before
+# RPM dependency checks are mandatory; no --nodeps/force and no server upgrade.
+RUN rpm -e --test mysql-shell && rpm -e mysql-shell \
+    && microdnf --disablerepo='mysql*' upgrade -y \
+    && rpm -qa 'mysql-community*' | sort > /tmp/mysql-rpms.after \
+    && test "$(cat /tmp/mysql-rpms.before)" = "$(cat /tmp/mysql-rpms.after)" \
+    && sha256sum -c /tmp/mysqld.sha256 \
+    && mysqld --version | grep -F "$MYSQL_VERSION_EXPECTED"
+COPY --from=gosu --chmod=0755 /gosu /usr/local/bin/gosu
+RUN gosu nobody true && gosu --version

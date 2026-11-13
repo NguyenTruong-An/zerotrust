@@ -50,4 +50,9 @@ public class KeycloakIdentityProviderGateway implements IdentityProviderGateway 
     public void resetMfa(UUID userId) {
         userClient.resetMfa(userId);
     }
+
+    @Override
+    public void logoutSessions(UUID userId) {
+        userClient.logoutSessions(userId);
+    }
 }

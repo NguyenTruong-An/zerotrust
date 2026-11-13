@@ -48,10 +48,12 @@ public class SecurityConfig {
             CustomAuthenticationEntryPoint authenticationEntryPoint,
             CustomAccessDeniedHandler accessDeniedHandler,
             KeycloakJwtAuthenticationConverter jwtAuthenticationConverter,
+            com.zerotrust.zerotrust.security.StrictSecurityAuthorityClient securityAuthority,
             PublicDemoProperties publicDemoProperties,
             @Qualifier("requestMappingHandlerMapping") ObjectProvider<RequestMappingHandlerMapping> handlerMapping
     ) throws Exception {
         httpSecurity
+                .addFilterBefore(new com.zerotrust.zerotrust.security.StrictSecurityStateFilter(securityAuthority), AuthorizationFilter.class)
                 .addFilterAfter(new PublicDemoAcademicReadOnlyFilter(publicDemoProperties, handlerMapping),
                         AuthorizationFilter.class)
                 .cors(Customizer.withDefaults())

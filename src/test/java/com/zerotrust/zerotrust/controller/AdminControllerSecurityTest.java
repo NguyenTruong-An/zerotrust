@@ -58,6 +58,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 @Import({SecurityConfig.class, CustomAuthenticationEntryPoint.class,
         CustomAccessDeniedHandler.class, KeycloakJwtAuthenticationConverter.class})
 class AdminControllerSecurityTest {
+    @MockitoBean com.zerotrust.zerotrust.security.StrictSecurityAuthorityClient authority;
     @Autowired
     private MockMvc mockMvc;
     @MockitoBean

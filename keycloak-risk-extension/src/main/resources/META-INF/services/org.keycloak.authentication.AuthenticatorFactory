@@ -1,3 +1,8 @@
 com.zerotrust.keycloak.risk.authenticator.RiskAuthenticatorFactory
 com.zerotrust.keycloak.risk.authenticator.RiskStepUpConditionFactory
 com.zerotrust.keycloak.risk.authenticator.TrustedDeviceRegistrationAuthenticatorFactory
+com.zerotrust.keycloak.risk.strict.StrictPasswordFactory
+com.zerotrust.keycloak.risk.strict.StrictOtpFactory
+com.zerotrust.keycloak.risk.strict.StrictRecoveryFactory
+com.zerotrust.keycloak.risk.strict.StrictCookieFactory
+com.zerotrust.keycloak.risk.strict.StrictTicketFactory

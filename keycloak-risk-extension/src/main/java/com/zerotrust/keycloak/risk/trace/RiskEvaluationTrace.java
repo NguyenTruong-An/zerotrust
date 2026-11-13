@@ -132,9 +132,9 @@ public final class RiskEvaluationTrace {
         if (auth == null || realm == null || auth.getExecutionStatus() == null) return "NOT_OBSERVED";
         for (Map.Entry<String, AuthenticationSessionModel.ExecutionStatus> entry : auth.getExecutionStatus().entrySet()) {
             AuthenticationExecutionModel execution = realm.getAuthenticationExecutionById(entry.getKey());
-            if (execution == null || entry.getValue() != AuthenticationSessionModel.ExecutionStatus.SUCCESS) continue;
-            if ("auth-otp-form".equals(execution.getAuthenticator())) return "OTP_EXECUTION_SUCCESS";
-            if ("auth-recovery-authn-code-form".equals(execution.getAuthenticator())) return "RECOVERY_EXECUTION_SUCCESS";
+            if (execution == null || execution.getAuthenticator()==null || entry.getValue() != AuthenticationSessionModel.ExecutionStatus.SUCCESS) continue;
+            if (java.util.Set.of("auth-otp-form","d10-otp").contains(execution.getAuthenticator())) return "OTP_EXECUTION_SUCCESS";
+            if (java.util.Set.of("auth-recovery-authn-code-form","d10-recovery").contains(execution.getAuthenticator())) return "RECOVERY_EXECUTION_SUCCESS";
         }
         return "NOT_OBSERVED";
     }

@@ -1,0 +1,8 @@
+# Disposable acceptance tooling, never an application release image.
+FROM zt-pd02-candidate/tools:pd-r11-c401e17
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+RUN /opt/tools/bin/pip install --index-url https://pypi.org/simple --no-cache-dir playwright==1.56.0 && \
+    apt-get update && apt-get install -y --no-install-recommends libnss3-tools && \
+    /opt/tools/bin/python -m playwright install --with-deps chromium && \
+    rm -rf /var/lib/apt/lists/*
+ENTRYPOINT ["/opt/tools/bin/python"]

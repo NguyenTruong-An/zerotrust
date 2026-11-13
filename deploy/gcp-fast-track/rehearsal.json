@@ -1,0 +1,9 @@
+{
+  "mode": "rehearsal",
+  "public_ip": "35.253.233.81",
+  "project": "zt-gcp-ft-rehearsal",
+  "out": "target/gcp-fast-track/rehearsal",
+  "subnet": "10.253.249.0/27",
+  "loopback_port": 39543,
+  "geoip_dir": "target/full-function-20261111b/geoip-private/data/releases/20261111T154359Z-a25e6a9fc2b8"
+}

@@ -3,6 +3,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { BookOpen, KeyRound, Plus, School, Search, Trash2, UserCog } from 'lucide-react';
 import { AuthenticationExpiredError, publicDemo } from '../lib/api';
+import { getKeycloak, mfaResetRedirectUri } from '../lib/keycloak';
 import {
   adminRequest,
   emptyPage,
@@ -312,9 +313,26 @@ export function UsersPanel({
     setResetBusy(true);
     setResetError(null);
     try {
+      const keycloak = getKeycloak();
+      const remembered = window.sessionStorage.getItem('zt-reset-challenge');
+      let challenge: { portalId: string; proofId: string; targetId: string } | undefined;
+      try { challenge = remembered ? JSON.parse(remembered) : undefined; } catch { /* request a new challenge */ }
+      const proof = keycloak.tokenParsed;
+      const now = Math.floor(Date.now() / 1000);
+      if (!challenge || challenge.portalId !== resettingUser.id || proof?.zt_mfa_proof !== challenge.proofId
+          || proof?.zt_mfa_target !== challenge.targetId || typeof proof?.zt_mfa_at !== 'number'
+          || proof.zt_mfa_at > now || now - proof.zt_mfa_at > 300) {
+        const created = await adminRequest<{ proofId: string; targetId: string }>(`/api/admin/users/${resettingUser.id}/mfa/reset/challenge`, { method: 'POST' });
+        window.sessionStorage.setItem('zt-reset-challenge', JSON.stringify({ ...created, portalId: resettingUser.id }));
+        const login = new URL(await keycloak.createLoginUrl({ prompt: 'login', redirectUri: mfaResetRedirectUri() }));
+        login.searchParams.set('claims', JSON.stringify({ id_token: { zt_action_proof: { value: created.proofId } } }));
+        window.location.assign(login.toString());
+        return;
+      }
       await adminRequest<void>(`/api/admin/users/${resettingUser.id}/mfa/reset`, {
         method: 'POST',
       });
+      window.sessionStorage.removeItem('zt-reset-challenge');
       const username = resettingUser.username;
       setResettingUser(null);
       onNotify(`Đã reset MFA cho ${username}. Người dùng phải đăng ký lại ở lần đăng nhập tiếp theo.`);

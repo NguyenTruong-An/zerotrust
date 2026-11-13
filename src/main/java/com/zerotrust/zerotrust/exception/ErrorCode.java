@@ -7,6 +7,8 @@ import org.springframework.http.HttpStatus;
 @Getter
 @AllArgsConstructor
 public enum ErrorCode {
+    FRESH_ADMIN_MFA_REQUIRED(HttpStatus.FORBIDDEN, "A recent server-verified MFA factor is required for this action"),
+    MFA_RESET_SESSION_LOGOUT_PENDING(HttpStatus.SERVICE_UNAVAILABLE, "MFA credentials changed but session logout could not be confirmed; recovery remains blocked"),
     RISK_DEVICE_REVOCATION_FAILED(HttpStatus.SERVICE_UNAVAILABLE, "Device revocation could not be confirmed; MFA reset has not completed"),
     MFA_RESET_PARTIAL(HttpStatus.SERVICE_UNAVAILABLE, "Devices are revoked but MFA reset has not completed; retry is required"),
     MFA_RESET_COMPLETION_PENDING(HttpStatus.SERVICE_UNAVAILABLE, "MFA credentials were reset but recovery is still blocked; retry is required"),

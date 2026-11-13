@@ -244,11 +244,12 @@ class TrustedDeviceRegistrationAuthenticatorTest {
         verify(fixture.context).failure(org.keycloak.authentication.AuthenticationFlowError.ACCESS_DENIED);
     }
 
-    @Test
-    void completedRecoveryIsValidMfaProof() {
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings={"auth-recovery-authn-code-form","d10-recovery","d10-otp"})
+    void completedRecoveryIsValidMfaProof(String providerId) {
         Fixture fixture = new Fixture(true);
         var recovery = new org.keycloak.models.AuthenticationExecutionModel();
-        recovery.setAuthenticator("auth-recovery-authn-code-form");
+        recovery.setAuthenticator(providerId);
         when(fixture.realm.getAuthenticationExecutionById("mfa-execution")).thenReturn(recovery);
         fixture.authenticator.authenticate(fixture.context);
         verify(fixture.client).register(new TrustedDeviceRegistrationRequest("user-1", "generated-device-id", 0));

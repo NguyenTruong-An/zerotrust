@@ -34,7 +34,7 @@ public class GatewaySecurityConfig {
         return decoder;
     }
     @Bean
-    SecurityWebFilterChain security(ServerHttpSecurity http,@Value("${app.security.cors.origins}") String origins) {
+    SecurityWebFilterChain security(ServerHttpSecurity http,@Value("${app.security.cors.origins}") String origins,StrictSecurityAuthorityClient authority) {
         ReactiveJwtAuthenticationConverter converter=new ReactiveJwtAuthenticationConverter();
         converter.setJwtGrantedAuthoritiesConverter(jwt -> {
             Object access=jwt.getClaims().get("realm_access");
@@ -48,6 +48,17 @@ public class GatewaySecurityConfig {
         cors.setAllowedHeaders(List.of("Authorization","Content-Type","Accept"));cors.setAllowCredentials(false);cors.setMaxAge(3600L);
         UrlBasedCorsConfigurationSource corsSource=new UrlBasedCorsConfigurationSource();corsSource.registerCorsConfiguration("/api/**",cors);
         return http.csrf(ServerHttpSecurity.CsrfSpec::disable).cors(c -> c.configurationSource(corsSource))
+                .addFilterBefore((exchange,chain)-> {
+                    String path=exchange.getRequest().getURI().getPath();
+                    if(exchange.getRequest().getMethod()==HttpMethod.OPTIONS || !(path.equals("/api") || path.startsWith("/api/")))return chain.filter(exchange);
+                    return org.springframework.security.core.context.ReactiveSecurityContextHolder.getContext()
+                            .flatMap(context->{
+                                if(!(context.getAuthentication() instanceof org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken token))return Mono.just(true);
+                                return Mono.fromCallable(()->{authority.authorize(token.getToken());return true;}).subscribeOn(reactor.core.scheduler.Schedulers.boundedElastic());
+                            }).defaultIfEmpty(true).flatMap(accepted->chain.filter(exchange))
+                            .onErrorResume(StrictSecurityAuthorityClient.Rejected.class,e->error(exchange,HttpStatus.UNAUTHORIZED))
+                            .onErrorResume(StrictSecurityAuthorityClient.Unavailable.class,e->error(exchange,HttpStatus.SERVICE_UNAVAILABLE));
+                },org.springframework.security.config.web.server.SecurityWebFiltersOrder.AUTHORIZATION)
                 .securityContextRepository(NoOpServerSecurityContextRepository.getInstance())
                 .requestCache(c -> c.requestCache(NoOpServerRequestCache.getInstance()))
                 .headers(h -> h.frameOptions(f -> f.mode(XFrameOptionsServerHttpHeadersWriter.Mode.SAMEORIGIN)))

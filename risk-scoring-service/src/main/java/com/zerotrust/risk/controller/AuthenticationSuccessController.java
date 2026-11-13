@@ -16,15 +16,18 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthenticationSuccessController {
 
     private final AuthenticationSuccessService authenticationSuccessService;
+    private final com.zerotrust.risk.networkv2.NetworkRiskV2Shadow networkRiskV2;
 
     @PostMapping
     public ResponseEntity<Void> record(@Valid @RequestBody AuthenticationSuccessRequest request) {
-        authenticationSuccessService.recordSuccess(
+        boolean inserted = authenticationSuccessService.recordSuccess(
                 request.eventId(),
                 request.subjectId(),
                 request.clientId(),
                 request.authenticatedAt()
         );
+        // A redelivery cannot reassign a verified event to a different network or subject.
+        if (inserted) networkRiskV2.verifiedSuccess(request);
         return ResponseEntity.noContent().build();
     }
 }

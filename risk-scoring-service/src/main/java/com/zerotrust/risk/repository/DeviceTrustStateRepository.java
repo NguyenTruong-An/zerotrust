@@ -20,7 +20,14 @@ public class DeviceTrustStateRepository {
     private final JdbcTemplate jdbc;
 
     public SubjectState lockSubject(String subjectId) {
-        jdbc.update("INSERT IGNORE INTO subject_device_trust (subject_id, generation) VALUES (?, 0)", subjectId);
+        // INSERT IGNORE takes a shared duplicate-key lock; simultaneous callers
+        // can deadlock when both upgrade it for SELECT FOR UPDATE. A no-op
+        // upsert acquires the exclusive row lock without resetting generation
+        // or pending_operation_id, including when the subject already exists.
+        jdbc.update("""
+                INSERT INTO subject_device_trust (subject_id, generation) VALUES (?, 0)
+                ON DUPLICATE KEY UPDATE subject_id = subject_id
+                """, subjectId);
         return jdbc.queryForObject("""
                 SELECT generation, pending_operation_id
                 FROM subject_device_trust WHERE subject_id = ? FOR UPDATE

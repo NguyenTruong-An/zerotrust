@@ -1,0 +1,846 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "kind",
+    "project",
+    "approval_status",
+    "execution_enabled",
+    "images",
+    "source",
+    "receipts",
+    "baseline_runtime",
+    "config",
+    "policy",
+    "geoip",
+    "override",
+    "tls",
+    "health",
+    "checkpoint",
+    "rollback",
+    "gates",
+    "networks"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "kind": {
+      "type": "string",
+      "const": "PROPOSED_LOCAL_RISK_ONLY_NOT_RELEASE_APPROVAL"
+    },
+    "project": {
+      "type": "string",
+      "const": "zt-full-function-20261111b"
+    },
+    "approval_status": {
+      "type": "string",
+      "const": "PENDING"
+    },
+    "execution_enabled": {
+      "type": "boolean",
+      "const": false
+    },
+    "images": {
+      "type": "object",
+      "const": {
+        "old": "sha256:3f540f3de29a4ac69ec916a81d153b8d4befd9238c9c06b26b9b9f0f2b843571",
+        "proposed": "sha256:1ec3c4db626d6c232ca9a30c61188d69e883d40eb0005c29bd0d15921258686a"
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "build_HEAD",
+        "review_HEAD",
+        "path",
+        "sha256",
+        "build_receipt",
+        "signed_provenance"
+      ],
+      "properties": {
+        "build_HEAD": {
+          "type": "string"
+        },
+        "review_HEAD": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "[0-9a-f]{64}"
+        },
+        "build_receipt": {
+          "type": "string"
+        },
+        "signed_provenance": {
+          "type": "string"
+        }
+      }
+    },
+    "receipts": {
+      "type": "array",
+      "const": [
+        {
+          "path": "target/pd-r22/release-lock-final.json",
+          "sha256": "a7493b864bb2da2d6df8bb7b9b4c0f355d85ff82a9f889f86e0063fdc887bdad"
+        },
+        {
+          "path": "target/pd-r27/release-lock.json",
+          "sha256": "ae52aca6f3f86c6a67b543b1d4fadc8600628a6d1fc616dd8dcddf429a74e16a"
+        },
+        {
+          "path": "target/full-function-20261111b/profile-images.json",
+          "sha256": "34b7c0af2ad00dfea7c3307cff65477ad5c3f92aab5fdb7bc47746a9821856f1"
+        },
+        {
+          "path": "target/full-function-20261111b/private/installed",
+          "sha256": "27fd48bc5f4f471cd57f633033868f67cacd81787f98f3a50f1563fb7e906b64"
+        },
+        {
+          "path": "target/full-function-20261111b/private/owner",
+          "sha256": "aca0daac1e2a138abf5c7f5dd83be2b713d557875e44552d5b3336b7738a489f"
+        },
+        {
+          "path": "target/full-function-20261111b/phase2/locking-candidate-image.json",
+          "sha256": "f1c67e1e8e9637f368b05559a87ad3105a3ccb8a20e16b6dd79e735adfb0a97a"
+        },
+        {
+          "path": "target/full-function-20261111b/phase2/locking/candidate-acceptance.json",
+          "sha256": "097026836ad38543c96b37bcc588f1b8fcbe7494efb0cc13f3697f513ea5eaee"
+        },
+        {
+          "path": "target/full-function-20261111b/phase2/locking-source-tests.json",
+          "sha256": "c1b82cda7dc7b353e03f65d1acf390a64d6e9ac27b13a348fbc0dfbe5b4be6b2"
+        },
+        {
+          "path": "target/full-function-20261111b/phase2/locking/locking-http.json",
+          "sha256": "6c7f7626d3d2678f660dcc58c08acf9c8834a0757ab862f07d3e8a2248682e2b"
+        },
+        {
+          "path": "target/full-function-20261111b/phase21a/acquisition.json",
+          "sha256": "6c2edab5be64401add3359364e565925cb293d6530bddd7c8bb68f1634067179"
+        },
+        {
+          "path": "target/full-function-20261111b/phase21a/acceptance-gates.json",
+          "sha256": "e79acfedff66dff7591af0dc461df0bf336e1825877affab5991c090b08aa785"
+        },
+        {
+          "path": "target/full-function-20261111b/phase21a/network-evidence.json",
+          "sha256": "0a24a7c5251bb1420289554121d2186d53af283171ed86057899234eeb9120eb"
+        },
+        {
+          "path": "target/full-function-20261111b/phase21a/browser-joined.json",
+          "sha256": "b76804b52f70c39fb23f93e5466204e89454239a36d9a3631db754ba195646cc"
+        },
+        {
+          "path": "target/full-function-20261111b/phase21a/lifecycle.json",
+          "sha256": "7564aef6b4a6d86a0ed7478c088b2fbfa7cbf2c41ce8d2a554bec18542814740"
+        }
+      ]
+    },
+    "baseline_runtime": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "backend",
+        "crl",
+        "frontend",
+        "gateway",
+        "ingress",
+        "keycloak",
+        "mysql",
+        "redis",
+        "risk"
+      ],
+      "properties": {
+        "backend": {
+          "$ref": "#/$defs/runtime_witness"
+        },
+        "crl": {
+          "$ref": "#/$defs/runtime_witness"
+        },
+        "frontend": {
+          "$ref": "#/$defs/runtime_witness"
+        },
+        "gateway": {
+          "$ref": "#/$defs/runtime_witness"
+        },
+        "ingress": {
+          "$ref": "#/$defs/runtime_witness"
+        },
+        "keycloak": {
+          "$ref": "#/$defs/runtime_witness"
+        },
+        "mysql": {
+          "$ref": "#/$defs/runtime_witness"
+        },
+        "redis": {
+          "$ref": "#/$defs/runtime_witness"
+        },
+        "risk": {
+          "$ref": "#/$defs/runtime_witness"
+        }
+      }
+    },
+    "config": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "application_sha256",
+        "jvm_sha256",
+        "artifact_defaults"
+      ],
+      "properties": {
+        "application_sha256": {
+          "type": "string",
+          "pattern": "[0-9a-f]{64}"
+        },
+        "jvm_sha256": {
+          "type": "string",
+          "pattern": "[0-9a-f]{64}"
+        },
+        "artifact_defaults": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "path",
+            "sha256"
+          ],
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "sha256": {
+              "type": "string",
+              "pattern": "[0-9a-f]{64}"
+            }
+          }
+        }
+      }
+    },
+    "policy": {
+      "type": "object",
+      "const": {
+        "model": "BASELINE_B0",
+        "weights": {
+          "device": "0.25",
+          "network": "0.25",
+          "temporal": "0.25",
+          "authentication-history": "0.25"
+        },
+        "thresholds": {
+          "medium-minimum": "40",
+          "high-minimum": "75"
+        },
+        "network_enabled": "true",
+        "scores": {
+          "default": "50",
+          "elevated": "50",
+          "high": "100"
+        },
+        "lists": {
+          "trusted-cidrs": [
+            "198.51.100.0/25"
+          ],
+          "elevated-risk-cidrs": [],
+          "high-risk-cidrs": [
+            "203.0.113.0/24",
+            "10.253.245.27/32"
+          ],
+          "trusted-country-codes": [],
+          "elevated-risk-country-codes": [],
+          "high-risk-country-codes": []
+        },
+        "geoip_enabled": "false"
+      }
+    },
+    "geoip": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "release",
+        "directory",
+        "acquisition_receipt",
+        "files"
+      ],
+      "properties": {
+        "release": {
+          "type": "string"
+        },
+        "directory": {
+          "type": "string"
+        },
+        "acquisition_receipt": {
+          "type": "string"
+        },
+        "files": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "GeoLite2-City",
+            "GeoLite2-ASN"
+          ],
+          "properties": {
+            "GeoLite2-City": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "sha256",
+                "bytes",
+                "metadata"
+              ],
+              "properties": {
+                "sha256": {
+                  "type": "string",
+                  "pattern": "[0-9a-f]{64}"
+                },
+                "bytes": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "metadata": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "database_type",
+                    "binary_format",
+                    "build_at",
+                    "file_bytes",
+                    "ip_version"
+                  ],
+                  "properties": {
+                    "database_type": {
+                      "type": "string"
+                    },
+                    "binary_format": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "build_at": {
+                      "type": "string"
+                    },
+                    "file_bytes": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "ip_version": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  }
+                }
+              }
+            },
+            "GeoLite2-ASN": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "sha256",
+                "bytes",
+                "metadata"
+              ],
+              "properties": {
+                "sha256": {
+                  "type": "string",
+                  "pattern": "[0-9a-f]{64}"
+                },
+                "bytes": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "metadata": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "database_type",
+                    "binary_format",
+                    "build_at",
+                    "file_bytes",
+                    "ip_version"
+                  ],
+                  "properties": {
+                    "database_type": {
+                      "type": "string"
+                    },
+                    "binary_format": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "build_at": {
+                      "type": "string"
+                    },
+                    "file_bytes": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "ip_version": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "override": {
+      "type": "object",
+      "const": {
+        "application": {
+          "risk.policy.network-risk.geoip.enabled": true,
+          "risk.policy.network-risk.geoip.city-database-path": "/geoip/GeoLite2-City.mmdb",
+          "risk.policy.network-risk.geoip.asn-database-path": "/geoip/GeoLite2-ASN.mmdb"
+        },
+        "mount": {
+          "source": "target/full-function-20261111b/geoip-private/data/releases/20261111T154359Z-a25e6a9fc2b8",
+          "target": "/geoip",
+          "read_only": true
+        },
+        "security": {
+          "user": "10001:10001",
+          "read_only": true,
+          "cap_drop": [
+            "ALL"
+          ],
+          "security_opt": [
+            "no-new-privileges"
+          ],
+          "tmpfs": [
+            "/tmp:mode=1777"
+          ],
+          "memory_mib": 640
+        }
+      }
+    },
+    "tls": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ca",
+        "leaf",
+        "crl"
+      ],
+      "properties": {
+        "ca": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "path",
+            "sha256"
+          ],
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "sha256": {
+              "type": "string",
+              "pattern": "[0-9a-f]{64}"
+            }
+          }
+        },
+        "leaf": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "path",
+            "sha256"
+          ],
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "sha256": {
+              "type": "string",
+              "pattern": "[0-9a-f]{64}"
+            }
+          }
+        },
+        "crl": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "path",
+            "sha256"
+          ],
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "sha256": {
+              "type": "string",
+              "pattern": "[0-9a-f]{64}"
+            }
+          }
+        }
+      }
+    },
+    "health": {
+      "type": "object",
+      "const": {
+        "private_https": "https://risk:8443/actuator/health/readiness",
+        "required_status": 200,
+        "tls_revocation": true,
+        "geoip_health_and_real_lookup_required": true,
+        "post_cutover": [
+          "N/.25N trace",
+          "real browser PKCE/MFA",
+          "STUDENT own grades200/admin403",
+          "ADMIN read smoke",
+          "state and V5 continuity"
+        ]
+      }
+    },
+    "checkpoint": {
+      "type": "object",
+      "const": {
+        "root": "target/full-function-20261111b/promotion-private/checkpoints",
+        "status": "NOT_CREATED",
+        "required_before_apply": true,
+        "encryption": "AES-256-GCM",
+        "key_storage": "PRIVATE_SEPARATE_ACL",
+        "references": []
+      }
+    },
+    "rollback": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "image",
+        "runtime",
+        "application_sha256",
+        "jvm_sha256",
+        "restore_database",
+        "preserve"
+      ],
+      "properties": {
+        "image": {
+          "type": "string",
+          "pattern": "sha256:[0-9a-f]{64}"
+        },
+        "runtime": {
+          "$ref": "#/$defs/runtime_witness"
+        },
+        "application_sha256": {
+          "type": "string",
+          "pattern": "[0-9a-f]{64}"
+        },
+        "jvm_sha256": {
+          "type": "string",
+          "pattern": "[0-9a-f]{64}"
+        },
+        "restore_database": {
+          "type": "boolean"
+        },
+        "preserve": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "gates": {
+      "type": "object",
+      "const": {
+        "D17": "PENDING",
+        "G8": "INTERNET_NO_GO"
+      }
+    },
+    "networks": {
+      "type": "object",
+      "const": {
+        "zt-full-function-20261111b_core": {
+          "Id": "c543c7102fa8bd7893e2021e9bb799c62178ff7074335f10fb8e6c2fcf778e9b",
+          "Name": "zt-full-function-20261111b_core",
+          "Driver": "bridge",
+          "Internal": true,
+          "IPAM": {
+            "Driver": "default",
+            "Options": null,
+            "Config": [
+              {
+                "Subnet": "10.253.245.0/27",
+                "Gateway": "10.253.245.1"
+              }
+            ]
+          },
+          "Labels": {
+            "com.docker.compose.config-hash": "11701e5ad303b1af909ea8b325c3afeecb2ce10729a1a39c10a4cb60e90e1cfa",
+            "com.docker.compose.network": "core",
+            "com.docker.compose.project": "zt-full-function-20261111b",
+            "com.docker.compose.version": "5.1.3"
+          }
+        },
+        "zt-full-function-20261111b_edge": {
+          "Id": "9db0ff6b97587b0677d710f6ea8a7aa5da6b7b7e909475a31cce050ad5c29974",
+          "Name": "zt-full-function-20261111b_edge",
+          "Driver": "bridge",
+          "Internal": false,
+          "IPAM": {
+            "Driver": "default",
+            "Options": null,
+            "Config": [
+              {
+                "Subnet": "192.168.192.0/20",
+                "Gateway": "192.168.192.1"
+              }
+            ]
+          },
+          "Labels": {
+            "com.docker.compose.config-hash": "3052b08d7fb7cfb4056daf87e572c12285987ba1df8b33a92b297c7fdf11a7c6",
+            "com.docker.compose.network": "edge",
+            "com.docker.compose.project": "zt-full-function-20261111b",
+            "com.docker.compose.version": "5.1.3"
+          }
+        },
+        "zt-full-function-20261111b_recovery": {
+          "Id": "feb5d159b001544ecdd335262b5cd69b55804964f0dc380b0294901abf9b28e7",
+          "Name": "zt-full-function-20261111b_recovery",
+          "Driver": "bridge",
+          "Internal": true,
+          "IPAM": {
+            "Driver": "default",
+            "Options": null,
+            "Config": [
+              {
+                "Subnet": "192.168.176.0/20",
+                "Gateway": "192.168.176.1"
+              }
+            ]
+          },
+          "Labels": {
+            "com.docker.compose.config-hash": "9022c1b430a7bd8c72bb46e10549dd8d875e416f1217164bbb79dcc9c7e7d00b",
+            "com.docker.compose.network": "recovery",
+            "com.docker.compose.project": "zt-full-function-20261111b",
+            "com.docker.compose.version": "5.1.3"
+          }
+        }
+      }
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:zerotrust:local-risk-promotion:v1",
+  "title": "Proposed local Risk-only promotion v1",
+  "$defs": {
+    "runtime_witness": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "image",
+        "mounts",
+        "networks",
+        "ports",
+        "user",
+        "entrypoint",
+        "cmd",
+        "environment_sha256",
+        "readonly_rootfs",
+        "privileged",
+        "cap_add",
+        "cap_drop",
+        "security_opt",
+        "restart",
+        "memory",
+        "tmpfs",
+        "binds",
+        "devices",
+        "network_mode"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "[0-9a-f]{64}"
+        },
+        "image": {
+          "type": "string",
+          "pattern": "sha256:[0-9a-f]{64}"
+        },
+        "mounts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "Type",
+              "Name",
+              "Source",
+              "Destination",
+              "RW"
+            ],
+            "properties": {
+              "Type": {
+                "type": "string",
+                "enum": [
+                  "volume",
+                  "bind"
+                ]
+              },
+              "Name": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "Source": {
+                "type": "string"
+              },
+              "Destination": {
+                "type": "string"
+              },
+              "RW": {
+                "type": "boolean"
+              }
+            }
+          }
+        },
+        "networks": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        },
+        "ports": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "HostIp",
+                "HostPort"
+              ],
+              "properties": {
+                "HostIp": {
+                  "type": "string"
+                },
+                "HostPort": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "user": {
+          "type": "string"
+        },
+        "entrypoint": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "cmd": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "environment_sha256": {
+          "type": "string",
+          "pattern": "[0-9a-f]{64}"
+        },
+        "readonly_rootfs": {
+          "type": "boolean"
+        },
+        "privileged": {
+          "type": "boolean"
+        },
+        "cap_add": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "cap_drop": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "security_opt": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "restart": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "Name",
+            "MaximumRetryCount"
+          ],
+          "properties": {
+            "Name": {
+              "type": "string"
+            },
+            "MaximumRetryCount": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "memory": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "tmpfs": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "binds": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "devices": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "object"
+          }
+        },
+        "network_mode": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

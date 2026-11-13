@@ -26,6 +26,8 @@ public class UserServiceImpl implements UserService {
     private final UserConverter userConverter;
     private final IdentityProviderGateway identityProviderGateway;
     private final com.zerotrust.zerotrust.risk.RiskDeviceAdminClient riskDeviceAdminClient;
+    private final com.zerotrust.zerotrust.security.FreshAdminMfaGuard freshAdminMfaGuard;
+    private final com.zerotrust.zerotrust.security.StrictResetOrchestrator strictReset;
 
     @Override
     public UserResponseDTO getCurrentUser(UUID keycloakUserId) {
@@ -54,32 +56,21 @@ public class UserServiceImpl implements UserService {
     @Override
     @PreAuthorize("hasRole('ADMIN')")
     public void resetMfa(UUID userId) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        freshAdminMfaGuard.requireFresh(authentication);
         UserEntity user = userRepository.findById(userId)
                 .orElseThrow(() -> new WebException(ErrorCode.USER_NOT_FOUND));
         if (user.getStatus() != UserEntity.Status.ACTIVE) {
             throw new WebException(ErrorCode.USER_INACTIVE);
         }
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        String requestedBy = authentication == null ? "system" : authentication.getName();
-        UUID operationId = UUID.randomUUID();
-        riskDeviceAdminClient.revoke(user.getKeycloakUserId(), operationId, requestedBy);
-        try {
-            identityProviderGateway.resetMfa(user.getKeycloakUserId());
-        } catch (RuntimeException exception) {
-            log.warn("MFA reset incomplete: operationId={}, stage=KEYCLOAK_RESET", operationId);
-            throw new WebException(ErrorCode.MFA_RESET_PARTIAL);
-        }
-        try {
-            riskDeviceAdminClient.complete(user.getKeycloakUserId(), operationId, requestedBy);
-        } catch (RuntimeException exception) {
-            log.warn("MFA reset incomplete: operationId={}, stage=REVOCATION_COMPLETION", operationId);
-            throw new WebException(ErrorCode.MFA_RESET_COMPLETION_PENDING);
-        }
-        log.info(
-                "MFA reset completed: portalUserId={}, keycloakUserId={}, requestedBy={}, operationId={}",
-                userId,
-                user.getKeycloakUserId(),
-                requestedBy, operationId);
+        strictReset.reset(authentication,user.getKeycloakUserId().toString());
     }
 
+    @Override
+    @PreAuthorize("hasRole('ADMIN')")
+    public java.util.Map<String,Object> mfaResetChallenge(UUID userId) {
+        UserEntity user=userRepository.findById(userId).orElseThrow(()->new WebException(ErrorCode.USER_NOT_FOUND));
+        if(user.getStatus()!=UserEntity.Status.ACTIVE)throw new WebException(ErrorCode.USER_INACTIVE);
+        return strictReset.challenge(SecurityContextHolder.getContext().getAuthentication(),user.getKeycloakUserId().toString());
+    }
 }

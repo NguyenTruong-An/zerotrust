@@ -8,6 +8,7 @@ import com.zerotrust.zerotrust.identity.IdentityProviderGateway;
 import com.zerotrust.zerotrust.model.response.UserResponseDTO;
 import com.zerotrust.zerotrust.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -34,14 +35,30 @@ class UserServiceImplTest {
     private IdentityProviderGateway identityProviderGateway;
     @Mock private com.zerotrust.zerotrust.risk.RiskDeviceAdminClient riskDeviceAdminClient;
 
+    @Mock private com.zerotrust.zerotrust.security.StrictResetOrchestrator strictReset;
     private UserServiceImpl userService;
 
     @BeforeEach
     void setUp() {
+        var now = java.time.Instant.parse("2026-11-13T00:00:00Z");
+        var jwt = org.springframework.security.oauth2.jwt.Jwt.withTokenValue("offline-fixture")
+                .header("alg", "RS256").subject("11111111-1111-4111-8111-111111111111")
+                .claim("azp", "zerotrust-spa").claim("zt_mfa_client", "zerotrust-spa")
+                .claim("zt_mfa_subject", "11111111-1111-4111-8111-111111111111")
+                .claim("zt_mfa_method", "otp").claim("zt_mfa_at", now.getEpochSecond()).build();
+        org.springframework.security.core.context.SecurityContextHolder.getContext().setAuthentication(
+                new org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken(jwt,
+                        java.util.List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN")), "admin-fixture"));
         userService = new UserServiceImpl(
                 userRepository,
                 userConverter,
-                identityProviderGateway, riskDeviceAdminClient);
+                identityProviderGateway, riskDeviceAdminClient,
+                new com.zerotrust.zerotrust.security.FreshAdminMfaGuard(java.time.Clock.fixed(now, java.time.ZoneOffset.UTC),
+                        java.time.Duration.ofMinutes(5), "zerotrust-spa"),strictReset);
+    }
+
+    @AfterEach void clearAuthentication() {
+        org.springframework.security.core.context.SecurityContextHolder.clearContext();
     }
 
     @Test
@@ -97,13 +114,9 @@ class UserServiceImplTest {
 
         userService.resetMfa(userId);
 
-        verify(identityProviderGateway).resetMfa(keycloakUserId);
-        var order = org.mockito.Mockito.inOrder(riskDeviceAdminClient, identityProviderGateway);
-        order.verify(riskDeviceAdminClient).revoke(org.mockito.ArgumentMatchers.eq(keycloakUserId), any(), any());
-        order.verify(identityProviderGateway).resetMfa(keycloakUserId);
-        order.verify(riskDeviceAdminClient).complete(org.mockito.ArgumentMatchers.eq(keycloakUserId), any(), any());
+        verify(strictReset).reset(any(),org.mockito.ArgumentMatchers.eq(keycloakUserId.toString()));
+        org.mockito.Mockito.verifyNoInteractions(identityProviderGateway,riskDeviceAdminClient);
     }
-
     @Test
     void rejectsMfaResetForInactiveUser() {
         UUID userId = UUID.randomUUID();
@@ -119,41 +132,20 @@ class UserServiceImplTest {
     }
 
     @Test
-    void revocationFailureStopsBeforeTouchingKeycloak() {
-        UUID id = activeResetUser();
-        org.mockito.Mockito.doThrow(new WebException(ErrorCode.RISK_DEVICE_REVOCATION_FAILED))
-                .when(riskDeviceAdminClient).revoke(any(), any(), any());
-        assertThatThrownBy(() -> userService.resetMfa(id)).isInstanceOf(WebException.class);
-        verify(identityProviderGateway, never()).resetMfa(any());
-        verify(riskDeviceAdminClient, never()).complete(any(), any(), any());
+    void durableResetFailureIsPropagatedWithoutLegacyMutations() {
+        UUID id=activeResetUser();
+        org.mockito.Mockito.doThrow(new WebException(ErrorCode.MFA_RESET_PARTIAL)).when(strictReset).reset(any(),any());
+        assertThatThrownBy(()->userService.resetMfa(id)).isInstanceOf(WebException.class);
+        org.mockito.Mockito.verifyNoInteractions(identityProviderGateway,riskDeviceAdminClient);
     }
-
     @Test
-    void keycloakFailureIsPartialAndDoesNotUnblockRecovery() {
-        UUID id = activeResetUser();
-        org.mockito.Mockito.doThrow(new WebException(ErrorCode.IDENTITY_PROVIDER_UNAVAILABLE))
-                .when(identityProviderGateway).resetMfa(any());
-        assertThatThrownBy(() -> userService.resetMfa(id)).isInstanceOf(WebException.class)
-                .extracting(ex -> ((WebException) ex).getErrorCode()).isEqualTo(ErrorCode.MFA_RESET_PARTIAL);
-        verify(riskDeviceAdminClient, never()).complete(any(), any(), any());
+    void rejectsMissingFreshProofBeforeResolvingTarget() {
+        org.springframework.security.core.context.SecurityContextHolder.clearContext();
+        assertThatThrownBy(()->userService.resetMfa(UUID.randomUUID())).isInstanceOf(WebException.class);
+        org.mockito.Mockito.verifyNoInteractions(userRepository,strictReset,identityProviderGateway,riskDeviceAdminClient);
     }
-
-    @Test
-    void completionFailureIsReportedInsteadOfSuccess() {
-        UUID id = activeResetUser();
-        org.mockito.Mockito.doThrow(new WebException(ErrorCode.RISK_DEVICE_REVOCATION_FAILED))
-                .when(riskDeviceAdminClient).complete(any(), any(), any());
-        assertThatThrownBy(() -> userService.resetMfa(id)).isInstanceOf(WebException.class)
-                .extracting(ex -> ((WebException) ex).getErrorCode()).isEqualTo(ErrorCode.MFA_RESET_COMPLETION_PENDING);
-    }
-
     private UUID activeResetUser() {
-        UUID id = UUID.randomUUID();
-        UserEntity user = new UserEntity();
-        user.setKeycloakUserId(UUID.randomUUID());
-        user.setStatus(UserEntity.Status.ACTIVE);
-        when(userRepository.findById(id)).thenReturn(Optional.of(user));
-        return id;
+        UUID id=UUID.randomUUID();UserEntity user=new UserEntity();user.setKeycloakUserId(UUID.randomUUID());user.setStatus(UserEntity.Status.ACTIVE);
+        when(userRepository.findById(id)).thenReturn(Optional.of(user));return id;
     }
-
 }

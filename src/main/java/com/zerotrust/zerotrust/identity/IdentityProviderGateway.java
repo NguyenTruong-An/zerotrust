@@ -23,5 +23,8 @@ public interface IdentityProviderGateway {
             UUID userId,
             IdentityUserProfileSnapshot profile);
 
+    /** Credential/enrollment phase only; caller must confirm final logout before Risk completion. */
     void resetMfa(UUID userId);
+
+    void logoutSessions(UUID userId);
 }

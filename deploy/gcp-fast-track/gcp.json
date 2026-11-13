@@ -1,0 +1,9 @@
+{
+  "mode": "gcp",
+  "public_ip": "35.253.233.81",
+  "project": "zt-gcp-ft",
+  "out": "/var/lib/zerotrust-gcp/out",
+  "subnet": "10.253.249.0/27",
+  "loopback_port": 39543,
+  "geoip_dir": "/var/lib/zerotrust-gcp/geoip"
+}

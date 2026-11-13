@@ -30,6 +30,12 @@ export function appRedirectUri(): string {
   return `${window.location.origin}/`;
 }
 
+export function mfaResetRedirectUri(): string {
+  // Land on the confirmation page: an extra document/SSO navigation loses the
+  // single-attempt action proof. Tokens remain exclusively in adapter memory.
+  return `${window.location.origin}/admin/users`;
+}
+
 export function accountSecurityUrl(): string {
   const baseUrl = (process.env.NEXT_PUBLIC_KEYCLOAK_URL ?? 'http://localhost:8180')
     .replace(/\/$/, '');

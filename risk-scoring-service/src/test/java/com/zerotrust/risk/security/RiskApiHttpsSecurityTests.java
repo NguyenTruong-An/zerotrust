@@ -33,6 +33,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Import(RiskApiSecurityConfig.class)
 @EnableConfigurationProperties(RiskApiSecurityProperties.class)
 class RiskApiHttpsSecurityTests {
+    @org.springframework.test.context.bean.override.mockito.MockitoBean
+    com.zerotrust.risk.networkv2.NetworkRiskV2Shadow networkRiskV2;
 
     @Autowired
     private MockMvc mockMvc;
@@ -40,6 +42,7 @@ class RiskApiHttpsSecurityTests {
     @MockitoBean
     private RiskEvaluationService riskEvaluationService;
     @MockitoBean private com.zerotrust.risk.service.DeviceTrustLifecycle lifecycle;
+    @MockitoBean private com.zerotrust.risk.securitystate.SecurityAuthority securityAuthority;
 
     @Test
     void refusesPlainHttpBeforeAuthenticationOrControllerExecution() throws Exception {

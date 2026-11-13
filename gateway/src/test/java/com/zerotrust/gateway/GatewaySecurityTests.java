@@ -25,10 +25,20 @@ import static org.junit.jupiter.api.Assertions.*;
 @AutoConfigureWebTestClient
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 class GatewaySecurityTests {
+    @org.springframework.test.context.bean.override.mockito.MockitoBean StrictSecurityAuthorityClient authority;
     static final GatewayMockUpstream upstream=new GatewayMockUpstream();
     @Autowired WebTestClient client;
     @DynamicPropertySource static void config(DynamicPropertyRegistry p) { upstream.properties(p); }
     @AfterAll static void close() { upstream.close(); }
+    @Test void revokedAndUnavailableAreRejectedBeforeBackend() throws Exception {
+        String token=upstream.token("STUDENT",upstream.issuer(),"zerotrust-api",Instant.now().plusSeconds(60));
+        int before=upstream.apiCalls;
+        org.mockito.Mockito.doThrow(new StrictSecurityAuthorityClient.Rejected()).when(authority).authorize(org.mockito.ArgumentMatchers.any());
+        client.get().uri("/api/students/me").headers(h->h.setBearerAuth(token)).exchange().expectStatus().isUnauthorized();
+        org.mockito.Mockito.doThrow(new StrictSecurityAuthorityClient.Unavailable()).when(authority).authorize(org.mockito.ArgumentMatchers.any());
+        client.get().uri("/api/students/me").headers(h->h.setBearerAuth(token)).exchange().expectStatus().isEqualTo(503);
+        assertEquals(before,upstream.apiCalls);
+    }
     @Test void realSignedJwtIsValidatedAndOriginalBearerPreserved() throws Exception {
         String token=upstream.token("STUDENT",upstream.issuer(),"zerotrust-api",Instant.now().plusSeconds(60));
         client.get().uri("/api/students/me").header("Authorization","Bearer "+token).exchange().expectStatus().isOk();

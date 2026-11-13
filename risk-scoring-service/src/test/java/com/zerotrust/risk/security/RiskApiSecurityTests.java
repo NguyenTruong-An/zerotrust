@@ -108,9 +108,11 @@ class RiskApiSecurityTests {
     @Autowired MockMvc mvc;
     @MockitoBean RiskEvaluationService service;
     @MockitoBean com.zerotrust.risk.service.DeviceTrustLifecycle lifecycle;
+    @MockitoBean com.zerotrust.risk.securitystate.SecurityAuthority securityAuthority;
     @MockitoBean TrustedDeviceRegistrationService registrationService;
     @MockitoBean AuthenticationFailureService authenticationFailureService;
     @MockitoBean AuthenticationSuccessService authenticationSuccessService;
+    @MockitoBean com.zerotrust.risk.networkv2.NetworkRiskV2Shadow networkRiskV2;
 
     @BeforeEach void evaluation() {
         when(lifecycle.snapshot(any())).thenReturn(new com.zerotrust.risk.service.DeviceTrustLifecycle.Snapshot(0, false));

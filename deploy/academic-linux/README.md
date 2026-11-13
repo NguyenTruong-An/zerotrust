@@ -48,11 +48,8 @@ Chạy `smoke.py --exercise` trong lane rehearsal riêng trên host thử, với
 
 ## Cấp quyền giảng viên
 
-| Phương án | Điều kiện |
-|---|---|
-| B — HTTPS qua VPN hoặc private access | Khuyến nghị hiện tại. DNS riêng cho cả Portal/Auth. Gateway hoặc VPN đã xác thực chuyển TCP 443 theo hai hostname tới port loopback trên VPS, giữ SNI và TLS của profile. Chỉ định danh giảng viên được cấp quyền. |
-| A — HTTPS qua Internet có giới hạn | Chỉ dùng khi owner duyệt artifact/rủi ro và access gate đã được nghiệm thu. Bảo vệ cả hai hostname, bao gồm đường OIDC redirect. Chặn truy cập ngoài danh sách, kiểm người ngoài không vào được và chốt hạn quyền. |
+Owner duyệt access model ngày11/11/2026: sau release acceptance, Portal/Auth dùng HTTPS công khai + Keycloak/MFA/Adaptive Risk. Giảng viên nhận account riêng ADMIN hoặc STUDENT, không cần Google Cloud account, IAP, VPN hoặc IP cố định. School synthetic/read-only, RBAC/ownership, signup tắt và expiry vẫn bắt buộc. Auth ingress phải giữ các endpoint OIDC/PKCE/login-actions cần thiết; Keycloak admin/master/management và Observatory raw chỉ operator-private.
 
-Owner cần cung cấp Linux amd64 host và quyền deploy, Portal/Auth hostname và quyền DNS, fullchain/key/CA bundle hoặc người vận hành PKI, lựa chọn gateway/VPN, danh sách người dùng, giới hạn phiên và thời điểm thu hồi. Giữ signup tắt và MFA bật. Gate phải áp dụng cho cả Portal và Auth, không xuất raw Observatory hoặc management. Test từ một thiết bị được cấp quyền và một thiết bị ngoài phạm vi. Đến hạn, thu hồi access gateway, sessions và tài khoản demo. Cập nhật người phụ trách backup, restart và kênh hỗ trợ giảng viên.
+Private rehearsal dùng IAP/OS Login cho operator và origin loopback; chưa mở ứng dụng public. Provider là GCE Ubuntu24.04 amd64, hostname tương lai từ IP static thật qua sslip.io, TLS Let's Encrypt HTTP-01. Approval access model không là public GO: D-04, artifact decisions D-14/D-17 và G8 còn gate riêng.
 
-Profile hiện tại chỉ tạo origin loopback. Việc cấu hình access gateway, DNS và mở quyền truy cập thuộc bước owner phê duyệt sau nghiệm thu.
+[Runbook cấp/thu hồi account, Cloud preflight và checklist target](vps/ACCESS_AND_PRIVATE_REHEARSAL.md) ghi rõ những phần chưa có: operator-private admin identity, cohort mapping/installer, first-login password change + OTP acceptance, expiry job và token lifetime. Chưa tạo account giảng viên hoặc triển khai Cloud. Không ép OTP cho mọi LOW login, không thay sensitive ADMIN reset D-10.

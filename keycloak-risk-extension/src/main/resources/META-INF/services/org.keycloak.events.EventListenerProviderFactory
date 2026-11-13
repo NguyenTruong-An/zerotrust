@@ -1,1 +1,2 @@
 com.zerotrust.keycloak.risk.listener.RiskEventListenerFactory
+com.zerotrust.keycloak.risk.strict.NativeMutationListenerFactory

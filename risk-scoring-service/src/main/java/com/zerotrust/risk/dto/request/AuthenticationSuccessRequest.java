@@ -10,6 +10,10 @@ public record AuthenticationSuccessRequest(
         @NotBlank @Size(max = 255) String eventId,
         @NotBlank @Size(max = 255) String subjectId,
         @NotBlank @Size(max = 255) String clientId,
-        @NotNull Instant authenticatedAt
+        @NotNull Instant authenticatedAt,
+        java.util.UUID riskEvaluationId
 ) {
+    public AuthenticationSuccessRequest(String eventId, String subjectId, String clientId, Instant authenticatedAt) {
+        this(eventId, subjectId, clientId, authenticatedAt, null);
+    }
 }

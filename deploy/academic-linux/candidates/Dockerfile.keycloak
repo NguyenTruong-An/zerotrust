@@ -1,0 +1,18 @@
+# Isolated candidate only. The RC Dockerfile/base pin remains unchanged.
+FROM eclipse-temurin:17.0.21_9-jdk-jammy@sha256:057a0daec60e87c96571bf5c9c7792065bcb19e804d584cd37d4144038a35717 AS spi
+WORKDIR /source
+COPY .mvn .mvn
+COPY mvnw pom.xml ./
+COPY keycloak-risk-extension/pom.xml keycloak-risk-extension/pom.xml
+COPY keycloak-risk-extension/src keycloak-risk-extension/src
+RUN --mount=type=cache,target=/root/.m2 chmod +x mvnw && ./mvnw --batch-mode --no-transfer-progress -f keycloak-risk-extension/pom.xml -Ppublic-demo-candidate -DskipTests package
+
+FROM dhi.io/keycloak@sha256:ba20b9bd0ecd48047240249acaff19aa882db5480a03659fcdf14d4b7bd9d424
+ARG SOURCE_REVISION
+LABEL org.opencontainers.image.revision=$SOURCE_REVISION \
+      org.opencontainers.image.base.digest=sha256:ba20b9bd0ecd48047240249acaff19aa882db5480a03659fcdf14d4b7bd9d424 \
+      io.zerotrust.scope=bounded-remediation-20261110
+COPY --from=spi --chown=65532:65532 /source/keycloak-risk-extension/target/keycloak-risk-extension.jar /opt/keycloak/providers/
+COPY --chown=65532:65532 keycloak-theme/zerotrust /opt/keycloak/themes/zerotrust
+USER 65532:65532
+RUN --network=none /opt/keycloak/bin/kc.sh build --db=mysql --health-enabled=true

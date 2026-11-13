@@ -1,0 +1,57 @@
+# New disposable synthetic DoAn realm. Never merge this into a protected project.
+services:
+  materialize:
+    volumes:
+      - ../full-function/materialize.sh:/script/materialize.sh:ro
+      - crl-config:/out/crl
+  mysql:
+    image: zt-security-candidate/mysql84:20261110-1
+    healthcheck: &mysql_health
+      test: [CMD-SHELL, "mysql --defaults-extra-file=/fixture/school.cnf -Nse 'SELECT 1' | grep -qx 1"]
+  mysql80:
+    image: zt-security-candidate/mysql80:20261110-1
+    healthcheck: *mysql_health
+  mysql-restore:
+    image: zt-security-candidate/mysql84:20261110-1
+  frontend:
+    image: zt-full-function/frontend:20261111-1
+  keycloak: &kc
+    environment:
+      JAVA_OPTS_APPEND: -Xms128m -Xmx384m -XX:ActiveProcessorCount=2 -Dcom.sun.net.ssl.checkRevocation=true -Dcom.sun.security.enableCRLDP=true
+  keycloak-init:
+    <<: *kc
+  ingress:
+    ports: !override ["127.0.0.1:39443:39443"]
+    networks:
+      core:
+        aliases: [portal.full-function.test, auth.full-function.test]
+    healthcheck:
+      test: [CMD, curl, --fail, --silent, --max-time, "5", --cacert, /run/demo/ca-with-crl.pem, --crlfile, /run/demo/ca.crl.pem, --connect-to, "portal.full-function.test:39443:127.0.0.1:39443", "https://portal.full-function.test:39443/"]
+  crl:
+    platform: linux/amd64
+    image: nginx:1.30.6-alpine@sha256:bb8f722b4be005fcd7827816a136ab779fd40185d85b5171be915cc7fc0575c7
+    labels: {io.zerotrust.scope: "${AD_RC_PROJECT:?}"}
+    user: "101:101"
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    read_only: true
+    tmpfs: [/tmp:mode=1777, /var/cache/nginx:mode=1777]
+    restart: unless-stopped
+    mem_limit: 64m
+    entrypoint: [nginx, -c, /run/demo/crl.conf, -g, "daemon off;"]
+    volumes: [crl-config:/run/demo:ro]
+    ports: ["127.0.0.1:39445:39445"]
+    networks:
+      core:
+        aliases: [crl.full-function.test]
+      recovery:
+        aliases: [crl.full-function.test]
+      edge: {}
+    healthcheck:
+      test: [CMD, wget, -q, -O, /dev/null, "http://127.0.0.1:39445/ca.crl"]
+      interval: 5s
+      timeout: 4s
+      retries: 10
+
+volumes:
+  crl-config: {}

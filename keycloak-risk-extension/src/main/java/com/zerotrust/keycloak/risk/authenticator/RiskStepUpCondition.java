@@ -21,6 +21,8 @@ public final class RiskStepUpCondition implements ConditionalAuthenticator {
 
     @Override
     public boolean matchCondition(AuthenticationFlowContext context) {
+        // Action-specific MFA is independent of the B0 risk decision.
+        if(com.zerotrust.keycloak.risk.strict.NativeFlowGuard.proof(context.getAuthenticationSession())!=null) return true;
         boolean stepUpRequired = Boolean.parseBoolean(
                 context.getAuthenticationSession().getAuthNote(
                         RiskAuthenticationNotes.STEP_UP_REQUIRED

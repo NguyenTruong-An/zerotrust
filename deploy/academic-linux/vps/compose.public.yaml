@@ -1,0 +1,6 @@
+# Explicit VPS-only overlay. Never included by rc.py or the local profiles.
+services:
+  ingress:
+    ports: !override
+      - "127.0.0.1:${AD_BIND_PORT:?}:8443"
+      - "0.0.0.0:443:8443"

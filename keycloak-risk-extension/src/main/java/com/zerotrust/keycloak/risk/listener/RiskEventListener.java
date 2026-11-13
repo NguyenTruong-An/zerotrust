@@ -138,9 +138,9 @@ public final class RiskEventListener implements EventListenerProvider {
         ));
     }
 
-    private static void recordSuccess(Event event, AuthenticationEventClient client) {
+    private void recordSuccess(Event event, AuthenticationEventClient client) {
         String subjectId = optionalText(event.getUserId());
-        if (subjectId == null || event.getTime() <= 0) {
+        if (subjectId == null || event.getTime() <= 0 || event.getError() != null) {
             LOGGER.warnf(
                     "Skipped ZeroTrust authentication success without subject or event time "
                             + "for realm %s and client %s",
@@ -153,8 +153,28 @@ public final class RiskEventListener implements EventListenerProvider {
                 eventId(event),
                 subjectId,
                 event.getClientId(),
-                Instant.ofEpochMilli(event.getTime())
+                Instant.ofEpochMilli(event.getTime()),
+                evaluationId(event)
         ));
+    }
+
+    private UUID evaluationId(Event event) {
+        // Required actions may replace EventBuilder details. The matching server auth
+        // session still carries Risk's response UUID; never take it from a browser/header.
+        var auth = session.getContext() == null ? null : session.getContext().getAuthenticationSession();
+        if (auth != null) {
+            if (auth.getClient() == null || auth.getAuthenticatedUser() == null
+                    || !Objects.equals(event.getClientId(), auth.getClient().getClientId())
+                    || !Objects.equals(event.getUserId(), auth.getAuthenticatedUser().getId())
+                    || Boolean.parseBoolean(auth.getAuthNote(org.keycloak.services.managers.AuthenticationManager.SSO_AUTH))) return null;
+            return parseEvaluationId(auth.getAuthNote(com.zerotrust.keycloak.risk.policy.RiskAuthenticationNotes.EVALUATION_ID));
+        }
+        return parseEvaluationId(event.getDetails() == null ? null : event.getDetails().get("zt_evaluation_id"));
+    }
+
+    private static UUID parseEvaluationId(String value) {
+        if (value == null || !value.matches("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")) return null;
+        return UUID.fromString(value);
     }
 
     private static String eventId(Event event) {

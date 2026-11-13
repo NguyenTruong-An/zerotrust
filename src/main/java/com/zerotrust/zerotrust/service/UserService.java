@@ -9,4 +9,5 @@ public interface UserService {
     UserResponseDTO getCurrentUser(UUID keycloakUserId);
     List<UserResponseDTO> getAllUsers();
     void resetMfa(UUID userId);
+    java.util.Map<String,Object> mfaResetChallenge(UUID userId);
 }

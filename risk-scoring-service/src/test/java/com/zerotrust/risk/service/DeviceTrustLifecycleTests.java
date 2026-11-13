@@ -138,6 +138,42 @@ class DeviceTrustLifecycleTests {
     }
 
     @Test
+    void supersededReplayCannotLowerGenerationClearNewPendingOrResurrectOldDevice() {
+        String subject = newSubject();
+        registration.trustAfterMfa(subject, "old-proof", 0);
+        UUID old = UUID.randomUUID(), current = UUID.randomUUID();
+        lifecycle.revoke(subject, old, "admin-1");
+        lifecycle.revoke(subject, current, "admin-1");
+        lifecycle.revoke(subject, old, "admin-1");
+        assertThat(lifecycle.snapshot(subject)).isEqualTo(new DeviceTrustLifecycle.Snapshot(2, true));
+        assertThatThrownBy(() -> lifecycle.complete(subject, old, "admin-1")).isInstanceOf(DeviceTrustRejectedException.class);
+        lifecycle.complete(subject, current, "admin-1");
+        lifecycle.revoke(subject, old, "admin-1");
+        assertThat(lifecycle.snapshot(subject)).isEqualTo(new DeviceTrustLifecycle.Snapshot(2, false));
+        assertThatThrownBy(() -> registration.trustAfterMfa(subject, "old-proof", 1)).isInstanceOf(DeviceTrustRejectedException.class);
+        assertThat(devices.findAllBySubjectId(subject)).allMatch(d -> d.getStatus() == DeviceStatus.REVOKED);
+    }
+
+    @Test
+    void concurrentResetOperationsRemainMonotonicAndOnlyLatestCanComplete() throws Exception {
+        String subject = newSubject();
+        lifecycle.generation(subject);
+        UUID first=UUID.randomUUID(), second=UUID.randomUUID();
+        ExecutorService pool=Executors.newFixedThreadPool(2);
+        try {
+            var a=pool.submit(() -> lifecycle.revoke(subject,first,"admin-1"));
+            var b=pool.submit(() -> lifecycle.revoke(subject,second,"admin-1"));
+            a.get(10,TimeUnit.SECONDS); b.get(10,TimeUnit.SECONDS);
+            assertThat(lifecycle.snapshot(subject)).isEqualTo(new DeviceTrustLifecycle.Snapshot(2,true));
+            UUID latest=UUID.fromString(jdbc.queryForObject("SELECT pending_operation_id FROM subject_device_trust WHERE subject_id=?",String.class,subject));
+            UUID older=latest.equals(first)?second:first;
+            assertThatThrownBy(() -> lifecycle.complete(subject,older,"admin-1")).isInstanceOf(DeviceTrustRejectedException.class);
+            lifecycle.complete(subject,latest,"admin-1");
+            assertThat(lifecycle.snapshot(subject)).isEqualTo(new DeviceTrustLifecycle.Snapshot(2,false));
+        } finally { pool.shutdownNow(); }
+    }
+
+    @Test
     void revokeWaitsForInFlightRegistrationTransactionAndThenRevokesItsDevice() throws Exception {
         String subject = newSubject();
         long generation = lifecycle.generation(subject);

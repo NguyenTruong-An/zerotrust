@@ -22,6 +22,22 @@ chưa deploy Docker hoặc tạo fixture A5/A6. Không thay thế kết quả Br
 [PUBLIC_DEMO_ROADMAP](production-readiness/PUBLIC_DEMO_ROADMAP.md) là nguồn chính thức duy nhất
 quản lý phạm vi và tiến độ Public Demo; mọi nhiệm vụ Public Demo phải đọc và cập nhật tại đó.
 
+[Full-Function Phase2.1 decision packet](../deploy/full-function/PHASE21_DECISION_PACKET.md)
+ghi đề xuất policy GeoIP, Risk promotion, D-10 và rollback; chưa phê duyệt hoặc triển khai.
+
+[Phase2.2 promotion tooling](../deploy/full-function/PHASE22_PROMOTION_TOOLING.md)
+có plan/validate read-only và restart guard. [Phase2.3A](../deploy/full-function/PHASE23A_EXECUTOR_REHEARSAL.md)
+bổ sung executor và rehearsal chỉ trên lane disposable; active chưa cutover,
+authorization mới và tích hợp maintenance cho active vẫn còn bắt buộc.
+
+[Phase2.3A-FIX](../deploy/full-function/PHASE23A_FIX.md) kiểm rollback interruption
+thật, ingress fence và running intent; active execution context/checkpoint và
+daemon acceptance vẫn chưa hoàn tất. Packet PENDING không là cutover approval.
+
+[Phase2.3A-ACTIVE-CONTEXT](../deploy/full-function/PHASE23A_ACTIVE_CONTEXT.md)
+đóng implementation gap active binding;126 targeted tests/disposable recovery và
+active read-only preflight PASS. Owner signature/active checkpoint chưa có; không cutover.
+
 PD-R18 ghi [xác minh rootfs Keycloak DHI](production-readiness/evidence/PD-02-02_DHI_ROOTFS_SECURITY_VERIFICATION.md),
 [kế hoạch thử nghiệm và rollback](production-readiness/evidence/PD-02-02_DHI_RUNTIME_TRIAL_PLAN.md),
 [checklist chuẩn bị PD-02-08](production-readiness/evidence/PD-02-08_REGRESSION_READINESS.md)
@@ -59,6 +75,7 @@ hoặc khởi động cấu hình synthetic để thay cho canonical.
 
 1. **Hiểu đề tài:** [Kiến trúc](../ARCHITECTURE.md) — sơ đồ mã hiện có và kiến trúc đích, ranh giới, phần đã chốt/còn thiếu.
 2. **Hiểu đăng nhập:** [Login, PKCE và phiên](authentication/LOGIN_FLOW.md), rồi [Reset MFA và thiết bị tin cậy](authentication/MFA_RESET_LIFECYCLE.md).
+   [Kế hoạch D-10](authentication/D10_REMEDIATION_PLAN.md) và [Phase1 offline](authentication/D10_PHASE1_OFFLINE_REMEDIATION.md) giữ baseline lịch sử. Owner đã chọn B cho [Phase2 strict revocation](authentication/D10_STRICT_PHASE2.md): authority, API/issuer gates, native MFA proof và durable reset; chỉ engineering offline, chưa deploy hoặc đóng D-10.
 3. **Vận hành hiện tại:** [Lệnh vận hành, cấu hình và volume](operations/CURRENT_RUNTIME.md), xem trạng thái nghiệm thu và build/deploy trong [báo cáo tổng hợp](../ZEROTRUST_FINAL_CONSOLIDATION_REPORT.md).
 4. **Đọc mã và kiểm thử:** [Giải thích class theo luồng](development/CODE_FLOW_WALKTHROUGH.md) — frontend, SPI, scoring/history/device và học vụ Portal; [Các bước kiểm tra](development/DEVELOPMENT_CHECKS.md).
    Bộ kịch bản thực hành: [Kế hoạch kiểm thử và pentest](testing/TEST_PLAN.md), [40 ca chức năng](testing/FUNCTIONAL_SCENARIOS.md), [24 ca pentest cơ bản](testing/BASIC_PENTEST.md).

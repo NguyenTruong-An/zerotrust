@@ -413,7 +413,21 @@ class KeycloakUserClientTest {
         verify(userResource).removeCredential("otp-id");
         verify(userResource).removeCredential("recovery-id");
         verify(userResource, never()).removeCredential("password-id");
+        verify(userResource, never()).logout();
+    }
+
+    @Test
+    void earlyLogoutTouchesNoCredentialAndPropagatesUnknownOutcome() {
+        stubUsersResource();
+        UUID id = UUID.randomUUID();
+        when(usersResource.get(id.toString())).thenReturn(userResource);
+        doThrow(new ProcessingException("outcome unknown")).when(userResource).logout();
+        assertThatThrownBy(() -> client.logoutSessions(id)).isInstanceOf(WebException.class)
+                .extracting(e -> ((WebException)e).getErrorCode()).isEqualTo(ErrorCode.IDENTITY_PROVIDER_UNAVAILABLE);
         verify(userResource).logout();
+        verify(userResource, never()).toRepresentation();
+        verify(userResource, never()).credentials();
+        verify(userResource, never()).update(any());
     }
 
     private void stubUsersResource() {

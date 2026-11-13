@@ -8,7 +8,7 @@ const API_BASE_URL = publicDemo ? '' : (
 
 const id = '[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}';
 const demoReadPath = new RegExp(`^(?:/api/users/me|/api/students/me(?:/scores(?:/summary)?)?|/api/admin/(?:students(?:/${id}(?:/scores)?)?|student-classes|subjects(?:/${id}/score-sheet)?|users))$`, 'i');
-const resetPath = new RegExp(`^/api/admin/users/${id}/mfa/reset$`, 'i');
+const resetPath = new RegExp(`^/api/admin/users/${id}/mfa/reset(?:/challenge)?$`, 'i');
 
 let refreshInFlight: Promise<boolean> | undefined;
 

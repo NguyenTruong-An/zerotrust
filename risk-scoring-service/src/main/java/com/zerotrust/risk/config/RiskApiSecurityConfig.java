@@ -31,6 +31,10 @@ import java.util.Map;
 
 @Configuration
 public class RiskApiSecurityConfig {
+    private static boolean securityCaller(Authentication authentication, java.util.Set<String> clients, String role) {
+        return authentication instanceof JwtAuthenticationToken token && clients.contains(token.getToken().getClaimAsString("azp"))
+                && token.getAuthorities().stream().anyMatch(a->role.equals(a.getAuthority()));
+    }
     @Bean
     public JwtDecoder riskJwtDecoder(RiskApiSecurityProperties properties) {
         NimbusJwtDecoder decoder = NimbusJwtDecoder.withJwkSetUri(properties.jwkSetUri().toString()).build();
@@ -68,6 +72,12 @@ public class RiskApiSecurityConfig {
                         .requestMatchers(request -> request.getDispatcherType() == DispatcherType.ERROR
                                 && "/error".equals(request.getServletPath())).permitAll()
                         .requestMatchers(HttpMethod.GET, healthPaths).permitAll()
+                        .requestMatchers(HttpMethod.POST,"/internal/v1/security/authorizations")
+                        .access((a,c)->new AuthorizationDecision(securityCaller(a.get(),java.util.Set.of("zerotrust-gateway-security","zerotrust-portal-security","zerotrust-issuer-security"),"security:authorize")))
+                        .requestMatchers(HttpMethod.POST,"/internal/v1/security/authentications","/internal/v1/security/issuance","/internal/v1/security/proofs","/internal/v1/security/revocations","/internal/v1/security/native-admission","/internal/v1/security/native-confirmation","/internal/v1/security/external-confirmation","/internal/v1/security/sso-authorizations","/internal/v1/security/native-session-revocations")
+                        .access((a,c)->new AuthorizationDecision(securityCaller(a.get(),java.util.Set.of("zerotrust-issuer-security"),"security:issue")))
+                        .requestMatchers(HttpMethod.POST,"/internal/v1/security/challenges","/internal/v1/security/resets","/internal/v1/security/reset-work","/internal/v1/security/reset-next")
+                        .access((a,c)->new AuthorizationDecision(securityCaller(a.get(),java.util.Set.of("zerotrust-portal-security"),"security:reset")))
                         .requestMatchers(HttpMethod.POST, "/internal/v1/subjects/*/trusted-devices/revocations",
                                 "/internal/v1/subjects/*/trusted-devices/revocations/completion")
                         .access((authentication, context) -> new AuthorizationDecision(

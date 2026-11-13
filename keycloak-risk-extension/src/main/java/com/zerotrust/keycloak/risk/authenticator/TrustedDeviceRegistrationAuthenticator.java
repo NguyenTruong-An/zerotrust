@@ -194,8 +194,7 @@ public final class TrustedDeviceRegistrationAuthenticator implements Authenticat
         for (var status : session.getExecutionStatus().entrySet()) {
             if (status.getValue() != AuthenticationSessionModel.ExecutionStatus.SUCCESS) continue;
             var execution = realm.getAuthenticationExecutionById(status.getKey());
-            if (execution != null && ("auth-otp-form".equals(execution.getAuthenticator())
-                    || "auth-recovery-authn-code-form".equals(execution.getAuthenticator()))) return true;
+            if (execution != null && execution.getAuthenticator()!=null && java.util.Set.of("auth-otp-form","auth-recovery-authn-code-form","d10-otp","d10-recovery").contains(execution.getAuthenticator())) return true;
         }
         return false;
     }

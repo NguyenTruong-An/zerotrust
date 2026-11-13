@@ -239,4 +239,78 @@ class RiskEventListenerTest {
         }
         return event;
     }
+
+    @Test
+    void nativeSuccessForwardsServerEvaluationCorrelationAndSsoWithoutItStaysUncorrelated() {
+        prepareConfig("zerotrust-spa");
+        when(clientFactory.create(riskConfig)).thenReturn(client);
+        java.util.UUID id = java.util.UUID.randomUUID();
+        for (String correlation : java.util.List.of(id.toString(), "invalid")) {
+            Event event = loginEvent(EventType.LOGIN, "zerotrust-spa");
+            event.setUserId("synthetic-subject"); event.setTime(1793923200000L);
+            event.setDetails(java.util.Map.of("zt_evaluation_id", correlation));
+            listener.onEvent(event);
+        }
+        Event sso = loginEvent(EventType.LOGIN, "zerotrust-spa");
+        sso.setUserId("synthetic-subject"); sso.setTime(1793923200000L);
+        listener.onEvent(sso);
+        var requests = ArgumentCaptor.forClass(AuthenticationSuccessRequest.class);
+        org.mockito.Mockito.verify(client, org.mockito.Mockito.times(3)).recordSuccess(requests.capture());
+        assertEquals(id, requests.getAllValues().get(0).riskEvaluationId());
+        assertNull(requests.getAllValues().get(1).riskEvaluationId());
+        assertNull(requests.getAllValues().get(2).riskEvaluationId());
+    }
+
+    @Test
+    void errorsAndRefreshCannotCreateNetworkSuccessHistory() {
+        listener.onEvent(loginEvent(EventType.REFRESH_TOKEN, "zerotrust-spa"));
+        verifyNoInteractions(clientFactory);
+        prepareConfig("zerotrust-spa");
+        when(clientFactory.create(riskConfig)).thenReturn(client);
+        Event malformed = loginEvent(EventType.LOGIN, "zerotrust-spa");
+        malformed.setUserId("synthetic-subject"); malformed.setTime(1793923200000L);
+        malformed.setError(Errors.INVALID_USER_CREDENTIALS);
+        listener.onEvent(malformed);
+        verifyNoInteractions(client);
+    }
+
+    @Test
+    void requiredActionLoginUsesExactMatchingServerAuthSessionWhenEventDetailsWereReplaced() {
+        prepareConfig("zerotrust-spa"); when(clientFactory.create(riskConfig)).thenReturn(client);
+        var context=mock(org.keycloak.models.KeycloakContext.class);
+        var auth=mock(org.keycloak.sessions.AuthenticationSessionModel.class);
+        var actor=mock(org.keycloak.models.UserModel.class);var app=mock(org.keycloak.models.ClientModel.class);
+        when(session.getContext()).thenReturn(context);when(context.getAuthenticationSession()).thenReturn(auth);
+        when(auth.getClient()).thenReturn(app);when(app.getClientId()).thenReturn("zerotrust-spa");
+        when(auth.getAuthenticatedUser()).thenReturn(actor);when(actor.getId()).thenReturn("synthetic-subject");
+        var id=java.util.UUID.randomUUID();
+        when(auth.getAuthNote(com.zerotrust.keycloak.risk.policy.RiskAuthenticationNotes.EVALUATION_ID)).thenReturn(id.toString());
+        Event event=loginEvent(EventType.LOGIN,"zerotrust-spa");event.setUserId("synthetic-subject");event.setTime(1793923200000L);
+        listener.onEvent(event);
+        var request=ArgumentCaptor.forClass(AuthenticationSuccessRequest.class);verify(client).recordSuccess(request.capture());
+        assertEquals(id,request.getValue().riskEvaluationId());
+    }
+
+    @Test
+    void ssoOrMismatchedAuthContextCannotReuseEvenAValidEvaluationDetail() {
+        prepareConfig("zerotrust-spa"); when(clientFactory.create(riskConfig)).thenReturn(client);
+        var context=mock(org.keycloak.models.KeycloakContext.class);
+        var auth=mock(org.keycloak.sessions.AuthenticationSessionModel.class);
+        var actor=mock(org.keycloak.models.UserModel.class);var app=mock(org.keycloak.models.ClientModel.class);
+        when(session.getContext()).thenReturn(context);when(context.getAuthenticationSession()).thenReturn(auth);
+        when(auth.getClient()).thenReturn(app);when(app.getClientId()).thenReturn("zerotrust-spa");
+        when(auth.getAuthenticatedUser()).thenReturn(actor);when(actor.getId()).thenReturn("synthetic-subject");
+        var id=java.util.UUID.randomUUID().toString();
+        when(auth.getAuthNote(com.zerotrust.keycloak.risk.policy.RiskAuthenticationNotes.EVALUATION_ID)).thenReturn(id);
+        Event event=loginEvent(EventType.LOGIN,"zerotrust-spa");event.setUserId("synthetic-subject");event.setTime(1793923200000L);
+        event.setDetails(java.util.Map.of("zt_evaluation_id",id));
+        when(auth.getAuthNote(org.keycloak.services.managers.AuthenticationManager.SSO_AUTH)).thenReturn("true");
+        listener.onEvent(event);
+        when(auth.getAuthNote(org.keycloak.services.managers.AuthenticationManager.SSO_AUTH)).thenReturn(null);
+        when(actor.getId()).thenReturn("other-subject");listener.onEvent(event);
+        when(actor.getId()).thenReturn("synthetic-subject");when(app.getClientId()).thenReturn("other-client");listener.onEvent(event);
+        var requests=ArgumentCaptor.forClass(AuthenticationSuccessRequest.class);
+        org.mockito.Mockito.verify(client,org.mockito.Mockito.times(3)).recordSuccess(requests.capture());
+        org.junit.jupiter.api.Assertions.assertTrue(requests.getAllValues().stream().allMatch(r->r.riskEvaluationId()==null));
+    }
 }

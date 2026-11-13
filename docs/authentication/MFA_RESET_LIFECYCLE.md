@@ -4,6 +4,8 @@
 
 **Ngày đối chiếu mã:** 2026-10-05.
 
+**Cập nhật 13/11/2026:** các sequence/contract dưới đây là baseline trước [D10 Phase1 offline](D10_PHASE1_OFFLINE_REMEDIATION.md). Source candidate mới có fresh-proof consumer và revoke → early logout → credential phase → final logout → completion; runtime pin vẫn giữ baseline, publisher/native lifecycle chưa xác nhận. Không coi source mới là đã deploy hoặc D-10 PASS.
+
 **Trạng thái:** Có implementation trong Portal/Risk/SPI; provisioning và rollout
 realm thật chưa được xác nhận lại trong lần rà soát này.
 

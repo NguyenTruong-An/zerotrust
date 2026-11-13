@@ -18,13 +18,17 @@ public class RiskEvaluationController {
 
     private final RiskEvaluationService riskEvaluationService;
     private final com.zerotrust.risk.service.DeviceTrustLifecycle deviceTrustLifecycle;
+    private final com.zerotrust.risk.networkv2.NetworkRiskV2Shadow networkRiskV2;
 
     @PostMapping
     public RiskEvaluationResponse evaluate(@Valid @RequestBody RiskEvaluationRequest request) {
         var snapshot = deviceTrustLifecycle.snapshot(request.subjectId());
+        var context = request.toDomain(java.time.Instant.now());
         RiskEvaluation evaluation = snapshot.resetPending()
                 ? riskEvaluationService.denyForPendingReset()
-                : riskEvaluationService.evaluate(request.toDomain(java.time.Instant.now()));
+                : riskEvaluationService.evaluate(context);
+        // Observation is independent of the live B0 decision and response contract.
+        networkRiskV2.observe(context, evaluation, snapshot.generation());
         return RiskEvaluationResponse.from(request, evaluation, snapshot.generation());
     }
 }

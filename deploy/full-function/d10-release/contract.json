@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "purpose": "D10 strict revocation, offline candidate; no deployment authorization",
+  "target_project": "zt-full-function-20261111b",
+  "policy": {"access_ttl_seconds": 300, "clock_skew_seconds": 60, "sso_idle_seconds": 1800, "sso_max_seconds": 28800, "fresh_admin_factor_seconds": 300},
+  "authority": {"writer": "MySQL primary", "positive_cache": false, "replica_reads": false, "unavailable": 503, "rejected_context_internal": 409, "rejected_context_public": 401, "legacy_epoch_missing": 401, "tombstone_retention": "indefinite; no automatic deletion in this release"},
+  "network_risk": {"live_policy": "B0", "v2_mode": "SHADOW", "retention_enabled": false},
+  "schema": {"before": 7, "after": 9, "additive": true, "downgrade": false},
+  "tls": {"authority": "https://risk:8443", "token_endpoint": "https://keycloak:8443/realms/DoAn/protocol/openid-connect/token", "native_effects": "https://keycloak:8443/realms/DoAn/d10-security/effects", "verify_hostname_ca_crl": true, "redirect_credentials": false},
+  "backend_gateway_properties": {"app.security.authority.base-url": "https://risk:8443", "app.security.authority.token-endpoint": "https://keycloak:8443/realms/DoAn/protocol/openid-connect/token", "app.security.authority.secret-file": "/run/demo/d10-security-secret", "app.security.authority.native-effects-url": "https://keycloak:8443/realms/DoAn/d10-security/effects"},
+  "issuer_environment": {"ZT_SECURITY_AUTHORITY": "https://risk:8443", "ZT_SECURITY_TOKEN_ENDPOINT": "https://keycloak:8443/realms/DoAn/protocol/openid-connect/token", "ZT_SECURITY_SECRET_FILE": "/run/secrets/d10-security-secret", "ZT_SECURITY_REALM": "DoAn"},
+  "services": {
+    "zerotrust-gateway-security": {"risk_roles": ["security:authorize"], "audiences": ["zerotrust-risk-api"]},
+    "zerotrust-portal-security": {"risk_roles": ["security:authorize", "security:reset"], "native_roles": ["security:reset-native"], "audiences": ["zerotrust-risk-api", "zerotrust-native-security"]},
+    "zerotrust-issuer-security": {"risk_roles": ["security:authorize", "security:issue"], "audiences": ["zerotrust-risk-api"]}
+  },
+  "native_flow_delta": {"auth-cookie": "d10-cookie", "auth-username-password-form": "d10-password", "auth-otp-form": "d10-otp", "auth-recovery-authn-code-form": "d10-recovery", "forms_tail_required": "d10-auth-ticket", "other_executions": "preserve B0/mandatory MFA and reviewed ordering"},
+  "fresh_proof_request": "claims.id_token.zt_action_proof.value; nonce only; prompt=login",
+  "scope": "local JPA users; no federation or broker; unsupported bulk import/realm deletion blocked",
+  "secret_handling": "provision NEW dedicated credentials during separately authorized maintenance; never copy fixture secrets or owner signing keys",
+  "rollback": "strict-compatible artifacts only; retain V8/V9 epochs, tombstones, pending, native receipts and current credentials; otherwise maintenance fail-closed",
+  "deployment_authorized": false
+}

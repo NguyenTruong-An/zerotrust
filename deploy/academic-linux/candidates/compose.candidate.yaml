@@ -1,0 +1,8 @@
+# Used exclusively by the bounded candidate harness, never by a release driver.
+services:
+  mysql:
+    image: zt-security-candidate/mysql84:20261110-1
+  mysql80:
+    image: zt-security-candidate/mysql80:20261110-1
+  mysql-restore:
+    image: zt-security-candidate/mysql84:20261110-1

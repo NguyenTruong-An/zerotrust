@@ -248,4 +248,10 @@ public class AdminController {
         userService.resetMfa(id);
         return ResponseEntity.noContent().build();
     }
+
+    @PostMapping("/users/{id}/mfa/reset/challenge")
+    @PublicDemoEndpoint(PublicDemoEndpoint.Kind.SECURITY_STATE)
+    public ResponseEntity<ApiResponse<java.util.Map<String,Object>>> mfaResetChallenge(@PathVariable UUID id) {
+        return ResponseEntity.ok(ApiResponse.success(userService.mfaResetChallenge(id),"Fresh MFA challenge created"));
+    }
 }

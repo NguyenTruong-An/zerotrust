@@ -33,6 +33,16 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 class RiskEvaluationTraceTest {
+    @Test void flowSuccessIsNotFactorEvidenceButStrictNativeOtpSuccessIs() {
+        var auth=org.mockito.Mockito.mock(AuthenticationSessionModel.class);
+        var realm=org.mockito.Mockito.mock(RealmModel.class);
+        var flow=new AuthenticationExecutionModel();
+        org.mockito.Mockito.when(auth.getExecutionStatus()).thenReturn(java.util.Map.of("flow",AuthenticationSessionModel.ExecutionStatus.SUCCESS));
+        org.mockito.Mockito.when(realm.getAuthenticationExecutionById("flow")).thenReturn(flow);
+        org.junit.jupiter.api.Assertions.assertEquals("NOT_OBSERVED",RiskEvaluationTrace.mfaExecution(auth,realm));
+        flow.setAuthenticator("d10-otp");
+        org.junit.jupiter.api.Assertions.assertEquals("OTP_EXECUTION_SUCCESS",RiskEvaluationTrace.mfaExecution(auth,realm));
+    }
     private static final Instant NOW = Instant.parse("2026-10-28T03:00:00Z");
     private static final UUID EVALUATION = UUID.fromString("5267b997-7d7e-4b0d-9da9-5bc1e98c05e0");
 

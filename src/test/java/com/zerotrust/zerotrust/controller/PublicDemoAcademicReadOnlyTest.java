@@ -71,6 +71,8 @@ class PublicDemoAcademicReadOnlyTest {
     @Autowired UnclassifiedMutationProbe probe;
     @MockitoBean IdentityProviderGateway identity;
     @MockitoBean RiskDeviceAdminClient risk;
+    @MockitoBean com.zerotrust.zerotrust.security.StrictSecurityAuthorityClient authority;
+    @MockitoBean com.zerotrust.zerotrust.security.StrictResetOrchestrator strictReset;
     private StudentEntity owner;
     private StudentEntity other;
     private SubjectEntity subject;
@@ -221,15 +223,29 @@ class PublicDemoAcademicReadOnlyTest {
     @Test
     void existingAdminMfaResetStillUsesRevokeResetCompleteWithoutSchoolWrites() throws Exception {
         var before = schoolSnapshot();
-        mvc.perform(post("/api/admin/users/" + owner.getUserEntity().getId() + "/mfa/reset").with(role("ADMIN")))
+        mvc.perform(post("/api/admin/users/" + owner.getUserEntity().getId() + "/mfa/reset").with(freshAdmin()))
                 .andExpect(status().isNoContent());
-        var order = inOrder(risk, identity);
         UUID subjectId = owner.getUserEntity().getKeycloakUserId();
-        order.verify(risk).revoke(eq(subjectId), any(UUID.class), any(String.class));
-        order.verify(identity).resetMfa(subjectId);
-        order.verify(risk).complete(eq(subjectId), any(UUID.class), any(String.class));
-        order.verifyNoMoreInteractions();
+        org.mockito.Mockito.verify(strictReset).reset(any(),eq(subjectId.toString()));
+        verifyNoInteractions(risk,identity);
         assertThat(schoolSnapshot()).isEqualTo(before);
+    }
+
+    @Test
+    void adminWithoutFactorProofIsRejectedBeforeAnySecurityMutation() throws Exception {
+        var before = schoolSnapshot();
+        mvc.perform(post("/api/admin/users/" + owner.getUserEntity().getId() + "/mfa/reset").with(role("ADMIN")))
+                .andExpect(status().isForbidden()).andExpect(jsonPath("$.error").value("FRESH_ADMIN_MFA_REQUIRED"));
+        verifyNoInteractions(identity, risk);
+        assertThat(schoolSnapshot()).isEqualTo(before);
+    }
+
+    private RequestPostProcessor freshAdmin() {
+        String sub = owner.getUserEntity().getKeycloakUserId().toString();
+        return jwt().jwt(j -> j.subject(sub).claim("azp", "zerotrust-spa")
+                .claim("zt_mfa_subject", sub).claim("zt_mfa_client", "zerotrust-spa")
+                .claim("zt_mfa_method", "otp").claim("zt_mfa_at", java.time.Instant.now().getEpochSecond()))
+                .authorities(new SimpleGrantedAuthority("ROLE_ADMIN"));
     }
 
     @Test
@@ -257,9 +273,9 @@ class PublicDemoAcademicReadOnlyTest {
                     return v[0] + " " + inventoryPath(v[1].toString()) + " WRITE";
                 }), Stream.concat(
                         reads().map(a -> "GET " + inventoryPath(a.get()[0].toString()) + " READ"),
-                        Stream.of("POST /api/admin/users/{id}/mfa/reset SECURITY_STATE")))
+                        Stream.of("POST /api/admin/users/{id}/mfa/reset SECURITY_STATE","POST /api/admin/users/{id}/mfa/reset/challenge SECURITY_STATE")))
                 .collect(Collectors.toSet());
-        assertThat(actual).hasSize(22).isEqualTo(expected);
+        assertThat(actual).hasSize(23).isEqualTo(expected);
     }
 
     private static Stream<Arguments> academicMutations() {

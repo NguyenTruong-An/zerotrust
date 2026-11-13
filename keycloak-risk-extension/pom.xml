@@ -15,7 +15,7 @@
     <properties>
         <maven.compiler.release>17</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <keycloak.version>26.7.0</keycloak.version>
+        <keycloak.version>26.8.2</keycloak.version>
         <apache.httpclient.version>4.5.14</apache.httpclient.version>
         <resteasy.version>6.2.16.Final</resteasy.version>
         <junit.version>5.12.2</junit.version>
@@ -25,6 +25,12 @@
     </properties>
 
     <dependencies>
+        <dependency>
+            <groupId>org.keycloak</groupId><artifactId>keycloak-model-jpa</artifactId>
+            <version>${keycloak.version}</version><scope>provided</scope>
+            <exclusions><exclusion><groupId>*</groupId><artifactId>*</artifactId></exclusion></exclusions>
+        </dependency>
+        <dependency><groupId>jakarta.persistence</groupId><artifactId>jakarta.persistence-api</artifactId><version>3.2.0</version><scope>provided</scope></dependency>
         <dependency>
             <groupId>org.keycloak</groupId>
             <artifactId>keycloak-server-spi</artifactId>

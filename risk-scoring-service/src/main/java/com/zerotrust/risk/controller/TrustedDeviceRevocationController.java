@@ -15,10 +15,12 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class TrustedDeviceRevocationController {
     private final DeviceTrustLifecycle lifecycle;
+    private final com.zerotrust.risk.securitystate.SecurityAuthority authority;
 
     @PostMapping("/internal/v1/subjects/{subjectId}/trusted-devices/revocations")
     public ResponseEntity<Void> revoke(@PathVariable UUID subjectId, @Valid @RequestBody RevocationRequest request) {
-        lifecycle.revoke(subjectId.toString(), request.operationId(), request.requestedBy());
+        // No verified device-to-session binding exists: revoke the entire subject epoch.
+        authority.revoke(subjectId.toString(),request.operationId(),request.requestedBy(),"DEVICE_REVOKE",false,null);
         return ResponseEntity.noContent().build();
     }
 
@@ -27,7 +29,7 @@ public class TrustedDeviceRevocationController {
 
     @PostMapping("/internal/v1/subjects/{subjectId}/trusted-devices/revocations/completion")
     public ResponseEntity<Void> complete(@PathVariable UUID subjectId, @Valid @RequestBody RevocationRequest request) {
-        lifecycle.complete(subjectId.toString(), request.operationId(), request.requestedBy());
+        authority.deviceCompletion(subjectId.toString(),request.operationId(),request.requestedBy());
         return ResponseEntity.noContent().build();
     }
 }

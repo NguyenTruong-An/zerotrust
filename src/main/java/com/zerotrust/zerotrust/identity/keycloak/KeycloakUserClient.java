@@ -113,6 +113,16 @@ public class KeycloakUserClient {
         }
     }
 
+    public void logoutSessions(UUID userId) {
+        try {
+            users().get(userId.toString()).logout();
+        } catch (ProcessingException ex) {
+            throw exceptionMapper.providerUnavailable();
+        } catch (WebApplicationException ex) {
+            throw exceptionMapper.mapClientFailure(ex);
+        }
+    }
+
     public void resetMfa(UUID userId) {
         try {
             UserResource userResource = users().get(userId.toString());
@@ -130,7 +140,6 @@ public class KeycloakUserClient {
                     .map(CredentialRepresentation::getId)
                     .filter(Objects::nonNull)
                     .forEach(userResource::removeCredential);
-            userResource.logout();
         } catch (ProcessingException ex) {
             throw exceptionMapper.providerUnavailable();
         } catch (WebApplicationException ex) {
