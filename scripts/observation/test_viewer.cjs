@@ -34,13 +34,13 @@ function fixture() {
         mfa_execution:"OTP_EXECUTION_SUCCESS"}]}]};
 }
 
-function run(report) {
+function run(report, extra = {}) {
   const template = fs.readFileSync(path.join(__dirname,"viewer.html"),"utf8");
   const elements = Object.fromEntries([...template.matchAll(/\bid="([^"]+)"/g)].map(m => [m[1],new Element("div")]));
   elements["report-data"].textContent = JSON.stringify(report);
   const context = {document:{getElementById:id=>elements[id],createElement:tag=>new Element(tag)},
     Intl,Date,Blob,URL,setTimeout:()=>{},location:{reload:()=>{}},
-    sessionStorage:{getItem:()=>null,setItem:()=>{}}};
+    sessionStorage:{getItem:()=>null,setItem:()=>{}},...extra};
   vm.runInNewContext(fs.readFileSync(path.join(__dirname,"viewer.js"),"utf8"),context);
   return elements;
 }
@@ -85,4 +85,28 @@ test("empty real capture is clearly distinguished from illustration",()=>{
   const nodes=run(data);
   assert.equal(nodes["demo-banner"].hidden,true);
   assert.equal(nodes.download.disabled,true);
+});
+
+test("live mode patches new attempts in place without reloading and keeps the selection",async()=>{
+  const data=fixture();data.mode="DOCKER_LOGS";data.refresh_seconds=5;
+  const next=JSON.parse(JSON.stringify(data));next.generated_at="2026-11-02T03:00:05Z";
+  const added=JSON.parse(JSON.stringify(data.attempts[0]));added.id="attempt:new";added.evaluation_id="00000000-0000-0000-0000-000000000009";
+  next.attempts=[added,data.attempts[0]];
+  const timers=[];let reloads=0;
+  const nodes=run(data,{setTimeout:fn=>timers.push(fn),location:{protocol:"https:",reload:()=>reloads++},
+    fetch:async()=>({ok:true,json:async()=>next})});
+  assert.equal(nodes.count.textContent,"1/1");
+  await timers.shift()();
+  assert.equal(reloads,0);
+  assert.equal(nodes.count.textContent,"2/2");
+  assert.match(nodes.detail.textContent,/OTP đã thực thi thành công/);
+  assert.equal(timers.length,1);
+});
+
+test("file:// snapshots keep the reload fallback",()=>{
+  const data=fixture();data.refresh_seconds=5;
+  const timers=[];let reloads=0;
+  run(data,{setTimeout:fn=>timers.push(fn),location:{protocol:"file:",reload:()=>reloads++}});
+  timers.shift()();
+  assert.equal(reloads,1);
 });

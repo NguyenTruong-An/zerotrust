@@ -1,6 +1,6 @@
 "use strict";
 (() => {
-  const report = JSON.parse(document.getElementById("report-data").textContent);
+  let report = JSON.parse(document.getElementById("report-data").textContent);
   const $ = id => document.getElementById(id);
   const el = (tag, content, cls) => {
     const node = document.createElement(tag);
@@ -85,21 +85,28 @@
   let selected = report.attempts.find(a => a.id === saved.id) || report.attempts[0];
   $("search").value = saved.search || "";
   $("filter").value = saved.filter || "ALL";
-  $("mode").textContent = ({ILLUSTRATION:"MINH HỌA", DOCKER_LOGS:"LOG DOCKER", IMPORTED_LOGS:"LOG NHẬP TỪ FILE"})[report.mode] || report.mode;
-  $("generated").textContent = "Cập nhật " + new Date(report.generated_at).toLocaleString("vi-VN") +
-    (report.refresh_seconds ? " · Theo dõi " + report.refresh_seconds + "s" : " · Bản chụp");
-  $("demo-banner").hidden = report.mode !== "ILLUSTRATION";
-  const metrics = [
-    [report.attempts.length,"Lần / sự kiện được quan sát"],
-    [report.attempts.filter(a => a.detail).length,"Có bản giải thích Risk"],
-    [report.attempts.filter(a => a.risk.decision === "STEP_UP_MFA").length,"Quyết định yêu cầu MFA"],
-    [report.attempts.filter(a => a.mfa.endsWith("EXECUTION_SUCCESS")).length,"Có bằng chứng hoàn tất MFA"]
-  ];
-  for (const [value, label] of metrics) {
-    const box = el("div", null, "metric");
-    box.append(el("span", label), el("strong", fmt(value)));
-    $("metrics").append(box);
+  function renderHeader() {
+    $("mode").textContent = ({ILLUSTRATION:"MINH HỌA", DOCKER_LOGS:"LOG DOCKER", IMPORTED_LOGS:"LOG NHẬP TỪ FILE"})[report.mode] || report.mode;
+    $("generated").textContent = "Cập nhật " + new Date(report.generated_at).toLocaleString("vi-VN") +
+      (report.refresh_seconds ? " · Theo dõi " + report.refresh_seconds + "s" : " · Bản chụp");
+    $("demo-banner").hidden = report.mode !== "ILLUSTRATION";
   }
+  function renderMetrics() {
+    const metrics = [
+      [report.attempts.length,"Lần / sự kiện được quan sát"],
+      [report.attempts.filter(a => a.detail).length,"Có bản giải thích Risk"],
+      [report.attempts.filter(a => a.risk.decision === "STEP_UP_MFA").length,"Quyết định yêu cầu MFA"],
+      [report.attempts.filter(a => a.mfa.endsWith("EXECUTION_SUCCESS")).length,"Có bằng chứng hoàn tất MFA"]
+    ];
+    $("metrics").replaceChildren();
+    for (const [value, label] of metrics) {
+      const box = el("div", null, "metric");
+      box.append(el("span", label), el("strong", fmt(value)));
+      $("metrics").append(box);
+    }
+  }
+  renderHeader();
+  renderMetrics();
   function remember() {
     try { sessionStorage.setItem("zt-observation", JSON.stringify({id:selected?.id, search:$("search").value, filter:$("filter").value})); } catch (_) {}
   }
@@ -277,5 +284,30 @@
   });
   renderList();
   renderDetail();
-  if (report.refresh_seconds) setTimeout(() => { remember(); location.reload(); }, report.refresh_seconds * 1000);
+  // Live mode: when served over HTTP(S) pull index.json and patch the view in place, keeping the
+  // selected attempt, search, filter and scroll position. file:// cannot fetch, so it keeps reloading.
+  if (report.refresh_seconds) {
+    const live = /^https?:$/.test(location.protocol);
+    const tick = async () => {
+      if (!live) { remember(); location.reload(); return; }
+      try {
+        const response = await fetch("index.json", {cache: "no-store"});
+        const next = response.ok ? await response.json() : null;
+        if (next && Array.isArray(next.attempts) && next.generated_at !== report.generated_at) {
+          const beforeAttempts = JSON.stringify(report.attempts), beforeSelected = JSON.stringify(selected ?? null);
+          const keep = selected?.id;
+          report = next;
+          renderHeader();
+          if (JSON.stringify(report.attempts) !== beforeAttempts) {
+            selected = report.attempts.find(a => a.id === keep) || selected;
+            renderMetrics();
+            renderList();
+            if (JSON.stringify(selected ?? null) !== beforeSelected) renderDetail();
+          }
+        }
+      } catch (_) { /* Keep the current view; the next tick retries. */ }
+      setTimeout(tick, (report.refresh_seconds || 5) * 1000);
+    };
+    setTimeout(tick, report.refresh_seconds * 1000);
+  }
 })();
