@@ -23,6 +23,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class TrustedDeviceRevocationControllerTests {
     @Autowired MockMvc mvc;
     @Autowired DeviceTrustLifecycle lifecycle;
+    @Autowired org.springframework.jdbc.core.JdbcTemplate jdbc;
 
     @Test
     void requiresDedicatedCallerAndRoleOnBothEndpoints() throws Exception {
@@ -42,7 +43,9 @@ class TrustedDeviceRevocationControllerTests {
     }
 
     @Test
-    void resetBlocksRiskEvaluationUntilCompletionAndAllowsIdempotentReplay() throws Exception {
+    void deviceRevocationIsAtomicStrictRevokeAndAllowsIdempotentReplay() throws Exception {
+        // D-10 contract: DEVICE_REVOKE has no pending window. It bumps the subject epoch, revokes every
+        // strict session (all JWT/refresh fail at both API gates) and the trust generation in one step.
         UUID subject = UUID.randomUUID();
         String path = path(subject);
         String body = body();
@@ -50,13 +53,18 @@ class TrustedDeviceRevocationControllerTests {
             mvc.perform(post(path).with(auth("zerotrust-portal-risk-admin", "risk:device:revoke"))
                     .contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isNoContent());
         }
+        org.junit.jupiter.api.Assertions.assertEquals(1, jdbc.queryForObject(
+                "SELECT COUNT(*) FROM security_operations WHERE subject_id=? AND operation_kind='DEVICE_REVOKE' AND stage='COMPLETED'",
+                Integer.class, subject.toString()));
+        org.junit.jupiter.api.Assertions.assertEquals(0, jdbc.queryForObject(
+                "SELECT COUNT(*) FROM security_sessions WHERE subject_id=? AND revoked=FALSE", Integer.class, subject.toString()));
         mvc.perform(post("/internal/v1/risk/evaluations").with(auth("zerotrust-risk-caller", "risk:evaluate"))
                         .contentType(MediaType.APPLICATION_JSON).content("""
                                 {"subjectId":"%s","authenticationSessionId":"session-1",
                                  "clientId":"zerotrust-spa","ipAddress":"203.0.113.10"}
                                 """.formatted(subject)))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.decision").value("DENY"))
-                .andExpect(jsonPath("$.reasons[0]").value("MFA_RESET_IN_PROGRESS"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.decision").value(org.hamcrest.Matchers.not("ALLOW")))
                 .andExpect(jsonPath("$.trustGeneration").value(1));
         mvc.perform(post(path + "/completion").with(auth("zerotrust-portal-risk-admin", "risk:device:revoke"))
                 .contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isNoContent());

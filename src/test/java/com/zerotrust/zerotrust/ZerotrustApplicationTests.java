@@ -18,6 +18,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @ActiveProfiles("test")
 @AutoConfigureMockMvc
 class ZerotrustApplicationTests {
+    // Business/route contracts: strict authority semantics are covered by AdminControllerSecurityTest and StrictSecurityStateFilterTest.
+    @org.springframework.test.context.bean.override.mockito.MockitoBean com.zerotrust.zerotrust.security.StrictSecurityAuthorityClient strictAuthority;
     @Autowired
     private MockMvc mockMvc;
 

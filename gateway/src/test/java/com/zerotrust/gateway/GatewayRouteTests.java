@@ -17,6 +17,8 @@ import static org.junit.jupiter.api.Assertions.*;
 class GatewayRouteTests {
     static final GatewayMockUpstream upstream=new GatewayMockUpstream();
     @Autowired WebTestClient client;
+    // Routing/abuse contracts only: strict authority semantics are covered by GatewaySecurityTests.
+    @org.springframework.test.context.bean.override.mockito.MockitoBean StrictSecurityAuthorityClient authority;
     @DynamicPropertySource static void config(DynamicPropertyRegistry p){upstream.properties(p);}
     @AfterAll static void close(){upstream.close();}
     String token() throws Exception{return upstream.token("STUDENT",upstream.issuer(),"zerotrust-api",Instant.now().plusSeconds(60));}

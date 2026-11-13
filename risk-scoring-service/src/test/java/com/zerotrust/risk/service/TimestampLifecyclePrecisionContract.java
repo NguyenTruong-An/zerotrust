@@ -192,7 +192,7 @@ abstract class TimestampLifecyclePrecisionContract {
             assertThat(started.await(5,TimeUnit.SECONDS)).isTrue();
             await().atMost(Duration.ofSeconds(8)).untilAsserted(()->{
                 if("MySQL".equals(product))assertThat(jdbc.queryForList("SHOW FULL PROCESSLIST").stream().anyMatch(x->((Number)x.get("Id")).longValue()==waiter.get()&&Objects.toString(x.get("Info"),"").contains("subject_device_trust"))).isTrue();
-                else assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM information_schema.sessions WHERE session_state='BLOCKED' OR executing_statement LIKE 'INSERT IGNORE INTO subject_device_trust%'",Long.class)).isPositive();
+                else assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM information_schema.sessions WHERE session_state='BLOCKED' OR executing_statement LIKE 'INSERT INTO subject_device_trust%ON DUPLICATE KEY%'",Long.class)).isPositive();
             });
             assertThat(t2.isDone()).isFalse();release.countDown();t1.get(15,TimeUnit.SECONDS);t2.get(15,TimeUnit.SECONDS);
             revoked(s,d,op,at(123457000));completeAndReplay(s,op);record("concurrent_registration_revoke",s,NOW.get());

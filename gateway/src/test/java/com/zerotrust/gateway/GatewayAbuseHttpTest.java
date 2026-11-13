@@ -32,6 +32,8 @@ import static org.mockito.Mockito.when;
 class GatewayAbuseHttpTest {
     static final GatewayMockUpstream upstream=new GatewayMockUpstream();
     @Autowired WebTestClient client;
+    // Routing/abuse contracts only: strict authority semantics are covered by GatewaySecurityTests.
+    @org.springframework.test.context.bean.override.mockito.MockitoBean StrictSecurityAuthorityClient authority;
     @Autowired HttpCodecsProperties codecs;
     @Autowired org.springframework.cloud.gateway.config.HttpClientProperties upstreamSettings;
     @LocalServerPort int port;

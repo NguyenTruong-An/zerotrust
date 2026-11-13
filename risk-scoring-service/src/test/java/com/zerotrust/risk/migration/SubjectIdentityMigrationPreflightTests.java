@@ -188,9 +188,9 @@ class SubjectIdentityMigrationPreflightTests {
             var before = SubjectIdentityMigrationPreflight.snapshot(c);
             var plan = SubjectIdentityMigrationPreflight.inspect(c,false);
             assertThat(plan.mysql()).isFalse();assertThat(plan.statements()).isEmpty();
-            var result = flyway(url,"latest").migrate();assertThat(result.migrationsExecuted).isEqualTo(1);
+            var result = flyway(url,"5").migrate();assertThat(result.migrationsExecuted).isEqualTo(1);
             assertThat(SubjectIdentityMigrationPreflight.snapshot(c).sha256()).isEqualTo(before.sha256());
-            flyway(url,"latest").validate();
+            flyway(url,"5").validate();
             assertThat(new V5__isolate_subject_identity().getChecksum()).isNotNull().isEqualTo(new V5__isolate_subject_identity().getChecksum());
             assertThat(new V5__isolate_subject_identity().canExecuteInTransaction()).isFalse();
         }

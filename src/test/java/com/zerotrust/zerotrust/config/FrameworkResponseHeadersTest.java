@@ -31,6 +31,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Import({SecurityConfig.class, CustomAuthenticationEntryPoint.class,
         CustomAccessDeniedHandler.class, KeycloakJwtAuthenticationConverter.class})
 class FrameworkResponseHeadersTest {
+    // Business/route contracts: strict authority semantics are covered by AdminControllerSecurityTest and StrictSecurityStateFilterTest.
+    @org.springframework.test.context.bean.override.mockito.MockitoBean com.zerotrust.zerotrust.security.StrictSecurityAuthorityClient strictAuthority;
     @Autowired MockMvc mvc;
     @MockitoBean UserService users;
     @MockitoBean JwtDecoder decoder;
